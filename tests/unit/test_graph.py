@@ -1,7 +1,8 @@
 """Verify the compiled graph's bounded route and event sequence.
 
-The test streams node updates directly from the fixture-backed graph and
-checks that Research executes before response and citation validation.
+The tests stream node updates and custom lifecycle events directly from the
+fixture-backed graph. They check Research ordering, tool execution, and
+citation validation.
 """
 
 from pathlib import Path
@@ -121,20 +122,45 @@ async def test_analysis_route_executes_tool_only_for_authorized_roles() -> None:
             "events": [],
         }
         return [
-            update async for update in graph.astream(
+            part async for part in graph.astream(
                 state,
-                stream_mode="updates",
+                stream_mode=["updates", "custom"],
+                version="v2",
             )
         ]
 
-    analyst_updates = await run_as("analyst")
-    viewer_updates = await run_as("viewer")
+    analyst_parts = await run_as("analyst")
+    viewer_parts = await run_as("viewer")
+    analyst_updates = [
+        part["data"] for part in analyst_parts if part["type"] == "updates"
+    ]
+    viewer_updates = [
+        part["data"] for part in viewer_parts if part["type"] == "updates"
+    ]
+    analyst_events = [
+        part["data"] for part in analyst_parts if part["type"] == "custom"
+    ]
     analyst_response = analyst_updates[2]["response"]
     viewer_response = viewer_updates[2]["response"]
     viewer_analysis = viewer_updates[1]["analysis"]
 
     assert analyst_updates[0]["supervisor"]["route"] == "analysis"
     assert "20" in analyst_response["response"]
-    assert "python_analysis" in str(analyst_updates[1]["analysis"])
+    assert (
+        analyst_updates[1]["analysis"]["analysis_result"]["operation"]
+        == "average"
+    )
+    assert [event["event_type"] for event in analyst_events] == [
+        "agent_start",
+        "agent_complete",
+        "agent_start",
+        "tool_start",
+        "tool_complete",
+        "agent_complete",
+        "agent_start",
+        "agent_complete",
+        "agent_start",
+        "agent_complete",
+    ]
     assert "not authorized" in viewer_response["response"]
     assert viewer_analysis["analysis_error"] == "python_analysis_forbidden"

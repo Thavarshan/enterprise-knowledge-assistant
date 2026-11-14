@@ -5,6 +5,7 @@ they do not call external model, LangSmith, or Pinecone services.
 """
 
 from collections.abc import Callable
+from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
@@ -48,6 +49,9 @@ def test_chat_session_is_owned_and_messages_survive_turns(
     )
     assert session.status_code == 201
     session_id = session.json()["session_id"]
+    provider = client.app.state.container.model_provider
+    classify = AsyncMock(wraps=provider.classify_intent)
+    provider.classify_intent = classify
 
     assert (
         client.get(
@@ -78,6 +82,12 @@ def test_chat_session_is_owned_and_messages_survive_turns(
         "assistant",
     ]
     assert "doc-runbook-gateway-timeout-001" in detail["messages"][1]["content"]
+    second_history = classify.await_args_list[1].args[1]
+    assert [(message.role, message.content) for message in second_history] == [
+        ("user", questions[0]),
+        ("assistant", detail["messages"][1]["content"]),
+    ]
+    assert all(message.content != questions[1] for message in second_history)
 
 
 def test_stream_contains_actual_graph_activity_and_request_id(
@@ -103,7 +113,12 @@ def test_stream_contains_actual_graph_activity_and_request_id(
     )
     assert response.headers["x-request-id"] == "assessment-request-42"
     assert "event: agent_transition" in response.text
-    assert "event: tool_execution" in response.text
+    assert "event: agent_start" in response.text
+    assert "event: agent_complete" in response.text
+    assert "event: tool_start" in response.text
+    assert "event: tool_complete" in response.text
+    assert response.text.count("event: tool_start") == 3
+    assert response.text.count("event: tool_complete") == 3
     assert "event: retrieval" in response.text
     assert "event: response_chunk" in response.text
     assert "event: validation" in response.text

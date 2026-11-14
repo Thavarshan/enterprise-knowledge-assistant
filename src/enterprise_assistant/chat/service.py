@@ -60,9 +60,10 @@ def _append_assistant_message(
 class ChatService:
     """Run the graph for a turn and persist the final assistant message.
 
-    The service translates LangGraph node updates into validated activity
-    events. It stores an assistant response only after graph completion;
-    failures are logged by type and returned as generic events.
+    The service translates LangGraph node updates and custom lifecycle
+    events into validated activity records. It stores an assistant response
+    only after graph completion; failures are logged by type and returned as
+    generic events.
 
     Attributes:
         memory: Synchronous session store used for assistant persistence.
@@ -113,10 +114,11 @@ class ChatService:
         """Stream a graph run and persist its final answer.
 
         Initial identity and role come from the authenticated API user.
-        Node updates are converted to ActivityEvent objects while response
-        text and citation count are collected. Graph failures yield a
-        generic failure event and stop; assistant persistence errors also
-        yield a failure event. The user message was persisted by the route.
+        Node updates and custom lifecycle messages are converted to
+        ActivityEvent objects while response text and citation count are
+        collected. Graph failures yield a generic failure event and stop;
+        assistant persistence errors also yield a failure event. The user
+        message was persisted by the route.
 
         Args:
             request_id: Correlation identifier assigned by middleware.
@@ -197,9 +199,10 @@ class ChatService:
         try:
             with trace_context as trace_run:
                 try:
-                    async for update in self.graph.astream(
+                    async for part in self.graph.astream(
                         state,
-                        stream_mode="updates",
+                        stream_mode=["updates", "custom"],
+                        version="v2",
                         config={
                             "configurable": {"thread_id": session_id},
                             "metadata": {
@@ -208,7 +211,12 @@ class ChatService:
                             },
                         },
                     ):
-                        for node_update in update.values():
+                        if part["type"] == "custom":
+                            yield ActivityEvent.model_validate(part["data"])
+                            continue
+                        if part["type"] != "updates":
+                            continue
+                        for node_update in part["data"].values():
                             for raw_event in node_update.get("events", []):
                                 event = ActivityEvent.model_validate(raw_event)
                                 yield event

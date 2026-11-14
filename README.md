@@ -115,12 +115,14 @@ provider credentials.
   tool.
 - An asynchronous OpenAI Responses adapter that parses structured
   supervisor decisions, research decomposition, and answer claims. Live
-  credential-backed verification is still outstanding.
+  supervisor and answer calls passed; live research decomposition remains
+  unverified.
 - Pinecone Documents API ingestion with stable source IDs, server-side role and department filters, dense and BM25 queries, and RRF. The opt-in test verifies six synthetic incidents in the configured namespace.
 - Deterministic fixture retrieval with access filtering before evidence enters graph state. Citations resolve to actual synthetic chunks.
 - Streamlit login/session controls, chat history, response streaming, and graph activity display.
 - Agent-addressed LangSmith tracing for chat, LangGraph nodes, tool calls,
-  and assistant persistence, with input/output hiding and safe metadata.
+  OpenAI structured requests, and assistant persistence, with input/output
+  hiding and safe metadata.
 - A standalone LangSmith connectivity command that reports submission and
   remote verification as separate outcomes.
 
@@ -132,9 +134,10 @@ The recursive executor is verified with deterministic decomposition and
 synthetic retrieval. It enforces depth two, four retrieval calls, twenty
 documents, and a thirty-second wall-clock budget. The Python analysis tool
 supports count, sum, and average over explicit numeric literals; it does not
-execute model-generated code. A live OpenAI response has not been verified
-because the workspace has no `OPENAI_API_KEY`; this also prevents a real
-model-backed recursive demonstration. The input guardrail checks clear
+execute model-generated code. A live OpenAI-backed retrieval conversation
+and redacted LangSmith parent-child trace were verified on 2026-11-14.
+Live recursive decomposition and broad model-quality evaluation remain
+outstanding. The input guardrail checks clear
 instruction-override and credential-exfiltration patterns, but it is not a
 general prompt-injection classifier. There is no MCP server, production
 identity provider, distributed rate limiter, semantic memory, or human
@@ -167,9 +170,8 @@ See [the evaluation matrix](docs/evaluation-matrix.md) for requirement weights, 
   Ruff and AST checks. [ADRs](docs/decisions/README.md) record current
   architectural choices and proposed integration boundaries.
 
-## Next milestone
+## Demonstration guide
 
-Complete live OpenAI verification, then improve execution-accurate SSE
-events, LangSmith model-trace verification, and demonstration readiness. The
-analysis tool, recursive research executor, and Pinecone integration are
-documented in `docs/agent-design.md` and `docs/retrieval-design.md`.
+See [the demo guide](docs/demo-guide.md) for startup commands, role setup,
+representative questions, expected evidence, the verified LangSmith trace,
+and known limitations. Mock mode remains available for deterministic runs.

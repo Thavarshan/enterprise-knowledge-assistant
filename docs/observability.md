@@ -8,13 +8,14 @@
   structure. Inputs and outputs are hidden; metadata is allowlisted.
 - **Graph state:** LangGraph holds identity, questions, routes, plans,
   evidence, responses, citations, and events while one run executes.
-- **Activity events:** Graph nodes, ChatService, and the API send coarse
-  transitions, retrieval details, validation, and failures to the UI.
+- **Activity events:** Graph nodes, ChatService, and the API send agent and
+  tool lifecycle, retrieval details, validation, and failures to the UI.
 
 Activity events are not LangSmith traces or a graph-state dump. They show
-selected operations and evidence references. There is no model in the
-current graph, and hidden model chain-of-thought is never an explainability
-feature.
+selected operations and evidence references. In OpenAI mode the graph calls
+a real model through the structured Responses adapter; in mock mode its
+model-shaped decisions are deterministic local code. Neither mode treats
+hidden chain-of-thought as an explainability feature.
 
 ## LangSmith architecture
 
@@ -32,10 +33,15 @@ The expected trace shape is:
 chat_request
 ├── LangGraph execution
 │   ├── supervisor
+│   │   └── openai_supervisor (OpenAI mode)
 │   ├── research (investigation questions only)
+│   │   ├── openai_decomposition (decomposition, OpenAI mode)
 │   ├── retrieval
 │   │   └── knowledge_search
+│   ├── analysis (analysis questions only)
+│   │   └── python_analysis
 │   ├── response
+│   │   └── openai_response (OpenAI mode)
 │   └── citation validation
 └── assistant_memory_append
 ```
@@ -47,10 +53,11 @@ mark the parent run as failed while the API returns a generic activity event.
 Trace export errors are logged by exception type, without exception text,
 and do not prevent normal chat requests from running.
 
-Only implemented operations are traced. The current workflow uses synthetic
-in-memory retrieval and deterministic response construction. It has no live
-LLM call, Pinecone dense retrieval, sparse/BM25 ranking, hybrid ranking, MCP
-tool, or recursive RLM operation to trace.
+The structured OpenAI provider creates an `llm` child span for each actual
+provider request. Mock mode creates no model-request span. Live supervisor
+and response calls have been traced; live recursive decomposition has not
+yet been exercised. Pinecone hybrid retrieval has separate live verification
+against the synthetic corpus. MCP has no executable handler.
 
 ## Agent-based destination
 
@@ -120,8 +127,8 @@ The app does not record passwords, bearer tokens, private document text, or
 confidential personal information in traces.
 
 The LangSmith spans describe observable operations and outcomes. They do not
-expose hidden model reasoning. The deterministic graph currently has no
-model reasoning to record.
+expose hidden model reasoning. OpenAI request inputs and outputs are hidden,
+and error text is redacted before export.
 
 ## Verification
 
@@ -170,11 +177,12 @@ make api
 make ui
 ```
 
-Sign in with a configured demo user and submit a synthetic question. The
-backend sends the chat trace to the same agent and environment. The sidebar
-continues to display application activity events; those events are a UI
-progress feed, not LangSmith spans. For automated repository checks, ordinary
-tests use mock settings and never require LangSmith credentials.
+Sign in with a configured demo user and submit a synthetic question. With
+`LLM_PROVIDER=openai`, the backend sends the chat and its model child spans
+to the configured agent and environment. The sidebar displays application
+activity events; those events are a UI progress feed, not LangSmith spans.
+For automated repository checks, ordinary tests use mock settings and never
+require LangSmith credentials.
 
 ### Live verification record
 
@@ -183,6 +191,15 @@ and the fixture-backed graph. LangSmith readback found trace
 `7dea0ced-4176-47c5-b153-4f3456adb31c` under the existing agent's `local`
 environment. The trace contained nine runs. Every run had empty inputs and
 outputs, and the synthetic chat text was absent from the serialized trace.
+
+On 2026-11-14, an OpenAI-backed direct retrieval chat was sent through the
+local FastAPI service. Trace
+`3d657959-195c-4256-a4ab-1bf410074c7e` read back with eleven runs under the
+same agent and environment. Its hierarchy placed `openai_supervisor` beneath
+the Supervisor node and `openai_response` beneath the Response node. The
+agent destination matched, every run had empty inputs and outputs, and the
+question text was absent from the serialized trace. This verifies one
+model-backed retrieval turn; it does not verify the live Research route.
 
 ## Troubleshooting and limitations
 
@@ -198,10 +215,13 @@ outputs, and the synthetic chat text was absent from the serialized trace.
   registered agent is active in the selected workspace.
 - **Result is SUBMITTED:** The key may have trace-write permission without
   run-read permission. Confirm the verification ID in the LangSmith UI.
-- **No model spans:** The current graph is deterministic and does not call
-  an LLM. No model spans are expected.
+- **No model spans:** `LLM_PROVIDER=mock` makes deterministic local
+  decisions and emits no model-request spans. In OpenAI mode, check that
+  `LLM_PROVIDER=openai` and the key were set before starting the API.
 
 LangSmith availability is optional. A missing key, rejected request, or
-network failure is reported without stopping ordinary chat execution.
-Pinecone, live LLM calls, sparse search, and recursive research are not
-implemented and are outside the current trace hierarchy.
+network failure is reported without stopping ordinary chat execution. The
+configured LangSmith key and destination have verified deterministic trace
+delivery and redaction, as well as one OpenAI-backed direct retrieval trace.
+See `docs/demo-guide.md` for the reproducible procedure and remaining
+verification limits.

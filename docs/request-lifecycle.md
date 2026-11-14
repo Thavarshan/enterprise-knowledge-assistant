@@ -40,7 +40,7 @@ sequenceDiagram
   API->>Graph: Run graph with request state
   Graph->>Search: Authorized knowledge search
   Search-->>Graph: Ranked source chunks
-  Graph-->>API: Node updates with ActivityEvent records
+  Graph-->>API: Custom lifecycle events and node updates
   API-->>UI: SSE activity and validated response chunks
   Graph-->>API: Graph finishes
   API->>Store: Persist assistant response
@@ -97,15 +97,18 @@ message. If later graph execution fails, the user message remains in history.
 ### 4. Graph inputs and node updates
 
 `ChatService` creates `AgentState` with request ID, session ID, server user
-ID, server role, current question, recent owner-scoped history, and an empty
-event list. The graph runs with
-`stream_mode="updates"` and request/session metadata. Its `thread_id` is not
-backed by a checkpointer.
+ID, server role, current question, recent owner-scoped prior history, and an
+empty event list. The graph runs with `stream_mode=["updates", "custom"]`,
+LangGraph v2 stream parts, and request/session metadata. Its `thread_id` is
+not backed by a checkpointer.
 
 Each graph node returns a partial state update. LangGraph merges ordinary
-fields and applies `operator.add` to `events`. The service validates each
-event payload with `ActivityEvent`, tracks the final response and citation
-count, then yields events to the route.
+fields and applies `operator.add` to `events`. Custom events report agent
+starts/completions and tool starts/completions as operations execute. The
+service validates both custom and update event payloads with
+`ActivityEvent`, tracks the final response and citation count, then yields
+events to the route. Research tool metadata has counts and safe error codes;
+it excludes its query and result content.
 
 ### 5. Retrieval, response, and validation
 

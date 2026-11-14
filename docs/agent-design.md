@@ -114,12 +114,13 @@ graph state.
 
 ## Events and citation validation
 
-The graph emits `agent_transition`, `tool_execution`, `retrieval`,
-`validation`, `response_chunk`, and `failure` activity events. Events expose
-workflow decisions, search counts, source IDs, and validation status; they
-do not include chain-of-thought or exception text. Response chunks are
-slices of the completed, validated answer and are not provider token
-streaming. Per-execution agent and tool start events remain a Phase 5 task.
+The graph streams `agent_start` and `agent_complete` around node execution,
+and `tool_start` and `tool_complete` around each actual search or arithmetic
+call. Failures carry stable error codes without provider text. Node updates
+also emit workflow decisions, retrieval source IDs, validation results, and
+response chunks. Chunks are slices of the completed, validated answer, not
+provider token streaming. Research lifecycle events expose call counts and
+result counts without search queries or document contents.
 
 The Response provider receives only results returned after server-side
 filtering. Model citations are resolved against the complete pair of

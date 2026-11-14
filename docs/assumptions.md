@@ -14,8 +14,10 @@
   are hidden, metadata is allowlisted, and trace errors are anonymized. Run
   `make verify-langsmith` to check external delivery; CI needs no key.
 - `LLM_PROVIDER=mock` is the default and requires no model credentials.
-  `LLM_PROVIDER=openai` enables the structured OpenAI adapter; live provider
-  behavior remains unverified until a configured key receives a response.
+  `LLM_PROVIDER=openai` enables the structured OpenAI adapter. Routing,
+  grounded response generation, and one model-backed LangSmith trace passed
+  live verification on 2026-11-14; recursive decomposition remains pending.
+  Structured calls create redacted LangSmith child spans when tracing is on.
 - Explicit arithmetic requests accept only finite numeric literals for
   count, sum, or average. The analysis tool does not inspect retrieved
   documents or execute Python expressions.

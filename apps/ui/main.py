@@ -143,9 +143,23 @@ if prompt and client and session_id:
                         f"**Retrieval:** {len(sources)} source(s) "
                         f"{source_titles}"
                     )
-                elif event_type == "tool_execution":
+                elif event_type in {"agent_start", "agent_complete"}:
+                    phase = (
+                        "started"
+                        if event_type == "agent_start"
+                        else "completed"
+                    )
+                    activity.append(
+                        f"**{agent.title()} · {node}:** {phase}"
+                    )
+                elif event_type in {"tool_start", "tool_complete"}:
                     tool = event.get("metadata", {}).get("tool", "tool")
-                    activity.append(f"**Tool:** {tool} completed")
+                    phase = (
+                        "started"
+                        if event_type == "tool_start"
+                        else "completed"
+                    )
+                    activity.append(f"**Tool:** {tool} {phase}")
                 elif event_type == "validation":
                     valid = event.get("metadata", {}).get("valid", False)
                     activity.append(

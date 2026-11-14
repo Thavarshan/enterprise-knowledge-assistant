@@ -130,6 +130,11 @@ client hides run inputs and outputs and restricts metadata to an allowlist.
 The synthetic connectivity check confirms the redacted trace path. Never
 enable tracing for data whose transfer is not permitted by the operator.
 
+SSE lifecycle events use fixed status messages, counts, source identities,
+and stable error codes. Research events omit the model-proposed query text;
+tool exceptions do not cross the stream boundary. Response chunks are emitted
+only after citation validation.
+
 Never commit `.env`, local account JSON, real provider keys, or customer
 data. Root ignore rules exclude `plan.md` and `assignment.md`; the
 `data/users` directory has a local ignore rule for development credentials.

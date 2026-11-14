@@ -28,6 +28,11 @@ failure; mock output is not used as a silent live-provider fallback. Unit
 tests use stalled mocked SDK calls to verify timeout and cancellation
 behavior without network access.
 
+Each structured OpenAI request is wrapped in a LangSmith `llm` child span
+when tracing is enabled. The configured client hides inputs and outputs and
+filters metadata and errors before export. This records the operation and
+status without exporting prompts, evidence, or generated answers.
+
 ## Verification
 
 Unit tests exercise deterministic provider behavior, recursive research,
@@ -38,7 +43,8 @@ integration test uses synthetic evidence:
 uv run pytest tests/integration/test_llm_live.py -q
 ```
 
-That test skips when `OPENAI_API_KEY` is absent. No live response has yet
-been verified in this workspace because the local environment has no OpenAI
-credential. The adapter must remain marked unverified until the test receives
-and validates actual provider output.
+That test skips when `OPENAI_API_KEY` is absent. On 2026-11-14, the live test
+received valid structured supervisor and grounded-answer outputs. A separate
+model-backed API chat also completed with real structured route and response
+calls. Live recursive decomposition and broad response-quality evaluation
+remain unverified.

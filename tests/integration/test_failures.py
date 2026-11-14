@@ -82,6 +82,11 @@ def test_retrieval_failure_is_streamed_without_exception_details(
         )
         assert "event: failure" in response.text
         assert "synthetic provider outage" not in response.text
+        assert "event: tool_start" in response.text
+        assert "knowledge_search_failed" in response.text
+        assert response.text.index("event: tool_start") < response.text.index(
+            "knowledge_search_failed"
+        )
         detail = client.get(
             f"/api/v1/chat/sessions/{session_id}", headers=headers).json()
         assert [message["role"] for message in detail["messages"]] == ["user"]

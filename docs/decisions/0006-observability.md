@@ -14,8 +14,8 @@ inspect execution, but may transfer sensitive input and output externally.
 
 Use allowlisted JSON application logs, typed activity events transported as
 SSE, and optional LangGraph native LangSmith tracing. Carry request and
-session IDs in graph metadata and activity events. Keep tracing disabled by
-default.
+session IDs in graph metadata and activity events. Export traces only when
+tracing is enabled and valid credentials are configured.
 
 ## Alternatives Considered
 
@@ -34,25 +34,28 @@ external transfer.
 
 ## Trade-offs
 
-The logging allowlist limits diagnostic detail. Events arrive when their
-graph node completes, not as a live model-token stream. LangSmith setup only
-sets environment variables; it does not validate delivery.
+The logging allowlist limits diagnostic detail. Agent and tool lifecycle
+events stream while operations run. Response chunks follow citation
+validation; they are not live model tokens. External LangSmith delivery and
+redaction have been verified for synthetic mock and model-backed chat runs.
 
 ## Consequences
 
-The UI displays activity and response chunks. The current graph has no model
-spans or live model tokens. No redaction layer or trace health check is
-implemented. External tracing has not been verified as successful.
+The UI displays activity and validated response chunks. In OpenAI mode,
+structured provider calls have `llm` child spans beneath their graph nodes.
+The LangSmith client hides run inputs and outputs, allowlists metadata, and
+redacts trace errors. A synthetic trace check reports submission and remote
+readback separately; a live model-backed retrieval trace has also been
+verified.
 
 ## Security and Operational Implications
 
-Enabling tracing may export questions, retrieved evidence, graph state, and
-responses. Use synthetic data until a redaction and retention policy is
-reviewed. Application logs currently omit request bodies, tokens, passwords,
-and document contents.
+Tracing sends run structure and allowlisted metadata to LangSmith. The
+configured client hides inputs and outputs, filters metadata, and replaces
+trace error text. Continue to use synthetic assessment data; the local
+verification does not establish a production data-retention policy.
 
 ## Revisit Conditions
 
-Revisit event fields and tracing policy when a model provider or sensitive
-corpus is added, or when trace retention, compliance, or operational
-requirements change.
+Revisit event fields and tracing policy when the corpus, trace retention,
+compliance, or operational requirements change.

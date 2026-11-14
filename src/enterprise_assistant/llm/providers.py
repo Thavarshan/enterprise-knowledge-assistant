@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any, TypeVar
 
+from langsmith import traceable
 from openai import APIError, AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 
@@ -201,6 +202,7 @@ class OpenAIModelProvider:
             max_retries=0,
         )
 
+    @traceable(name="openai_supervisor", run_type="llm")
     async def classify_intent(
         self,
         question: str,
@@ -225,6 +227,7 @@ class OpenAIModelProvider:
             response_model=SupervisorDecision,
         )
 
+    @traceable(name="openai_response", run_type="llm")
     async def generate_answer(
         self,
         question: str,
@@ -260,6 +263,7 @@ class OpenAIModelProvider:
             response_model=GroundedAnswer,
         )
 
+    @traceable(name="openai_decomposition", run_type="llm")
     async def decompose_question(
         self, question: str
     ) -> TaskDecomposition:

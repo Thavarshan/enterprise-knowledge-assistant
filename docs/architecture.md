@@ -9,11 +9,11 @@ remain internal module boundaries rather than separate services.
 
 Mock mode remains deterministic. Setting `LLM_PROVIDER=openai` selects the
 structured OpenAI adapter for supervisor routing, research decomposition,
-and grounded answer claims. The provider is wired but has not been verified
-with a live model because no OpenAI API key is configured in this workspace.
-Pinecone dense search, full-text BM25 search, metadata filtering, and RRF
-are implemented and have passed an opt-in live test against the existing
-schema-based index.
+and grounded answer claims. Its opt-in live test and a model-backed API chat
+passed on 2026-11-14. Recursive decomposition has not yet been exercised
+with the live provider. Pinecone dense search, full-text BM25 search,
+metadata filtering, and RRF are implemented and have passed an opt-in live
+test against the existing schema-based index.
 
 ## Component and execution map
 
@@ -53,11 +53,11 @@ flowchart TB
 | Streamlit | Login, session selection, history, chat, activity display | Uses a synchronous httpx client; all backend data comes from FastAPI. |
 | FastAPI | HTTP schemas, identity, ownership, rate checks, SSE transport | Async routes call synchronous SQLite methods directly. |
 | Chat service | Build per-turn state, consume graph updates, persist final answer | Graph and assistant persistence are separate failure boundaries. |
-| LangGraph | Route, recursively investigate, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. |
+| LangGraph | Route, recursively investigate, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. Streams node lifecycle and event updates. |
 | Security | Resolve local users, inspect prompts, and enforce tool roles | Local-only tokens, bounded input patterns, and in-memory limits; see the security guide. |
 | Retrieval | Apply role filters; search fixtures or Pinecone; fuse dense and BM25 | Pinecone uses its existing document schema and configured namespace. |
 | Memory | Store owner-scoped sessions and messages | SQLite, one synchronous connection per operation. |
-| Observability | Request logs, graph activity events, optional tracing | Redacted LangSmith delivery is verified for deterministic runs; model traces await a live model call. |
+| Observability | Request logs, graph activity events, optional tracing | Redacted delivery and a model-backed parent/child trace were remotely verified on 2026-11-14. |
 
 The API service container is created by the application factory. Tests can
 inject a session store or retriever; ordinary startup selects SQLite and
@@ -100,9 +100,10 @@ query and rechecks returned metadata before converting content into graph
 state.
 
 The UI loads persisted message history for rendering. ChatService also reads
-the latest owner-scoped messages and passes them into graph state for model
-context. Provider prompts receive only the twelve most recent messages, with
-content truncated to 4,000 characters per message.
+the latest owner-scoped messages and passes prior turns into graph state for
+model context. It omits the current user message, already supplied as the
+question. Provider prompts receive only the twelve most recent prior
+messages, with content truncated to 4,000 characters per message.
 
 ## Graph behavior and failure containment
 
@@ -121,10 +122,13 @@ The API input guard blocks obvious instruction overrides and credential
 exfiltration before it stores or sends the user message. See
 `docs/model-provider.md`, `docs/security.md`, and `docs/agent-design.md`.
 
-Graph events use a reducer that appends each node's event list. The graph has
-no cycles, retries, or open-ended model-driven tool loop. It compiles without
-a checkpointer; a session ID passed as LangGraph thread metadata does not
-make state durable.
+Graph node updates use a reducer that appends each node's event list.
+LangGraph custom streaming emits agent and tool start/completion events while
+those operations run; failures emit safe codes. Activity metadata contains
+counts and source identities, not model reasoning or search text. The graph
+has no cycles, retries, or open-ended model-driven tool loop. It compiles
+without a checkpointer; a session ID passed as LangGraph thread metadata does
+not make state durable.
 
 The user message is stored before graph execution. A graph failure becomes a
 generic activity event and prevents assistant-answer persistence. The route

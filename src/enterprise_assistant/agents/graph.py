@@ -5,11 +5,13 @@ Retrieval authorization remains server-side and citations are checked against
 complete identities before answer chunks can reach the client.
 """
 
+import asyncio
 import re
 from collections.abc import AsyncIterator
 from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import StreamWriter
 
 from enterprise_assistant.agents.state import AgentState
 from enterprise_assistant.domain.models import SearchResult, SourceCitation
@@ -72,6 +74,39 @@ def _event(
         message=message,
         metadata=metadata or {},
     ).model_dump(mode="json")
+
+
+def _stream_event(
+    writer: StreamWriter,
+    state: AgentState,
+    *,
+    event_type: EventType,
+    agent: str,
+    node: str,
+    message: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Send one validated execution event before a node update completes.
+
+    Args:
+        writer: LangGraph custom-stream writer injected into the node.
+        state: Workflow state containing trusted correlation identifiers.
+        event_type: Stable lifecycle category.
+        agent: Logical agent or tool owner.
+        node: Graph node currently executing.
+        message: Concise status without prompts or provider details.
+        metadata: Safe counts, identities, or stable error codes.
+    """
+    writer(
+        _event(
+            state,
+            event_type=event_type,
+            agent=agent,
+            node=node,
+            message=message,
+            metadata=metadata,
+        )
+    )
 
 
 def validate_citations(
@@ -179,7 +214,10 @@ def build_graph(
     knowledge_search = KnowledgeSearchTool(retriever)
     python_analysis = PythonAnalysisTool()
 
-    async def supervisor(state: AgentState) -> dict[str, Any]:
+    async def supervisor(
+        state: AgentState,
+        writer: StreamWriter,
+    ) -> dict[str, Any]:
         """Choose direct retrieval, bounded research, or arithmetic analysis.
 
         The provider returns a validated route only. Roles and retrieval
@@ -187,14 +225,55 @@ def build_graph(
 
         Args:
             state: Shared graph state containing the question and IDs.
+            writer: LangGraph custom event writer for live node status.
 
         Returns:
             A route field and an appended transition event.
         """
-        decision = await language_model.classify_intent(
-            state["question"], state.get("history", [])
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_start",
+            agent="supervisor",
+            node="supervisor",
+            message="Supervisor started.",
         )
+        try:
+            decision = await language_model.classify_intent(
+                state["question"], state.get("history", [])
+            )
+        except asyncio.CancelledError:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="supervisor",
+                node="supervisor",
+                message="Supervisor execution was cancelled.",
+                metadata={"error_code": "supervisor_cancelled"},
+            )
+            raise
+        except Exception:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="supervisor",
+                node="supervisor",
+                message="Supervisor could not choose a workflow.",
+                metadata={"error_code": "supervisor_failed"},
+            )
+            raise
         route = decision.route
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_complete",
+            agent="supervisor",
+            node="supervisor",
+            message=f"Supervisor selected the {route} workflow.",
+            metadata={"decision": route},
+        )
         event = _event(
             state,
             event_type="agent_transition",
@@ -205,7 +284,10 @@ def build_graph(
         )
         return {"route": route, "events": [event]}
 
-    async def research(state: AgentState) -> dict[str, Any]:
+    async def research(
+        state: AgentState,
+        writer: StreamWriter,
+    ) -> dict[str, Any]:
         """Execute a recursive, budgeted investigation with safe aggregation.
 
         Every leaf search passes through the same role-authorized tool
@@ -215,6 +297,7 @@ def build_graph(
 
         Args:
             state: Authenticated graph state containing the question and IDs.
+            writer: LangGraph custom event writer for node and search status.
 
         Returns:
             Aggregated evidence, execution counters, and activity events.
@@ -223,6 +306,14 @@ def build_graph(
             The model proposes query text only. Role and access filters are
             derived from the authenticated state by the search tool.
         """
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_start",
+            agent="research",
+            node="research",
+            message="Research started.",
+        )
         role = Role(state["role"])
 
         async def authorized_search(
@@ -248,17 +339,82 @@ def build_graph(
                 ),
             )
 
+        def research_progress(
+            event_type: str,
+            metadata: dict[str, int | str],
+        ) -> None:
+            """Stream per-search lifecycle without query or content data.
+
+            Args:
+                event_type: Search start, completion, or failure category.
+                metadata: Safe call counts or a stable failure code.
+            """
+            if event_type == "tool_start":
+                message = "Started an authorized knowledge search."
+                resolved_type: EventType = "tool_start"
+            elif event_type == "tool_complete":
+                message = "Authorized knowledge search completed."
+                resolved_type = "tool_complete"
+            else:
+                message = "A research operation failed or hit its budget."
+                resolved_type = "failure"
+            _stream_event(
+                writer,
+                state,
+                event_type=resolved_type,
+                agent="research",
+                node="research",
+                message=message,
+                metadata=dict(metadata),
+            )
+
         budget = ExecutionBudget(
             max_depth=2,
             max_search_calls=4,
             max_documents=20,
             timeout_seconds=30,
         )
-        report = await BoundedResearchExecutor(
-            language_model,
-            authorized_search,
-            budget,
-        ).execute(state["question"])
+        try:
+            report = await BoundedResearchExecutor(
+                language_model,
+                authorized_search,
+                budget,
+                on_progress=research_progress,
+            ).execute(state["question"])
+        except asyncio.CancelledError:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="research",
+                node="research",
+                message="Research execution was cancelled.",
+                metadata={"error_code": "research_cancelled"},
+            )
+            raise
+        except Exception:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="research",
+                node="research",
+                message="Research could not complete.",
+                metadata={"error_code": "research_failed"},
+            )
+            raise
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_complete",
+            agent="research",
+            node="research",
+            message="Research completed.",
+            metadata={
+                "search_calls": report.search_calls,
+                "finding_count": len(report.findings),
+            },
+        )
         results = list(report.results)
         sources = [
             {
@@ -280,21 +436,6 @@ def build_graph(
                     "search_calls": report.search_calls,
                     "decomposition_calls": report.decomposition_calls,
                     "max_depth_reached": report.max_depth_reached,
-                },
-            ),
-            _event(
-                state,
-                event_type="tool_execution",
-                agent="research",
-                node="research",
-                message=(
-                    f"Executed {report.search_calls} authorized "
-                    "sub-investigation search(es)."
-                ),
-                metadata={
-                    "tool": "knowledge_search",
-                    "search_calls": report.search_calls,
-                    "failure_count": len(report.failure_codes),
                 },
             ),
             _event(
@@ -350,7 +491,10 @@ def build_graph(
             "events": events,
         }
 
-    async def retrieval(state: AgentState) -> dict[str, Any]:
+    async def retrieval(
+        state: AgentState,
+        writer: StreamWriter,
+    ) -> dict[str, Any]:
         """Run the authorized knowledge-search tool for the user question.
 
         The role comes from graph state created by the API for the logged-in
@@ -359,6 +503,7 @@ def build_graph(
 
         Args:
             state: Authenticated workflow state containing the question.
+            writer: LangGraph custom event writer for node and tool status.
 
         Returns:
             Serialized results plus tool and retrieval events.
@@ -366,14 +511,77 @@ def build_graph(
         Security:
             Do not construct this state from client-supplied role values.
         """
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_start",
+            agent="retrieval",
+            node="retrieval",
+            message="Retrieval started.",
+        )
         role = Role(state["role"])
         query = state["question"]
-        results = await tool_registry.execute(
-            "knowledge_search",
-            role,
-            {"query": query, "role": role.value,
-                "limit": 5},
-            {"knowledge_search": knowledge_search.run},
+        _stream_event(
+            writer,
+            state,
+            event_type="tool_start",
+            agent="retrieval",
+            node="retrieval",
+            message="Started an authorized knowledge search.",
+            metadata={"tool": "knowledge_search"},
+        )
+        try:
+            results = cast(
+                list[SearchResult],
+                await tool_registry.execute(
+                    "knowledge_search",
+                    role,
+                    {"query": query, "role": role.value, "limit": 5},
+                    {"knowledge_search": knowledge_search.run},
+                ),
+            )
+        except asyncio.CancelledError:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="retrieval",
+                node="retrieval",
+                message="Knowledge search was cancelled.",
+                metadata={"error_code": "knowledge_search_cancelled"},
+            )
+            raise
+        except Exception:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="retrieval",
+                node="retrieval",
+                message="Knowledge search failed.",
+                metadata={"error_code": "knowledge_search_failed"},
+            )
+            raise
+        _stream_event(
+            writer,
+            state,
+            event_type="tool_complete",
+            agent="retrieval",
+            node="retrieval",
+            message="Authorized knowledge search completed.",
+            metadata={
+                "tool": "knowledge_search",
+                "result_count": len(results),
+            },
+        )
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_complete",
+            agent="retrieval",
+            node="retrieval",
+            message="Retrieval completed.",
+            metadata={"result_count": len(results)},
         )
         serialized = [result.model_dump(mode="json") for result in results]
         source_list = [
@@ -388,15 +596,6 @@ def build_graph(
         events = [
             _event(
                 state,
-                event_type="tool_execution",
-                agent="retrieval",
-                node="retrieval",
-                message="Knowledge search completed.",
-                metadata={"tool": "knowledge_search",
-                          "result_count": len(results)},
-            ),
-            _event(
-                state,
                 event_type="retrieval",
                 agent="retrieval",
                 node="retrieval",
@@ -406,7 +605,10 @@ def build_graph(
         ]
         return {"results": serialized, "events": events}
 
-    async def analysis(state: AgentState) -> dict[str, Any]:
+    async def analysis(
+        state: AgentState,
+        writer: StreamWriter,
+    ) -> dict[str, Any]:
         """Execute the strict arithmetic tool under server-side role policy.
 
         The user question must match the documented numeric grammar. The
@@ -415,10 +617,19 @@ def build_graph(
 
         Args:
             state: Authenticated graph state containing the user question.
+            writer: LangGraph custom event writer for node and tool status.
 
         Returns:
             A structured result or stable safe error code with an event.
         """
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_start",
+            agent="analysis",
+            node="analysis",
+            message="Python analysis started.",
+        )
         try:
             request = parse_analysis_question(state["question"])
         except AnalysisInputError:
@@ -433,6 +644,25 @@ def build_graph(
 
         role = Role(state["role"])
         try:
+            tool_registry.authorize("python_analysis", role)
+        except ToolAuthorizationError:
+            return _analysis_failure(
+                state,
+                code="python_analysis_forbidden",
+                message=(
+                    "This account is not authorized to use Python analysis."
+                ),
+            )
+        _stream_event(
+            writer,
+            state,
+            event_type="tool_start",
+            agent="analysis",
+            node="analysis",
+            message="Started the validated Python analysis tool.",
+            metadata={"tool": "python_analysis"},
+        )
+        try:
             result = cast(
                 AnalysisResult,
                 await tool_registry.execute(
@@ -442,6 +672,17 @@ def build_graph(
                     {"python_analysis": python_analysis.run},
                 ),
             )
+        except asyncio.CancelledError:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="analysis",
+                node="analysis",
+                message="Python analysis was cancelled.",
+                metadata={"error_code": "python_analysis_cancelled"},
+            )
+            raise
         except ToolAuthorizationError:
             return _analysis_failure(
                 state,
@@ -456,26 +697,43 @@ def build_graph(
                 code="analysis_input_invalid",
                 message="The requested calculation could not be completed.",
             )
+        except Exception:
+            _stream_event(
+                writer,
+                state,
+                event_type="failure",
+                agent="analysis",
+                node="analysis",
+                message="Python analysis failed.",
+                metadata={"error_code": "python_analysis_failed"},
+            )
+            raise
+
+        _stream_event(
+            writer,
+            state,
+            event_type="tool_complete",
+            agent="analysis",
+            node="analysis",
+            message="Python analysis completed.",
+            metadata={
+                "tool": "python_analysis",
+                "operation": result.operation,
+                "input_count": result.input_count,
+            },
+        )
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_complete",
+            agent="analysis",
+            node="analysis",
+            message="Python analysis completed.",
+        )
 
         return {
             "analysis_result": result.model_dump(mode="json"),
-            "events": [
-                _event(
-                    state,
-                    event_type="tool_execution",
-                    agent="analysis",
-                    node="analysis",
-                    message=(
-                        "Python analysis completed for "
-                        f"{result.input_count} numeric value(s)."
-                    ),
-                    metadata={
-                        "tool": "python_analysis",
-                        "operation": result.operation,
-                        "input_count": result.input_count,
-                    },
-                )
-            ],
+            "events": [],
         }
 
     def _analysis_failure(
@@ -508,7 +766,10 @@ def build_graph(
             ],
         }
 
-    async def response(state: AgentState) -> dict[str, Any]:
+    async def response(
+        state: AgentState,
+        writer: StreamWriter,
+    ) -> dict[str, Any]:
         """Respond from authorized evidence or a validated analysis result.
 
         Numeric analysis results use a fixed response. Retrieved evidence is
@@ -516,10 +777,19 @@ def build_graph(
 
         Args:
             state: Workflow state containing serialized search results.
+            writer: LangGraph custom event writer for node and failure status.
 
         Returns:
             Response text, citation records, and a transition event.
         """
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_start",
+            agent="response",
+            node="response",
+            message="Response started.",
+        )
         results = [
             SearchResult.model_validate(result)
             for result in state.get("results", [])
@@ -548,11 +818,34 @@ def build_graph(
             citations = []
             grounded = True
         elif results:
-            model_answer = await language_model.generate_answer(
-                state["question"],
-                results,
-                state.get("history", []),
-            )
+            try:
+                model_answer = await language_model.generate_answer(
+                    state["question"],
+                    results,
+                    state.get("history", []),
+                )
+            except asyncio.CancelledError:
+                _stream_event(
+                    writer,
+                    state,
+                    event_type="failure",
+                    agent="response",
+                    node="response",
+                    message="Response generation was cancelled.",
+                    metadata={"error_code": "response_cancelled"},
+                )
+                raise
+            except Exception:
+                _stream_event(
+                    writer,
+                    state,
+                    event_type="failure",
+                    agent="response",
+                    node="response",
+                    message="Grounded response generation failed.",
+                    metadata={"error_code": "response_generation_failed"},
+                )
+                raise
             answer, citations, grounded = render_grounded_answer(
                 model_answer,
                 results,
@@ -570,6 +863,15 @@ def build_graph(
             response_message = "Returned a safe Python analysis rejection."
         else:
             response_message = "Generated a response from authorized evidence."
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_complete",
+            agent="response",
+            node="response",
+            message="Response completed.",
+            metadata={"citation_count": len(citations)},
+        )
         events = [
             _event(
                 state,
@@ -587,7 +889,10 @@ def build_graph(
             "events": events,
         }
 
-    async def validate(state: AgentState) -> dict[str, Any]:
+    async def validate(
+        state: AgentState,
+        writer: StreamWriter,
+    ) -> dict[str, Any]:
         """Withhold answers whose citation markers do not validate.
 
         The node checks markers against citations and retrieved chunk IDs.
@@ -596,6 +901,7 @@ def build_graph(
 
         Args:
             state: Workflow state containing answer, citations, and results.
+            writer: LangGraph custom event writer for validation lifecycle.
 
         Returns:
             Final response state and validation/activity events.
@@ -603,6 +909,14 @@ def build_graph(
         Security:
             Only validated content is emitted as response chunks.
         """
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_start",
+            agent="response",
+            node="validate",
+            message="Citation validation started.",
+        )
         citations = [
             SourceCitation.model_validate(citation)
             for citation in state.get("citations", [])
@@ -670,6 +984,19 @@ def build_graph(
                     metadata={"error_code": "citation_validation_failed"},
                 )
             )
+        _stream_event(
+            writer,
+            state,
+            event_type="agent_complete",
+            agent="response",
+            node="validate",
+            message=(
+                "Citation validation completed."
+                if valid
+                else "Citation validation rejected the response."
+            ),
+            metadata={"validation_passed": valid},
+        )
         return {
             "response": answer,
             "citations": [citation.model_dump() for citation in citations],

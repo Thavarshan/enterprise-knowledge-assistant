@@ -23,6 +23,7 @@ from enterprise_assistant.rlm.contracts import (
 type SearchFunction = Callable[
     [str, int], Awaitable[Sequence[SearchResult]]
 ]
+type ProgressFunction = Callable[[str, dict[str, int | str]], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +74,7 @@ class BoundedResearchExecutor:
         model_provider: ModelProvider,
         search: SearchFunction,
         budget: ExecutionBudget | None = None,
+        on_progress: ProgressFunction | None = None,
     ) -> None:
         """Store the model, authorized search callback, and execution bounds.
 
@@ -80,9 +82,11 @@ class BoundedResearchExecutor:
             model_provider: Provider returning validated task decompositions.
             search: Callback receiving a query and maximum result count.
             budget: Optional validated limits for this investigation.
+            on_progress: Optional safe lifecycle-event callback.
         """
         self.model_provider = model_provider
         self.search = search
+        self.on_progress = on_progress
         self.budget = budget or ExecutionBudget(
             max_depth=2,
             max_search_calls=4,
@@ -163,9 +167,11 @@ class BoundedResearchExecutor:
                 )
             queries = self._validated_queries(decomposition)
         except asyncio.CancelledError:
+            self._notify_failure("decomposition_cancelled")
             raise
         except TimeoutError:
             self._failure_codes.append("decomposition_timeout")
+            self._notify_failure("decomposition_timeout")
             return [
                 InvestigationFinding(
                     task=objective,
@@ -174,6 +180,7 @@ class BoundedResearchExecutor:
             ]
         except Exception:
             self._failure_codes.append("decomposition_failed")
+            self._notify_failure("decomposition_failed")
             return [
                 InvestigationFinding(
                     task=objective,
@@ -205,6 +212,7 @@ class BoundedResearchExecutor:
                 raise child
             if isinstance(child, BaseException):
                 self._failure_codes.append("subtask_failed")
+                self._notify_failure("subtask_failed")
                 continue
             findings.extend(child)
         return findings
@@ -238,38 +246,74 @@ class BoundedResearchExecutor:
         """
         if self._remaining_seconds() <= 0:
             self._failure_codes.append("research_timeout")
+            self._notify_failure("research_timeout")
             return []
         if self._search_calls >= self.budget.max_search_calls:
             self._failure_codes.append("search_call_budget_exhausted")
+            self._notify_failure("search_call_budget_exhausted")
             return []
         remaining_documents = (
             self.budget.max_documents - self._reserved_documents
         )
         if remaining_documents <= 0:
             self._failure_codes.append("document_budget_exhausted")
+            self._notify_failure("document_budget_exhausted")
             return []
 
         result_limit = min(5, remaining_documents)
         self._search_calls += 1
         self._reserved_documents += result_limit
+        self._notify(
+            "tool_start",
+            {"tool": "knowledge_search", "call_number": self._search_calls},
+        )
         try:
             async with asyncio.timeout(self._remaining_seconds()):
                 results = list(await self.search(query, result_limit))
         except asyncio.CancelledError:
             self._reserved_documents -= result_limit
+            self._notify_failure("search_cancelled")
             raise
         except TimeoutError:
             self._reserved_documents -= result_limit
             self._failure_codes.append("search_timeout")
+            self._notify_failure("search_timeout")
             return []
         except Exception:
             self._reserved_documents -= result_limit
             self._failure_codes.append("search_failed")
+            self._notify_failure("search_failed")
             return []
 
         bounded_results = results[:result_limit]
         self._reserved_documents -= result_limit - len(bounded_results)
+        self._notify(
+            "tool_complete",
+            {
+                "tool": "knowledge_search",
+                "call_number": self._search_calls,
+                "result_count": len(bounded_results),
+            },
+        )
         return bounded_results
+
+    def _notify_failure(self, code: str) -> None:
+        """Send a stable, content-free failure lifecycle event.
+
+        Args:
+            code: Safe failure code with no query or provider details.
+        """
+        self._notify("failure", {"error_code": code})
+
+    def _notify(self, event_type: str, metadata: dict[str, int | str]) -> None:
+        """Send one lifecycle update when a callback is configured.
+
+        Args:
+            event_type: Safe graph event category.
+            metadata: Counts, tool names, or stable failure codes.
+        """
+        if self.on_progress is not None:
+            self.on_progress(event_type, metadata)
 
     def _remaining_seconds(self) -> float:
         """Return positive time remaining before the shared deadline.

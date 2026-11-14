@@ -12,9 +12,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 EventType = Literal[
+    "agent_start",
+    "agent_complete",
     "agent_transition",
     "retrieval",
-    "tool_execution",
+    "tool_start",
+    "tool_complete",
     "memory_update",
     "validation",
     "response_chunk",
