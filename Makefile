@@ -61,7 +61,11 @@ syntax-check:
 	uv run python -m compileall -q src apps scripts tests
 
 audit:
-	uv run pip-audit --local --skip-editable --progress-spinner off
+	uv sync --locked --all-groups --extra ui
+	uv pip install --python .venv/bin/python \
+		--requirement apps/ui/requirements.txt \
+		--requirement scripts/deployment/requirements.txt
+	uv run --no-sync pip-audit --local --skip-editable --progress-spinner off
 
 check: lint comments-check line-length-check format-check build typecheck \
 	docs-check syntax-check test

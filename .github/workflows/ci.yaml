@@ -5,6 +5,7 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
   schedule:
     - cron: "23 8 * * 1"
 
@@ -261,8 +262,182 @@ jobs:
       - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make audit
 
-  cloudflare-worker:
-    name: "Runtime: Cloudflare Worker and local D1"
+  npm-audit:
+    name: "Verify: Worker dependency audit"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install the locked Worker dependency tree
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Reject high and critical npm advisories
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm audit --audit-level=high
+
+  cloudflare-config:
+    name: "Worker: Wrangler config and bundle"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install pinned Worker dependencies
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Validate Wrangler configuration and bundle
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm run validate-config
+
+  cloudflare-migrations:
+    name: "Worker: Local D1 migrations"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install pinned Worker dependencies
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Apply migrations to local D1
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm run migrate:local
+
+  cloudflare-typecheck:
+    name: "Worker: TypeScript check"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install pinned Worker dependencies
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Check Worker types
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm run typecheck
+
+  cloudflare-unit:
+    name: "Worker: Unit tests"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install pinned Worker dependencies
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Test public health, authorization, and input validation
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm run test:unit
+
+  cloudflare-integration:
+    name: "Worker: D1 integration tests"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install pinned Worker dependencies
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Test Worker routes against local D1
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm run test:integration
+
+  d1-api-integration:
+    name: "Runtime: FastAPI through local D1"
     needs:
       - lint
       - format
@@ -283,15 +458,9 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
-      - name: Install Worker dependencies
+      - name: Install pinned Worker dependencies
         working-directory: infra/cloudflare/d1-gateway
         run: npm ci
-      - name: Check Worker types
-        working-directory: infra/cloudflare/d1-gateway
-        run: npm run typecheck
-      - name: Test Worker routes against local D1
-        working-directory: infra/cloudflare/d1-gateway
-        run: npm test
       # astral-sh/setup-uv v10.3.1
       - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
@@ -305,6 +474,74 @@ jobs:
       - name: Test FastAPI through Wrangler and local D1
         run: make cloud-sim-test
 
+  streamlit-smoke:
+    name: "Runtime: Streamlit application startup"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - name: Start and probe the Streamlit application
+        run: uv run python -m scripts.deployment.check_streamlit_startup
+
+  github-actions:
+    name: "Verify: GitHub Actions workflow syntax"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install checksum-verified actionlint 1.7.12
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          release_root="https://github.com/rhysd/actionlint/releases/"
+          release_path="download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            "${release_root}${release_path}" --output "$archive"
+          checksum_left="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123"
+          checksum_right="cb3712530b08cc387b349a3d8"
+          checksum="${checksum_left}${checksum_right}"
+          printf '%s  %s\n' "$checksum" "$archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
+  deployment-config:
+    name: "Verify: Cloud deployment configuration"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check deployment targets and dependency graph
+        run: python3 -m scripts.deployment.check_deployment_config
+      - name: Reject unsafe D1 migration changes
+        run: python3 -m scripts.deployment.validate_d1_migrations
+
   docker-api-ui:
     name: "Runtime: Docker Compose smoke"
     needs:
@@ -312,7 +549,6 @@ jobs:
       - tests
       - typecheck
       - dependency-audit
-      - cloudflare-worker
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -367,3 +603,36 @@ jobs:
         run: >-
           docker compose --project-name eka-ci down --volumes
           --remove-orphans || true
+
+  ci-gate:
+    name: "Gate: All mandatory CI checks"
+    if: always()
+    needs:
+      - lint
+      - format
+      - build
+      - tests
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+      - typecheck
+      - dependency-audit
+      - npm-audit
+      - cloudflare-config
+      - cloudflare-migrations
+      - cloudflare-typecheck
+      - cloudflare-unit
+      - cloudflare-integration
+      - d1-api-integration
+      - docker-api-ui
+      - github-actions
+      - deployment-config
+      - streamlit-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every check to succeed
+        env:
+          CI_NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 -m scripts.deployment.check_ci_gate

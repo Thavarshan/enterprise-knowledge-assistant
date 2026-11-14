@@ -3,6 +3,7 @@
 export interface Env {
   DB: D1Database;
   D1_SERVICE_TOKEN: string;
+  APP_RELEASE_SHA: string;
 }
 
 interface SessionRow {
@@ -241,10 +242,16 @@ async function appendMessage(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+      const url = new URL(request.url);
+      if (url.pathname === "/health" && request.method === "GET") {
+        return jsonResponse({
+          status: "ok",
+          release_sha: env.APP_RELEASE_SHA,
+        });
+      }
       if (!(await isAuthorized(request, env))) {
         return jsonResponse({ error: "unauthorized" }, 401);
       }
-      const url = new URL(request.url);
       if (url.pathname === "/internal/ready" && request.method === "GET") {
         return await ready(env);
       }

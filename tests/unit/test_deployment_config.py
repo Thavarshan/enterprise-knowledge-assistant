@@ -11,6 +11,16 @@ from pathlib import Path
 import pytest
 from apps.ui.services.config import resolve_api_base_url
 from fastapi import FastAPI
+from scripts.deployment.check_ci_gate import main as run_ci_gate
+from scripts.deployment.cloudflare_config import database_matches
+from scripts.deployment.policy import (
+    deployment_blockers,
+    failed_ci_jobs,
+    release_is_current,
+)
+from scripts.deployment.validate_d1_migrations import (
+    find_destructive_migrations,
+)
 
 from enterprise_assistant.config.settings import Settings
 from enterprise_assistant.memory.d1 import D1SessionStore
@@ -175,6 +185,7 @@ def test_vercel_config_limits_duration_and_excludes_non_runtime_files() -> None:
     )
 
     assert config["functions"]["app.py"]["maxDuration"] == 60
+    assert config["git"]["deploymentEnabled"] is False
     assert {
         "tests/**",
         "docs/**",
@@ -184,3 +195,157 @@ def test_vercel_config_limits_duration_and_excludes_non_runtime_files() -> None:
         "apps/ui/**",
         "apps/api/**",
     } <= ignored_paths
+
+
+def test_ci_gate_fails_for_failed_cancelled_or_skipped_jobs() -> None:
+    """Require success from every mandatory check result.
+
+    Skipped and cancelled dependencies must block the aggregate CI gate.
+    """
+    failures = failed_ci_jobs({
+        "lint": "success",
+        "build": "failure",
+        "tests": "cancelled",
+        "docker-api-ui": "skipped",
+    })
+
+    assert failures == {
+        "build": "failure",
+        "tests": "cancelled",
+        "docker-api-ui": "skipped",
+    }
+
+
+def test_ci_gate_command_exits_nonzero_for_incomplete_checks(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Make the actual gate command fail on unsuccessful job results.
+
+    The workflow step must preserve failure, cancellation, and skip status.
+    """
+    monkeypatch.setenv(
+        "CI_NEEDS_JSON",
+        json.dumps({
+            "lint": {"result": "success"},
+            "tests": {"result": "cancelled"},
+            "docker-api-ui": {"result": "skipped"},
+        }),
+    )
+
+    assert run_ci_gate() == 1
+    assert "tests=cancelled" in capsys.readouterr().out
+
+
+def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
+    """Block PR, scheduled, stale, disabled, and failed deployment runs.
+
+    Automatic and manual paths must prove the current main SHA and CI success.
+    """
+    base = {
+        "trigger": "workflow_run",
+        "ref": "refs/heads/main",
+        "upstream_event": "push",
+        "upstream_branch": "main",
+        "upstream_conclusion": "success",
+        "manual_ci_result": "skipped",
+        "deploy_enabled": True,
+        "live_smoke_enabled": True,
+        "release_sha": "a" * 40,
+        "main_sha": "a" * 40,
+    }
+    assert deployment_blockers(**base) == []
+    assert "The upstream CI workflow did not succeed." in deployment_blockers(
+        **{**base, "upstream_conclusion": "cancelled"}
+    )
+    assert "Only successful pushes to main may deploy." in deployment_blockers(
+        **{**base, "upstream_event": "pull_request"}
+    )
+    assert "Only successful pushes to main may deploy." in deployment_blockers(
+        **{**base, "upstream_event": "schedule"}
+    )
+    assert "DEPLOY_ENABLED is not true." in deployment_blockers(
+        **{**base, "deploy_enabled": False}
+    )
+    assert "The CI-approved release has been superseded on main." in (
+        deployment_blockers(**{**base, "main_sha": "b" * 40})
+    )
+    assert "CI invoked by this manual run did not succeed." in (
+        deployment_blockers(
+            **{
+                **base,
+                "trigger": "workflow_dispatch",
+                "manual_ci_result": "failure",
+            }
+        )
+    )
+    assert "Manual deployments must select main." in deployment_blockers(
+        **{
+            **base,
+            "trigger": "workflow_dispatch",
+            "ref": "refs/heads/feature",
+        }
+    )
+    assert "RUN_LIVE_E2E_SMOKE is not true." in deployment_blockers(
+        **{**base, "live_smoke_enabled": False}
+    )
+
+
+def test_release_current_check_requires_exact_sha_match() -> None:
+    """Prevent stale deployment jobs from mutating cloud resources.
+
+    The workflow must stop when a newer commit advances the main branch.
+    """
+    assert release_is_current("a" * 40, "a" * 40)
+    assert not release_is_current("a" * 40, "b" * 40)
+
+
+def test_cloudflare_identity_must_match_name_and_complete_id() -> None:
+    """Reject an account response that names the wrong D1 database.
+
+    Matching the dedicated name alone is insufficient without the exact UUID.
+    """
+    payload = {
+        "success": True,
+        "result": [{
+            "name": "eka-assessment-d1",
+            "uuid": "12345678-1234-1234-1234-123456789abc",
+        }],
+    }
+
+    assert database_matches(
+        payload,
+        "eka-assessment-d1",
+        "12345678-1234-1234-1234-123456789abc",
+    )
+    assert not database_matches(
+        payload,
+        "eka-assessment-d1",
+        "12345678-1234-1234-1234-123456789abd",
+    )
+    assert not database_matches(
+        payload,
+        "another-database",
+        "12345678-1234-1234-1234-123456789abc",
+    )
+
+
+def test_migration_validator_rejects_destructive_sql_and_ignores_comments(
+    tmp_path: Path,
+) -> None:
+    """Reject table drops while allowing explanatory SQL comments.
+
+    Only executable migration statements are considered by the safety check.
+    """
+    (tmp_path / "0001_create.sql").write_text(
+        "-- DROP TABLE is unsafe\nCREATE TABLE safe (id INTEGER);",
+        encoding="utf-8",
+    )
+    assert find_destructive_migrations(tmp_path) == []
+    (tmp_path / "0002_drop.sql").write_text(
+        "DROP TABLE safe;",
+        encoding="utf-8",
+    )
+    assert find_destructive_migrations(tmp_path) == [
+        ("0002_drop.sql", "DROP statements"),
+    ]

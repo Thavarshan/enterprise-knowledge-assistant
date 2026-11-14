@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-11-13",
   "workers_dev": true,
+  "vars": {
+    "APP_RELEASE_SHA": "local"
+  },
   "d1_databases": [
     {
       "binding": "DB",

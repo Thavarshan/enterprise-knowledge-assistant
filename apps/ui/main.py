@@ -10,6 +10,7 @@ not expose LangGraph's internal state or model chain-of-thought.
 
 import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -18,6 +19,7 @@ from streamlit.errors import StreamlitSecretNotFoundError
 
 from apps.ui.services.api_client import AssistantApiClient
 from apps.ui.services.config import resolve_api_base_url
+from apps.ui.services.release import resolve_release_sha
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
 st.title("Enterprise Knowledge Assistant")
@@ -26,7 +28,12 @@ try:
 except StreamlitSecretNotFoundError:
     streamlit_secrets = {}
 base_url = resolve_api_base_url(os.environ, streamlit_secrets)
+release_sha = resolve_release_sha(
+    os.environ,
+    Path(__file__).resolve().parents[2],
+)
 st.caption("Connected to the configured assistant API · LangGraph activity")
+st.sidebar.caption(f"Application release: {release_sha}")
 if "access_token" not in st.session_state:
     st.session_state.access_token = ""
 if "session_ids" not in st.session_state:

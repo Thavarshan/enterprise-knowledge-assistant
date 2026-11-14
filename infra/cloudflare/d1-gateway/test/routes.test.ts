@@ -39,7 +39,7 @@ function request(
 }
 
 describe("D1 gateway", () => {
-  it("requires its service credential before every route", async () => {
+  it("requires its service credential before storage routes", async () => {
     const missing = await worker.fetch(
       request("/internal/ready", { token: "" }),
       workerEnv,

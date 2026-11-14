@@ -1,0 +1,153 @@
+name: Post-deployment smoke
+
+on:
+  workflow_call:
+    inputs:
+      release_sha:
+        description: Full Git SHA that was approved and deployed.
+        type: string
+        required: true
+      cloudflare_worker_url:
+        description: Deployed Cloudflare Worker origin.
+        type: string
+        required: true
+      vercel_production_url:
+        description: Promoted Vercel API origin.
+        type: string
+        required: true
+      streamlit_url:
+        description: Streamlit Community Cloud app origin.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare:
+    name: "Smoke: Cloudflare Worker and D1"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+      - name: Test authenticated Worker and D1 read/write
+        env:
+          CLOUDFLARE_WORKER_URL: ${{ inputs.cloudflare_worker_url }}
+          D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: python3 -m scripts.deployment.smoke_cloudflare
+
+  vercel:
+    name: "Smoke: Vercel FastAPI"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+      - name: Test API, authentication, and D1 session persistence
+        env:
+          VERCEL_URL: ${{ inputs.vercel_production_url }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
+          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: >-
+            ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: python3 -m scripts.deployment.smoke_vercel
+
+  streamlit:
+    name: "Smoke: Streamlit Community Cloud"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+      - name: Install pinned Playwright and Chromium
+        run: |
+          uv pip install --system \
+            --requirement scripts/deployment/requirements.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Verify page and deployed source SHA
+        env:
+          STREAMLIT_URL: ${{ inputs.streamlit_url }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: python3 -m scripts.deployment.smoke_streamlit
+
+  end-to-end:
+    name: "Smoke: Full-stack synthetic conversation"
+    needs: [cloudflare, vercel, streamlit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+      - name: Install pinned Playwright and Chromium
+        run: |
+          uv pip install --system \
+            --requirement scripts/deployment/requirements.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Send one synthetic, live model-backed conversation
+        env:
+          STREAMLIT_URL: ${{ inputs.streamlit_url }}
+          VERCEL_PRODUCTION_URL: ${{ inputs.vercel_production_url }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
+          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
+        run: python3 -m scripts.deployment.smoke_full_stack
+
+  result:
+    name: "Result: Post-deployment verification"
+    if: always()
+    needs: [cloudflare, vercel, streamlit, end-to-end]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+      - name: Require every post-deployment check to succeed
+        env:
+          DEPLOY_NEEDS_JSON: ${{ toJSON(needs) }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          CLOUDFLARE_WORKER_URL: ${{ inputs.cloudflare_worker_url }}
+          VERCEL_PRODUCTION_URL: ${{ inputs.vercel_production_url }}
+          STREAMLIT_URL: ${{ inputs.streamlit_url }}
+        run: python3 -m scripts.deployment.check_deployment_result

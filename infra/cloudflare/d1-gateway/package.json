@@ -6,9 +6,16 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --local",
+    "deployment:config": "node ../../../scripts/deployment/w.mjs config",
+    "validate-config": "wrangler deploy --dry-run",
+    "migrate:local": "wrangler d1 migrations apply eka-assessment-d1 --local",
+    "migrations:remote:list": "node ../../../scripts/deployment/w.mjs list",
+    "migrate:remote": "node ../../../scripts/deployment/w.mjs migrate",
+    "deploy": "node ../../../scripts/deployment/w.mjs deploy",
     "test": "vitest run",
+    "test:unit": "vitest run test/unit.test.ts",
+    "test:integration": "vitest run test/routes.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -16,7 +23,7 @@
     "@cloudflare/workers-types": "^5.20261114.1",
     "typescript": "^5.8.3",
     "vitest": "^5.1.0",
-    "wrangler": "^4.162.0"
+    "wrangler": "4.162.0"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

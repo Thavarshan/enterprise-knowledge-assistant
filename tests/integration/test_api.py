@@ -21,6 +21,10 @@ def test_health_readiness_and_bearer_identity(
     """
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/ready").json() == {"status": "ready"}
+    assert client.get("/version").json() == {
+        "release_sha": "unknown",
+        "mode": "mock",
+    }
     assert client.get("/api/v1/me").status_code == 401
 
     headers = login("analyst")
