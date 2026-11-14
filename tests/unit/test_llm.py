@@ -69,9 +69,24 @@ async def test_mock_provider_returns_deterministic_structured_outputs() -> None:
     provider = MockModelProvider()
     result = _sample_result()
 
+    for prompt in (
+        "Hello!",
+        "Thanks.",
+        "What can you do?",
+        "Goodbye.",
+    ):
+        assert (
+            await provider.classify_intent(prompt)
+        ).route == "small_talk"
     assert (await provider.classify_intent("Compare incidents")).route == (
         "research"
     )
+    assert (
+        await provider.classify_intent("What does the payment runbook say?")
+    ).route == "retrieval"
+    assert (
+        await provider.classify_intent("Calculate sum of 10, 20")
+    ).route == "analysis"
     answer = await provider.generate_answer("Explain the incident", [result])
     assert answer.claims[0].citations == [
         CitationIdentity(

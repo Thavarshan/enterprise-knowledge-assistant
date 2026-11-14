@@ -112,9 +112,10 @@ it excludes its query and result content.
 
 ### 5. Retrieval, response, and validation
 
-With `LLM_PROVIDER=openai`, the Supervisor requests a structured retrieval,
-research, or analysis route. It cannot provide or modify authorization
-fields. Mock mode
+With `LLM_PROVIDER=openai`, the Supervisor requests a structured small-talk,
+retrieval, research, or analysis route. Small talk covers brief greetings,
+thanks, farewells, and capability questions; it returns a fixed reply without
+searching documents. It cannot provide or modify authorization fields. Mock mode
 uses the existing case-insensitive keyword rule for `investigate`, `compare`,
 and `analyze`. Direct retrieval performs one authorized search. Research
 recursively expands model-proposed subtasks to depth two and runs at most
@@ -133,8 +134,9 @@ full-text rankings with provider-side access and department filters. The
 adapter checks returned metadata again before exposing chunk content, and
 RRF merges results by complete document/chunk identity.
 
-With configured OpenAI, the Response node generates structured claims from
-authorized evidence and supplies complete source identities. Mock mode
+For small talk, the Response node returns a fixed product-aware reply with no
+citations. With configured OpenAI, it otherwise generates structured claims
+from authorized evidence and supplies complete source identities. Mock mode
 returns extractive claims from the first two results. The graph resolves
 citations to retrieved chunks and withholds answers containing unknown
 identities. With no results, it returns a fixed no-evidence message. Current

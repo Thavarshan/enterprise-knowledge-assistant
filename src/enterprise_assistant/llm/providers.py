@@ -24,6 +24,7 @@ from enterprise_assistant.llm.contracts import (
     ModelProvider,
     SupervisorDecision,
 )
+from enterprise_assistant.llm.small_talk import small_talk_response
 from enterprise_assistant.memory.models import ChatMessage
 from enterprise_assistant.rlm.contracts import TaskDecomposition
 from enterprise_assistant.tools.analysis import (
@@ -52,7 +53,8 @@ class LLMProviderError(RuntimeError):
 class MockModelProvider:
     """Provide repeatable model-shaped results without external calls.
 
-    Mock intent selection uses the existing deterministic keyword rule.
+    Mock intent selection uses fixed small-talk phrases and the existing
+    deterministic workflow rules.
     Responses quote retrieved content and attach its stable source identity,
     preserving test and local development behavior without credentials.
     """
@@ -72,6 +74,9 @@ class MockModelProvider:
             A validated deterministic workflow decision.
         """
         del history
+        if small_talk_response(question) is not None:
+            return SupervisorDecision(route="small_talk")
+
         normalized = question.casefold()
         try:
             parse_analysis_question(question)
@@ -412,10 +417,14 @@ def _system_instructions(task: str) -> str:
     )
     task_instructions = {
         "supervisor": (
-            "Select retrieval for a direct knowledge question, research for "
+            "Select small_talk only for a plain greeting, thanks, farewell, "
+            "or brief question about your capabilities. Select retrieval "
+            "for a direct knowledge question, research for "
             "multi-part investigation or comparison, and analysis only for "
             "an explicit calculate/compute count, sum, or average request "
             "over comma-separated numeric literals in the user question. "
+            "Route based on the current question; use history only to "
+            "interpret references. "
             "Choose only the route field. Do not infer or assign roles, "
             "permissions, access levels, departments, tools, or filters."
         ),

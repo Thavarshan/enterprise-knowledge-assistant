@@ -11,6 +11,7 @@ but cannot select a role, access level, department filter, or tool policy.
 ```mermaid
 flowchart LR
   START --> Supervisor
+  Supervisor -->|greeting or capability question| Response
   Supervisor -->|direct question| Retrieval
   Supervisor -->|investigation| Research
   Supervisor -->|explicit arithmetic| Analysis
@@ -27,15 +28,22 @@ bounded recursive executor outside the LangGraph topology. It can execute
 multiple authorized searches, then returns one aggregated evidence set to
 the Response node.
 
+Plain greetings, thanks, farewells, and brief capability questions use a
+small-talk route directly to Response. The route returns a fixed
+product-aware reply and does not search documents or call the answer model.
+Mock mode recognizes a bounded phrase list; the live Supervisor selects the
+route through its validated structured output. Longer factual requests
+continue through retrieval, research, or analysis.
+
 ## Node contracts
 
 | Node | Reads | Writes | Behavior |
 |---|---|---|---|
-| Supervisor | Question, recent history | Route, event | Provider returns a validated retrieval, research, or analysis choice. |
+| Supervisor | Question, recent history | Route, event | Provider returns a validated small-talk, retrieval, research, or analysis choice. |
 | Research | Question, authenticated role | Results, findings, budget summary, events | Recursively decomposes, searches, and fuses bounded findings. |
 | Retrieval | Question, authenticated role | Results and source event | Runs one direct search through the authorized tool registry. |
 | Analysis | Question, authenticated role | Validated numeric result or safe failure | Parses explicit numeric literals and calls role-gated Python arithmetic. |
-| Response | Authorized serialized results | Grounded response and citations | Provider returns claims citing full document/chunk identities. |
+| Response | Question, authorized serialized results | Response and citations | Gives a fixed conversational reply, returns an analysis result, or uses provider claims citing full document/chunk identities. |
 | Validate | Response, citations, retrieved identities | Final response, validation flag, events | Withholds model output if source identities do not match. |
 
 `ToolRegistry` has policies for knowledge search, Python analysis, and MCP.

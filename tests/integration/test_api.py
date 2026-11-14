@@ -129,6 +129,36 @@ def test_stream_contains_actual_graph_activity_and_request_id(
         "event: response_chunk")
 
 
+def test_small_talk_stream_skips_retrieval(
+    client: TestClient, login: Callable
+) -> None:
+    """Verify a greeting completes with a helpful reply and no search.
+
+    Args:
+        client: Isolated test API.
+        login: Helper that obtains authenticated headers.
+    """
+    headers = login()
+    session_id = client.post(
+        "/api/v1/chat/sessions",
+        headers=headers,
+        json={},
+    ).json()["session_id"]
+
+    response = client.post(
+        "/api/v1/chat/stream",
+        headers=headers,
+        json={"session_id": session_id, "message": "Hello!"},
+    )
+
+    assert response.status_code == 200
+    assert "event: completed" in response.text
+    assert '"decision":"small_talk"' in response.text
+    assert "Hello! I can search accessible runbooks" in response.text
+    assert "event: retrieval" not in response.text
+    assert "event: tool_start" not in response.text
+
+
 def test_stream_rejects_unauthenticated_and_invalid_body(
     client: TestClient, login: Callable
 ) -> None:

@@ -17,6 +17,7 @@ from enterprise_assistant.agents.state import AgentState
 from enterprise_assistant.domain.models import SearchResult, SourceCitation
 from enterprise_assistant.llm.contracts import GroundedAnswer, ModelProvider
 from enterprise_assistant.llm.providers import MockModelProvider
+from enterprise_assistant.llm.small_talk import small_talk_response
 from enterprise_assistant.observability.events import ActivityEvent, EventType
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.rlm.contracts import ExecutionBudget
@@ -194,8 +195,9 @@ def build_graph(
 ) -> Any:
     """Compile the bounded conversation workflow from injected adapters.
 
-    The StateGraph routes supervisor output to direct retrieval, recursive
-    research, or validated arithmetic, then validates the final response.
+    The StateGraph routes small talk directly to response, or selects direct
+    retrieval, recursive research, or validated arithmetic before
+    validating the final response.
     Node events append through the reducer declared on AgentState.
 
     Args:
@@ -218,7 +220,7 @@ def build_graph(
         state: AgentState,
         writer: StreamWriter,
     ) -> dict[str, Any]:
-        """Choose direct retrieval, bounded research, or arithmetic analysis.
+        """Choose small talk, retrieval, research, or arithmetic analysis.
 
         The provider returns a validated route only. Roles and retrieval
         policy remain trusted backend state and are not model outputs.
@@ -770,10 +772,11 @@ def build_graph(
         state: AgentState,
         writer: StreamWriter,
     ) -> dict[str, Any]:
-        """Respond from authorized evidence or a validated analysis result.
+        """Respond to small talk, evidence, or validated analysis results.
 
-        Numeric analysis results use a fixed response. Retrieved evidence is
-        passed to the model, and empty search results produce a fixed message.
+        Small talk and numeric results use fixed responses. Retrieved
+        evidence is passed to the model, while empty results produce a fixed
+        no-evidence message.
 
         Args:
             state: Workflow state containing serialized search results.
@@ -797,7 +800,21 @@ def build_graph(
         analysis_data = state.get("analysis_result")
         analysis_error = state.get("analysis_error")
         citations: list[SourceCitation]
-        if analysis_data:
+        conversational_answer = None
+        if state.get("route") == "small_talk":
+            conversational_answer = small_talk_response(
+                state["question"]
+            ) or (
+                "Hello! I can search accessible company knowledge, "
+                "investigate multi-part questions, and, if your role "
+                "allows it, help with supported calculations. What would "
+                "you like to explore?"
+            )
+        if conversational_answer is not None:
+            answer = conversational_answer
+            citations = []
+            grounded = True
+        elif analysis_data:
             result = AnalysisResult.model_validate(analysis_data)
             label = result.operation.title()
             answer = (
@@ -857,7 +874,9 @@ def build_graph(
             )
             citations = []
             grounded = True
-        if analysis_data:
+        if conversational_answer is not None:
+            response_message = "Answered a brief conversational message."
+        elif analysis_data:
             response_message = "Returned a validated Python analysis result."
         elif analysis_error:
             response_message = "Returned a safe Python analysis rejection."
@@ -1015,6 +1034,7 @@ def build_graph(
         "supervisor",
         lambda state: state["route"],
         {
+            "small_talk": "response",
             "retrieval": "retrieval",
             "research": "research",
             "analysis": "analysis",

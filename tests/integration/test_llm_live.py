@@ -53,6 +53,7 @@ async def test_openai_provider_returns_structured_live_responses() -> None:
         decision = await provider.classify_intent(
             "What happened in the payment incident?"
         )
+        greeting_decision = await provider.classify_intent("Hello!")
         answer = await provider.generate_answer(
             "What caused the duplicate authorizations?",
             [result],
@@ -60,7 +61,8 @@ async def test_openai_provider_returns_structured_live_responses() -> None:
     finally:
         await provider.aclose()
 
-    assert decision.route in {"retrieval", "research", "analysis"}
+    assert decision.route == "retrieval"
+    assert greeting_decision.route == "small_talk"
     assert answer.claims
     allowed = {
         (chunk.metadata.document_id, chunk.metadata.chunk_id),

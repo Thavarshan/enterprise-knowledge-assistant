@@ -14,7 +14,7 @@ from enterprise_assistant.domain.models import SearchResult
 from enterprise_assistant.memory.models import ChatMessage
 from enterprise_assistant.rlm.contracts import TaskDecomposition
 
-Workflow = Literal["retrieval", "research", "analysis"]
+Workflow = Literal["small_talk", "retrieval", "research", "analysis"]
 
 
 class SupervisorDecision(BaseModel):
@@ -25,7 +25,7 @@ class SupervisorDecision(BaseModel):
     inputs are independently parsed and validated by the Python tool.
 
     Attributes:
-        route: Retrieval, research, or explicit arithmetic analysis.
+        route: Small talk, retrieval, research, or explicit arithmetic.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -86,7 +86,7 @@ class ModelProvider(Protocol):
         question: str,
         history: Sequence[ChatMessage] = (),
     ) -> SupervisorDecision:
-        """Choose retrieval or bounded research from the request context.
+        """Choose a conversational, retrieval, research, or analysis route.
 
         Args:
             question: Current untrusted user request.

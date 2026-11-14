@@ -11,8 +11,84 @@ import pytest
 
 from enterprise_assistant.agents.graph import build_graph
 from enterprise_assistant.agents.state import AgentState
+from enterprise_assistant.domain.models import SearchResult
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.tools.registry import ToolRegistry
+
+
+class _CountingRetriever(InMemoryRetriever):
+    """Count searches made by the small-talk graph path.
+
+    The counter lets the test distinguish a skipped search from an empty
+    search result.
+    """
+
+    def __init__(self) -> None:
+        """Initialize an empty corpus and zero search count.
+
+        The retriever's result behavior is inherited from the fixture adapter.
+        """
+        super().__init__([])
+        self.search_count = 0
+
+    async def search(
+        self,
+        query: str,
+        *,
+        allowed_access_levels: frozenset[str],
+        department: str | None = None,
+        limit: int = 5,
+    ) -> list[SearchResult]:
+        """Count a call before delegating to the empty fixture retriever.
+
+        Args:
+            query: Search terms passed by the knowledge tool.
+            allowed_access_levels: Trusted access labels for the user role.
+            department: Optional backend department restriction.
+            limit: Maximum number of results requested.
+
+        Returns:
+            Results returned by the empty in-memory corpus.
+        """
+        self.search_count += 1
+        return await super().search(
+            query,
+            allowed_access_levels=allowed_access_levels,
+            department=department,
+            limit=limit,
+        )
+
+
+@pytest.mark.asyncio
+async def test_small_talk_routes_directly_to_response_without_search() -> None:
+    """Verify greetings receive a helpful answer without document search.
+
+    The mock supervisor should choose the small-talk route, which skips both
+    retrieval and the evidence-based answer provider.
+    """
+    retriever = _CountingRetriever()
+    graph = build_graph(retriever, ToolRegistry())
+    state: AgentState = {
+        "request_id": "graph-small-talk-test",
+        "session_id": "session-small-talk-test",
+        "user_id": "viewer",
+        "role": "viewer",
+        "question": "Hello!",
+        "events": [],
+    }
+
+    updates = [
+        update async for update in graph.astream(state, stream_mode="updates")
+    ]
+    node_names = [node for update in updates for node in update]
+
+    assert node_names == ["supervisor", "response", "validate"]
+    assert updates[0]["supervisor"]["route"] == "small_talk"
+    answer = updates[1]["response"]["response"]
+    assert answer.startswith("Hello!")
+    assert "runbooks" in answer
+    assert retriever.search_count == 0
+    assert updates[1]["response"]["citations"] == []
 
 
 @pytest.mark.asyncio
