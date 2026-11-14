@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     langsmith_tracing: bool = False
     langsmith_api_key: str = Field(default="", repr=False)
     langsmith_project: str = "enterprise-knowledge-assistant"
+    langsmith_workspace_id: str = Field(default="", repr=False)
     pinecone_api_key: str = Field(default="", repr=False)
     pinecone_index_name: str = ""
     pinecone_namespace: str = ""

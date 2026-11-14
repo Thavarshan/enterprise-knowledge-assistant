@@ -12,6 +12,13 @@ def configure_langsmith(settings: Settings) -> bool:
     if enabled:
         os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
         os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+        if settings.langsmith_workspace_id:
+            os.environ["LANGSMITH_WORKSPACE_ID"] = (
+                settings.langsmith_workspace_id
+            )
+        else:
+            os.environ.pop("LANGSMITH_WORKSPACE_ID", None)
     else:
         os.environ.pop("LANGSMITH_API_KEY", None)
+        os.environ.pop("LANGSMITH_WORKSPACE_ID", None)
     return enabled

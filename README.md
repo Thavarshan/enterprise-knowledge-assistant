@@ -72,7 +72,12 @@ make check
 
 ## Configuration
 
-Copy `.env.example` to `.env`, or let `make setup` generate local-only credentials. `.env` is ignored by Git. The mock system works without model-provider keys. `LANGSMITH_TRACING` is off by default and can be enabled with a valid `LANGSMITH_API_KEY` and project name. Pinecone settings are reserved for the future production adapter.
+Copy `.env.example` to `.env`, or let `make setup` generate local-only
+credentials. `.env` is ignored by Git. The mock system works without
+model-provider keys. `LANGSMITH_TRACING` is off by default and can be enabled
+with a valid `LANGSMITH_API_KEY` and project name. Set
+`LANGSMITH_WORKSPACE_ID` when your LangSmith credentials require an explicit
+workspace. Pinecone settings are reserved for the future production adapter.
 
 Important settings include `MOCK_MODE`, `API_BASE_URL`, `SQLITE_PATH`, CORS origins, rate-limit capacity/refill, LangSmith tracing, and Pinecone index/namespace configuration. Never commit `.env` or real provider credentials.
 
