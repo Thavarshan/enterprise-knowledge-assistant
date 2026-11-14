@@ -9,30 +9,24 @@ not expose LangGraph's internal state or model chain-of-thought.
 """
 
 import os
+from collections.abc import Mapping
 from typing import Any
 
 import httpx
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from apps.ui.services.api_client import AssistantApiClient
-from enterprise_assistant.config.settings import get_settings
+from apps.ui.services.config import resolve_api_base_url
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
 st.title("Enterprise Knowledge Assistant")
-settings = get_settings()
-model_mode = (
-    f"OpenAI {settings.openai_model}"
-    if settings.llm_provider == "openai"
-    else "Deterministic mock model"
-)
-retrieval_mode = (
-    "Fixture retrieval" if settings.mock_mode else "Pinecone retrieval"
-)
-st.caption(
-    f"{model_mode} · {retrieval_mode} · LangGraph activity stream"
-)
-
-base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
+try:
+    streamlit_secrets: Mapping[str, object] = st.secrets
+except StreamlitSecretNotFoundError:
+    streamlit_secrets = {}
+base_url = resolve_api_base_url(os.environ, streamlit_secrets)
+st.caption("Connected to the configured assistant API · LangGraph activity")
 if "access_token" not in st.session_state:
     st.session_state.access_token = ""
 if "session_ids" not in st.session_state:
@@ -59,8 +53,8 @@ with st.sidebar:
                 st.session_state.session_ids.append(session["session_id"])
                 st.session_state.current_session_id = session["session_id"]
                 st.rerun()
-            except httpx.HTTPError as exc:
-                st.error(f"Sign in failed: {exc}")
+            except httpx.HTTPError:
+                st.error("Sign-in failed. Check the user and password.")
     else:
         identity = st.session_state.get("identity", {})
         st.write(f"Signed in as **{identity.get('user_id', 'user')}**")
@@ -80,8 +74,8 @@ with st.sidebar:
                 st.session_state.session_ids.append(session["session_id"])
                 st.session_state.current_session_id = session["session_id"]
                 st.rerun()
-            except httpx.HTTPError as exc:
-                st.error(f"Could not create a session: {exc}")
+            except httpx.HTTPError:
+                st.error("Could not create a conversation. Please retry.")
 
         if st.session_state.session_ids:
             current = st.session_state.current_session_id
@@ -114,8 +108,8 @@ session_id = st.session_state.current_session_id
 if client and session_id:
     try:
         history = client.get_session(session_id).get("messages", [])
-    except httpx.HTTPError as exc:
-        st.warning(f"Could not load session history: {exc}")
+    except httpx.HTTPError:
+        st.warning("Could not load this conversation. Please retry.")
 
 for message in history:
     with st.chat_message(message["role"]):
@@ -187,12 +181,7 @@ if prompt and client and session_id:
                 )
             if not answer_parts:
                 answer_placeholder.info("The stream ended without a response.")
-        except httpx.HTTPStatusError as exc:
-            detail = (
-                exc.response.json()
-                .get("error", {})
-                .get("message", "Request failed.")
-            )
-            st.error(detail)
-        except httpx.HTTPError as exc:
-            st.error(f"Could not reach the assistant API: {exc}")
+        except httpx.HTTPStatusError:
+            st.error("The assistant request failed. Please retry or sign in.")
+        except httpx.HTTPError:
+            st.error("Could not reach the assistant API. Please retry later.")

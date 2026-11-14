@@ -52,7 +52,7 @@ class AssistantApiClient:
             password: Account password entered in the UI.
 
         Returns:
-            Opaque access token from the API response.
+            Signed bearer token from the API response.
 
         Raises:
             httpx.HTTPError: The API request fails or returns an error.

@@ -1,0 +1,7 @@
+tests/**
+docs/**
+infra/**
+data/**
+scripts/**
+apps/ui/**
+apps/api/**
