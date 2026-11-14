@@ -110,12 +110,16 @@ count, then yields events to the route.
 With `LLM_PROVIDER=openai`, the Supervisor requests a structured retrieval or
 research route. It cannot provide or modify authorization fields. Mock mode
 uses the existing case-insensitive keyword rule for `investigate`, `compare`,
-and `analyze`. Research currently retains one query and sets one search call,
-depth one, and a five-result limit.
+and `analyze`. Direct retrieval performs one authorized search. Research
+recursively expands model-proposed subtasks to depth two and runs at most
+four searches under a twenty-document and thirty-second budget. It preserves
+per-task source IDs and aggregates results using full document/chunk identity.
+Partial failures leave successful branches available to Response.
 
-The retrieval node uses the server role with `ToolRegistry`, then calls
-`KnowledgeSearchTool`. The tool maps the role to allowed access levels
-before retrieval. Mock mode searches local fixture JSON. With mock mode off,
+Direct retrieval and every research leaf use the server role with
+`ToolRegistry`, then call `KnowledgeSearchTool`. The tool maps the role to
+allowed access levels before retrieval. Mock mode searches local fixture
+JSON. With mock mode off,
 `HybridRetriever` concurrently requests Pinecone dense semantic and BM25
 full-text rankings with provider-side access and department filters. The
 adapter checks returned metadata again before exposing chunk content, and

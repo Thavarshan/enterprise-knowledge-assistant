@@ -9,7 +9,7 @@ has received and validated a real service response.
 **Status: implemented locally; live verification blocked.**
 
 - OpenAI Responses adapter parses structured supervisor routes and grounded
-  answer claims.
+  answer claims and recursive research subtasks.
 - Mock mode remains deterministic and is covered by offline tests.
 - The live integration test skips because this workspace has no
   `OPENAI_API_KEY`. Do not call the phase complete until the live test passes.
@@ -30,13 +30,19 @@ has received and validated a real service response.
 
 ## Phase 3: Simplified recursive investigation
 
-**Status: pending.**
+**Status: implemented with deterministic provider; live-model behavior pending.**
 
-- Decompose compound questions into several subtasks.
-- Execute bounded, authorized retrieval for each subtask.
-- Aggregate findings with source attribution and enforce depth, call,
-  document, and time budgets.
-- Use trusted analysis operations; never execute model-generated Python.
+- The Research node recursively expands validated model subtasks up to depth
+  two and runs at most four authorized searches and retrieves at most twenty
+  documents within thirty seconds.
+- Leaf findings retain their task and source identities, then aggregate by
+  reciprocal rank fusion over complete document/chunk identities.
+- Partial branch failures preserve successful findings. Cancellation is
+  propagated. The executor never runs model-generated Python.
+- Unit and graph tests verify a synthetic incident question runs three
+  subtasks and aggregates attributed evidence.
+- A live OpenAI decomposition remains unverified because the local workspace
+  has no `OPENAI_API_KEY`.
 
 ## Phase 4: Tools and security
 
@@ -58,6 +64,6 @@ has received and validated a real service response.
 - Provide exact reproducible startup and demonstration instructions.
 
 The modular monolith, API, UI, SQLite persistence, RBAC, CI, Compose smoke
-test, and redacted LangSmith tracing foundation are already present. Their
-remaining limits are documented in the relevant architecture and security
-guides.
+test, Pinecone hybrid retrieval, and redacted LangSmith tracing foundation
+are already present. Their remaining limits are documented in the relevant
+architecture and security guides.

@@ -28,7 +28,8 @@ class AgentState(TypedDict, total=False):
         question: Validated user question for the current turn.
         history: Owner-scoped messages available as model context.
         route: Supervisor choice: retrieval or research.
-        search_plan: Serialized bounded query plan if selected.
+        investigation_findings: Subtasks paired with returned source IDs.
+        investigation_summary: Bounded search and decomposition counters.
         results: Serialized ranked evidence chunks.
         response: Answer text after response construction.
         citations: Citation metadata copied from retrieved chunks.
@@ -47,7 +48,8 @@ class AgentState(TypedDict, total=False):
     question: str
     history: list[ChatMessage]
     route: Literal["retrieval", "research"]
-    search_plan: dict[str, Any]
+    investigation_findings: list[dict[str, Any]]
+    investigation_summary: dict[str, Any]
     results: list[dict[str, Any]]
     response: str
     citations: list[dict[str, str]]

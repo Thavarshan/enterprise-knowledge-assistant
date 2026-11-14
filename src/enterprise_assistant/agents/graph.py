@@ -7,12 +7,10 @@ complete identities before answer chunks can reach the client.
 
 import re
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from enterprise_assistant.agents.nodes.research import plan_research
-from enterprise_assistant.agents.nodes.retrieval import selected_query
 from enterprise_assistant.agents.state import AgentState
 from enterprise_assistant.domain.models import SearchResult, SourceCitation
 from enterprise_assistant.llm.contracts import GroundedAnswer, ModelProvider
@@ -20,6 +18,7 @@ from enterprise_assistant.llm.providers import MockModelProvider
 from enterprise_assistant.observability.events import ActivityEvent, EventType
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.rlm.contracts import ExecutionBudget
+from enterprise_assistant.rlm.executor import BoundedResearchExecutor
 from enterprise_assistant.security.authorization import Role
 from enterprise_assistant.tools.knowledge import KnowledgeSearchTool
 from enterprise_assistant.tools.registry import ToolRegistry
@@ -151,9 +150,9 @@ def build_graph(
 ) -> Any:
     """Compile the bounded conversation workflow from injected adapters.
 
-    The StateGraph routes supervisor output to retrieval or one Research
-    step, then runs response and citation validation before ending. Node
-    events append through the reducer declared on AgentState.
+    The StateGraph routes supervisor output to direct retrieval or a
+    recursive research executor, then runs response and citation validation.
+    Node events append through the reducer declared on AgentState.
 
     Args:
         retriever: Search adapter used by the knowledge tool.
@@ -168,6 +167,7 @@ def build_graph(
         graph itself does not use a checkpointer.
     """
     language_model = model_provider or MockModelProvider()
+    knowledge_search = KnowledgeSearchTool(retriever)
 
     async def supervisor(state: AgentState) -> dict[str, Any]:
         """Choose the direct-retrieval or bounded-research route.
@@ -196,37 +196,149 @@ def build_graph(
         return {"route": route, "events": [event]}
 
     async def research(state: AgentState) -> dict[str, Any]:
-        """Create a bounded structured plan for investigation questions.
+        """Execute a recursive, budgeted investigation with safe aggregation.
 
-        The current planner retains one query and a one-level budget. Its
-        plan is passed to retrieval; no recursive calls or generated code
-        run.
+        Every leaf search passes through the same role-authorized tool
+        registry as direct retrieval. The executor bounds recursion, search
+        calls, result count, and elapsed time; partial failures leave
+        completed sibling findings available to Response.
 
         Args:
-            state: Shared graph state containing the question and IDs.
+            state: Authenticated graph state containing the question and IDs.
 
         Returns:
-            A serialized plan and an appended transition event.
-        """
-        plan, queries, budget = plan_research(state["question"])
-        event = _event(
-            state,
-            event_type="agent_transition",
-            agent="research",
-            node="research",
-            message="Prepared a bounded structured search plan.",
-            metadata={"query_count": len(
-                queries), "max_depth": budget.max_depth},
-        )
-        return {
-            "search_plan": {
-                "queries": list(queries),
-                "max_depth": plan.max_depth,
-            },
-            "events": [event],
-        }
+            Aggregated evidence, execution counters, and activity events.
 
-    knowledge_search = KnowledgeSearchTool(retriever)
+        Security:
+            The model proposes query text only. Role and access filters are
+            derived from the authenticated state by the search tool.
+        """
+        role = Role(state["role"])
+
+        async def authorized_search(
+            query: str,
+            limit: int,
+        ) -> list[SearchResult]:
+            """Run a leaf search after checking backend tool policy.
+
+            Args:
+                query: Validated task text from the decomposition contract.
+                limit: Remaining document budget for this search.
+
+            Returns:
+                Authorized ranked evidence for the task.
+            """
+            return cast(
+                list[SearchResult],
+                await tool_registry.execute(
+                    "knowledge_search",
+                    role,
+                    {"query": query, "role": role.value, "limit": limit},
+                    {"knowledge_search": knowledge_search.run},
+                ),
+            )
+
+        budget = ExecutionBudget(
+            max_depth=2,
+            max_search_calls=4,
+            max_documents=20,
+            timeout_seconds=30,
+        )
+        report = await BoundedResearchExecutor(
+            language_model,
+            authorized_search,
+            budget,
+        ).execute(state["question"])
+        results = list(report.results)
+        sources = [
+            {
+                "document_id": result.chunk.metadata.document_id,
+                "chunk_id": result.chunk.metadata.chunk_id,
+                "title": result.chunk.metadata.title,
+                "score": result.score,
+            }
+            for result in results
+        ]
+        events = [
+            _event(
+                state,
+                event_type="agent_transition",
+                agent="research",
+                node="research",
+                message="Completed bounded recursive investigation.",
+                metadata={
+                    "search_calls": report.search_calls,
+                    "decomposition_calls": report.decomposition_calls,
+                    "max_depth_reached": report.max_depth_reached,
+                },
+            ),
+            _event(
+                state,
+                event_type="tool_execution",
+                agent="research",
+                node="research",
+                message=(
+                    f"Executed {report.search_calls} authorized "
+                    "sub-investigation search(es)."
+                ),
+                metadata={
+                    "tool": "knowledge_search",
+                    "search_calls": report.search_calls,
+                    "failure_count": len(report.failure_codes),
+                },
+            ),
+            _event(
+                state,
+                event_type="retrieval",
+                agent="research",
+                node="research",
+                message=(
+                    f"Aggregated {len(results)} source chunk(s) "
+                    "from the investigation."
+                ),
+                metadata={"sources": sources},
+            ),
+        ]
+        if report.failure_codes:
+            events.append(
+                _event(
+                    state,
+                    event_type="failure",
+                    agent="research",
+                    node="research",
+                    message=(
+                        "Some investigation branches were incomplete; "
+                        "available findings were retained."
+                    ),
+                    metadata={
+                        "error_code": "research_partial_failure",
+                        "failure_count": len(report.failure_codes),
+                    },
+                )
+            )
+        return {
+            "results": [result.model_dump(mode="json") for result in results],
+            "investigation_findings": [
+                {
+                    "task": finding.task,
+                    "sources": [
+                        {
+                            "document_id": result.chunk.metadata.document_id,
+                            "chunk_id": result.chunk.metadata.chunk_id,
+                        }
+                        for result in finding.results
+                    ],
+                }
+                for finding in report.findings
+            ],
+            "investigation_summary": {
+                "search_calls": report.search_calls,
+                "decomposition_calls": report.decomposition_calls,
+                "max_depth_reached": report.max_depth_reached,
+                "failure_codes": list(report.failure_codes),
+            },
+            "events": events,
+        }
 
     async def retrieval(state: AgentState) -> dict[str, Any]:
         """Run the authorized knowledge-search tool for the selected query.
@@ -245,12 +357,12 @@ def build_graph(
             Do not construct this state from client-supplied role values.
         """
         role = Role(state["role"])
-        query = selected_query(state["question"], state.get("search_plan"))
+        query = state["question"]
         results = await tool_registry.execute(
             "knowledge_search",
             role,
             {"query": query, "role": role.value,
-                "limit": ExecutionBudget().max_documents},
+                "limit": 5},
             {"knowledge_search": knowledge_search.run},
         )
         serialized = [result.model_dump(mode="json") for result in results]
@@ -438,7 +550,7 @@ def build_graph(
         lambda state: state["route"],
         {"retrieval": "retrieval", "research": "research"},
     )
-    graph.add_edge("research", "retrieval")
+    graph.add_edge("research", "response")
     graph.add_edge("retrieval", "response")
     graph.add_edge("response", "validate")
     # The topology is acyclic: each turn reaches validation and END once.

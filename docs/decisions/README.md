@@ -21,7 +21,7 @@ verified.
 | 0005 | Local identity and backend role policy | Accepted |
 | 0006 | Logs, graph events, and optional LangSmith tracing | Accepted |
 | 0007 | Async API boundaries with synchronous local adapters | Accepted |
-| 0008 | Bounded structured Research scaffold | Accepted |
+| 0008 | Structured Research executor with shared budgets | Accepted |
 
 ## Record template
 

@@ -8,11 +8,12 @@ Domain, API, retrieval, memory, security, tools, agents, and observability
 remain internal module boundaries rather than separate services.
 
 Mock mode remains deterministic. Setting `LLM_PROVIDER=openai` selects the
-structured OpenAI adapter for supervisor routing and grounded answer claims.
-The provider is wired but has not been verified with a live model because no
-OpenAI API key is configured in this workspace. Pinecone dense search,
-full-text BM25 search, metadata filtering, and RRF are implemented and have
-passed an opt-in live test against the existing schema-based index.
+structured OpenAI adapter for supervisor routing, research decomposition,
+and grounded answer claims. The provider is wired but has not been verified
+with a live model because no OpenAI API key is configured in this workspace.
+Pinecone dense search, full-text BM25 search, metadata filtering, and RRF
+are implemented and have passed an opt-in live test against the existing
+schema-based index.
 
 ## Component and execution map
 
@@ -27,8 +28,8 @@ flowchart TB
   Chat --> Graph[Compiled LangGraph]
   Graph --> Supervisor[Structured model supervisor or mock]
   Supervisor -->|direct route| Retrieval[Retrieval node]
-  Supervisor -->|investigation route| Research[One-query Research plan]
-  Research --> Retrieval
+  Supervisor -->|investigation route| Research[Bounded recursive research]
+  Research --> Registry
   Retrieval --> Registry[ToolRegistry authorization]
   Registry --> Knowledge[KnowledgeSearchTool]
   Knowledge --> Filter[Role-derived metadata filter]
@@ -48,7 +49,7 @@ flowchart TB
 | Streamlit | Login, session selection, history, chat, activity display | Uses a synchronous httpx client; all backend data comes from FastAPI. |
 | FastAPI | HTTP schemas, identity, ownership, rate checks, SSE transport | Async routes call synchronous SQLite methods directly. |
 | Chat service | Build per-turn state, consume graph updates, persist final answer | Graph and assistant persistence are separate failure boundaries. |
-| LangGraph | Route, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. |
+| LangGraph | Route, recursively investigate, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. |
 | Security | Resolve local users and enforce tool roles | Local-only tokens and in-memory limits; see the security guide. |
 | Retrieval | Apply role filters; search fixtures or Pinecone; fuse dense and BM25 | Pinecone uses its existing document schema and configured namespace. |
 | Memory | Store owner-scoped sessions and messages | SQLite, one synchronous connection per operation. |
@@ -103,11 +104,14 @@ content truncated to 4,000 characters per message.
 
 The configured model returns a validated retrieval or research route. The
 deterministic mock uses the existing investigate, compare, and analyze
-keyword rule. Research currently wraps the original question as one
-validated query. Both routes execute one authorized search, generate
-structured claims from the returned evidence, and validate citation pairs.
-See `docs/model-provider.md` for provider selection and live verification
-status.
+keyword rule. Research asks the provider for validated subtask strings,
+recursively expands tasks up to depth two, and runs up to four authorized
+searches under a twenty-document and thirty-second budget. Findings retain
+task-to-source identities and are fused by complete document/chunk pairs.
+Partial search failures preserve successful sibling results. Both paths
+generate structured claims from authorized evidence and validate citation
+pairs. No model-generated code is executed. See `docs/model-provider.md`
+and `docs/agent-design.md` for provider and executor details.
 
 Graph events use a reducer that appends each node's event list. The graph has
 no cycles, retries, or model-driven tool loop, and it compiles without a

@@ -113,7 +113,8 @@ class MockModelProvider:
         """Create reproducible research subtasks for local demonstrations.
 
         Complex incident investigations receive separate symptom, cause,
-        and mitigation searches. Other research requests remain one task.
+        and mitigation searches. Those focused tasks remain leaves rather
+        than repeating the same incident decomposition at every depth.
 
         Args:
             question: Investigation request selected by the supervisor.
@@ -122,11 +123,21 @@ class MockModelProvider:
             Validated objective with one to three bounded subtasks.
         """
         normalized = question.casefold()
-        if "incident" in normalized or "outage" in normalized:
+        leaf_prefixes = (
+            "find incident symptoms",
+            "identify incident root causes",
+            "compare incident mitigations",
+        )
+        if normalized.startswith(leaf_prefixes):
+            subtasks = [question]
+        elif "incident" in normalized or "outage" in normalized:
             subtasks = [
-                "Find relevant incident reports and summarize the symptoms.",
-                "Identify documented root causes and contributing conditions.",
-                "Compare mitigations and follow-up actions across incidents.",
+                "Find incident symptoms: payment gateway failures, webhook "
+                "delays, and queue saturation.",
+                "Identify incident root causes: retries, missing idempotency, "
+                "and lock contention.",
+                "Compare incident mitigations: backoff jitter, idempotency "
+                "keys, concurrency, and follow-up actions.",
             ]
         else:
             subtasks = [question]

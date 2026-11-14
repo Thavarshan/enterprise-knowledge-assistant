@@ -28,7 +28,7 @@ LangSmith, or Pinecone credentials.
 |---|---|---|
 | APP_NAME | Enterprise Knowledge Assistant | FastAPI title. |
 | APP_ENV | development | Environment label; does not itself enable production controls. |
-| MOCK_MODE | true | Selects fixture retrieval. False selects the unimplemented Pinecone adapter. |
+| MOCK_MODE | true | Selects fixture retrieval. False selects Pinecone dense and BM25 hybrid retrieval. |
 | API_PREFIX | /api/v1 | Prefix for authentication and chat routes. |
 | API_HOST | 0.0.0.0 | Settings field only; launch commands currently bind 0.0.0.0 directly. |
 | API_PORT | 8000 | Read by run_dev and Compose host-port mapping; make api currently uses 8000. |

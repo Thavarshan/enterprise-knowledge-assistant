@@ -1,6 +1,9 @@
 # Enterprise Knowledge Assistant
 
-An explainable, multi-agent enterprise assistant delivered as one Python modular monolith. It provides deterministic mock conversations and a configurable structured OpenAI provider for supervisor routing and evidence-grounded response claims.
+An explainable, multi-agent enterprise assistant delivered as one Python
+modular monolith. It provides deterministic mock conversations and a
+configurable structured OpenAI provider for supervisor routing, research
+decomposition, and evidence-grounded response claims.
 
 ## Architecture
 
@@ -13,12 +16,14 @@ flowchart LR
     API --> GRAPH[LangGraph]
     GRAPH --> SUP[Model supervisor or mock]
     SUP -->|direct question| RET[Retrieval]
-    SUP -->|investigation| RES[Research plan]
-    RES --> RET
-    RET --> MOCK[Fixture-backed retrieval]
-    RET --> HYBRID[Pinecone dense + BM25]
+    SUP -->|investigation| RES[Bounded recursive research]
+    RET --> TOOL[Authorized knowledge search]
+    RES --> TOOL
+    TOOL --> MOCK[Fixture-backed retrieval]
+    TOOL --> HYBRID[Pinecone dense + BM25]
     HYBRID --> RRF[Reciprocal rank fusion]
-    RET --> RESP[Grounded model response or mock]
+    MOCK --> RESP[Grounded model response or mock]
+    RRF --> RESP
     RESP --> VAL[Citation validation]
     GRAPH -. optional tracing .-> LS[LangSmith]
 ```
@@ -102,8 +107,12 @@ provider credentials.
 - Async FastAPI app factory, lifespan, request IDs, JSON logs, CORS, health/readiness, typed routes, and SSE contracts.
 - Development authentication with server-side role assignment, backend tool permission checks, and in-memory per-user token buckets.
 - SQLite session ownership and turn history.
-- A compiled LangGraph graph that streams actual node updates from Supervisor, optional Research planning, Retrieval, Response, and citation validation nodes.
-- An asynchronous OpenAI Responses adapter that parses structured supervisor decisions and answer claims; it has not received a live credential-backed verification in this workspace.
+- A compiled LangGraph graph with model-backed Supervisor and Response
+  nodes, a bounded recursive Research executor, authorized retrieval, and
+  citation validation.
+- An asynchronous OpenAI Responses adapter that parses structured
+  supervisor decisions, research decomposition, and answer claims. Live
+  credential-backed verification is still outstanding.
 - Pinecone Documents API ingestion with stable source IDs, server-side role and department filters, dense and BM25 queries, and RRF. The opt-in test verifies six synthetic incidents in the configured namespace.
 - Deterministic fixture retrieval with access filtering before evidence enters graph state. Citations resolve to actual synthetic chunks.
 - Streamlit login/session controls, chat history, response streaming, and graph activity display.
@@ -116,7 +125,15 @@ provider credentials.
 
 The mock adapter uses deterministic lexical matching. Pinecone mode uses the existing document schema's integrated dense embedding and BM25 full-text fields, then fuses ranks. The live check covers only six synthetic incidents, so broader relevance evaluation remains necessary.
 
-Research currently produces a restricted structured plan and permits one bounded retrieval pass. It does not execute generated code or recurse. The live model adapter is implemented but awaits a credential-backed response check. There is no MCP server, production identity provider, distributed rate limiter, semantic memory, or human approval flow. The token registry and event schema are extension points, not evidence that those integrations are complete. In-memory rate limits and login tokens do not coordinate across API processes.
+The recursive executor is verified with deterministic decomposition and
+synthetic retrieval. It enforces depth two, four retrieval calls, twenty
+documents, and a thirty-second wall-clock budget. It does not execute
+model-generated code. A live OpenAI response has not been verified because
+the workspace has no `OPENAI_API_KEY`; this also prevents a real model-backed
+recursive demonstration. There is no Python analysis tool, MCP server,
+production identity provider, distributed rate limiter, semantic memory, or
+human approval flow. In-memory rate limits and login tokens do not
+coordinate across API processes.
 
 LangSmith tracing remains optional for normal requests. The UI continues to
 show application activity events; LangSmith spans are a separate diagnostic
@@ -146,7 +163,7 @@ See [the evaluation matrix](docs/evaluation-matrix.md) for requirement weights, 
 
 ## Next milestone
 
-Complete the live OpenAI verification, then implement bounded recursive
-research, validated Python analysis, and safe tool/event flows. The Pinecone
-integration and synthetic retrieval smoke test are documented in
-`docs/retrieval-design.md`.
+Complete live OpenAI verification, then implement the validated Python
+analysis tool, prompt-injection controls, and execution-accurate SSE events.
+The recursive research executor and Pinecone integration are documented in
+`docs/agent-design.md` and `docs/retrieval-design.md`.
