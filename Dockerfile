@@ -20,4 +20,4 @@ RUN uv sync --locked --no-dev
 
 EXPOSE 8000 8501
 
-CMD ["uv", "run", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
