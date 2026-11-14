@@ -1,4 +1,4 @@
-# ADR-0007: Keep async API boundaries with synchronous local adapters
+# ADR-0007: Keep async API boundaries with local adapters
 
 ## Status
 
@@ -6,50 +6,56 @@ Accepted for the current local foundation.
 
 ## Context
 
-FastAPI and LangGraph expose asynchronous request and graph APIs. Local
-SQLite and fixture search are small and simple, while the Streamlit client
-is a synchronous script.
+FastAPI and LangGraph expose asynchronous request and graph APIs. SQLite,
+the local fixture retriever, Pinecone SDK calls, and the Streamlit API client
+have synchronous components.
 
 ## Decision
 
-Use async FastAPI routes and async graph node/search contracts. Keep SQLite
-operations synchronous and use the synchronous httpx client in Streamlit.
-Do not infer that an async signature makes a dependency non-blocking.
+Keep async FastAPI and graph contracts. Offload blocking SQLite calls from
+API request paths and synchronous Pinecone SDK calls to worker threads.
+Retain the synchronous Streamlit client and the in-memory fixture scan.
+Preserve cancellation at async boundaries and use configured provider
+timeouts where supported.
 
 ## Alternatives Considered
 
-- Offload SQLite calls to a thread pool.
-- Use an async database driver and async HTTP client.
+- Replace SQLite with an asynchronous database driver.
+- Replace fixture scanning with a background retrieval service.
+- Use an asynchronous HTTP client inside the Streamlit script.
 - Make the entire API and graph execution synchronous.
 
-These are analytical alternatives, not recorded historical evaluations.
+These alternatives are future options, not recorded historical evaluations.
 
 ## Rationale
 
-The current single-process local demo avoids additional connection pools
-and concurrency abstractions. Explicit adapter contracts leave room for
-async-native or offloaded implementations when workload requires them.
+Thread offloading avoids blocking the API event loop during local database
+operations without replacing the simple SQLite persistence architecture.
+The same boundary accommodates the installed synchronous Pinecone SDK.
 
 ## Trade-offs
 
-SQLite operations and fixture scans can block the API event loop. Streamlit
-holds its execution thread during SSE consumption. These constraints limit
-throughput and are not suitable for assuming production concurrency.
+Thread offloading does not make SQLite itself asynchronous and cannot stop an
+already-running synchronous provider call when its awaiting task is
+cancelled. The Pinecone SDK timeout bounds that work. Fixture search still
+scans in memory in the event loop, and Streamlit holds its execution thread
+while consuming SSE.
 
 ## Consequences
 
-No retrieval or persistence timeout is currently enforced. Pinecone has no
-SDK code, so there is no provider offload or cancellation behavior to
-document. Measure blocking latency before adding concurrent workloads.
+API lifecycle, health, chat, and session operations call SQLite through
+`asyncio.to_thread`. Tests check event-loop responsiveness and cancellation
+at the coroutine boundary. Pinecone calls use worker threads, bounded
+timeouts, and no automatic retries. Production concurrency needs measurement
+and may justify async-native storage and retrieval adapters.
 
 ## Security and Operational Implications
 
-Blocking work can reduce service availability under load but does not
-change the role or owner checks. A future provider adapter must document
-timeouts, cancellation, thread safety, retry scope, and failure mapping.
+Thread offloading does not change owner checks or role policy. SQLite remains
+a local database without shared multi-instance coordination or a production
+retention and encryption policy.
 
 ## Revisit Conditions
 
-Offload or replace synchronous adapters when observed event-loop latency,
-database contention, or concurrent-user requirements justify the added
-complexity.
+Revisit the adapters when measured latency, database contention, or
+concurrent-user requirements justify additional operational complexity.

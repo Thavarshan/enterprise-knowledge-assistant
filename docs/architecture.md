@@ -3,17 +3,18 @@
 ## Overview
 
 The repository is a modular monolith with separate FastAPI and Streamlit
-processes. The processes share a Python package and dependency lockfile.
-Domain, API, retrieval, memory, security, tools, agents, and observability
-remain internal module boundaries rather than separate services.
+processes. They share a Python package and dependency lockfile. Domain, API,
+retrieval, memory, security, tools, agents, and observability remain internal
+module boundaries rather than separate services.
 
-Mock mode remains deterministic. Setting `LLM_PROVIDER=openai` selects the
-structured OpenAI adapter for supervisor routing, research decomposition,
-and grounded answer claims. Its opt-in live test and a model-backed API chat
-passed on 2026-11-14. Recursive decomposition has not yet been exercised
-with the live provider. Pinecone dense search, full-text BM25 search,
-metadata filtering, and RRF are implemented and have passed an opt-in live
-test against the existing schema-based index.
+Mock mode remains deterministic. With `LLM_PROVIDER=openai`, the structured
+OpenAI adapter routes messages, decomposes research, and generates grounded
+claims. On 2026-11-15, a live test verified Retrieval, multi-subtask
+Research, document-backed incident analysis, numeric Analysis, and a
+Viewer-denied request. Pinecone dense and BM25 queries, trusted metadata
+filters, and RRF were verified against the configured schema and synthetic
+corpus. LangSmith readback verified seven model-backed and failure trace
+trees. This evidence covers synthetic assessment data only.
 
 ## Component and execution map
 
@@ -27,15 +28,18 @@ flowchart TB
   API --> Chat[ChatService]
   Chat --> Graph[Compiled LangGraph]
   Graph --> Supervisor[Structured model supervisor or mock]
+  Supervisor -->|greeting| SmallTalk[Fixed small-talk response]
   Supervisor -->|direct route| Retrieval[Retrieval node]
   Supervisor -->|investigation route| Research[Bounded recursive research]
-  Supervisor -->|explicit arithmetic| Analysis[Python analysis]
+  Supervisor -->|numeric calculation| Analysis[Python analysis]
   Research --> Registry
   Retrieval --> Registry[ToolRegistry authorization]
   Registry --> Knowledge[KnowledgeSearchTool]
+  Registry --> IncidentAnalysis[Validated incident aggregation]
   Registry --> PythonAnalysis[Validated arithmetic handler]
   Analysis --> Registry
-  PythonAnalysis --> Response[Validated analysis result]
+  IncidentAnalysis --> Response[Grounded response]
+  PythonAnalysis --> Response
   Knowledge --> Filter[Role-derived metadata filter]
   Filter --> Fixture[In-memory fixture retriever]
   Filter --> Pinecone[Filtered Pinecone dense and BM25 searches]
@@ -43,21 +47,27 @@ flowchart TB
   Fixture --> Response[Grounded model response or mock]
   RRF --> Response
   Response --> Validate[Citation validation]
+  SmallTalk --> Validate
   Graph -. optional environment tracing .-> LangSmith[LangSmith]
 ```
 
 ## Responsibilities and contracts
 
-| Layer | Responsibility | Current boundary |
-|---|---|---|
-| Streamlit | Login, session selection, history, chat, activity display | Uses a synchronous httpx client; all backend data comes from FastAPI. |
-| FastAPI | HTTP schemas, identity, ownership, rate checks, SSE transport | Async routes call synchronous SQLite methods directly. |
-| Chat service | Build per-turn state, consume graph updates, persist final answer | Graph and assistant persistence are separate failure boundaries. |
-| LangGraph | Route, recursively investigate, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. Streams node lifecycle and event updates. |
-| Security | Resolve local users, inspect prompts, and enforce tool roles | Local-only tokens, bounded input patterns, and in-memory limits; see the security guide. |
-| Retrieval | Apply role filters; search fixtures or Pinecone; fuse dense and BM25 | Pinecone uses its existing document schema and configured namespace. |
-| Memory | Store owner-scoped sessions and messages | SQLite, one synchronous connection per operation. |
-| Observability | Request logs, graph activity events, optional tracing | Redacted delivery and a model-backed parent/child trace were remotely verified on 2026-11-14. |
+| Layer | Responsibility |
+|---|---|
+| Streamlit | Login, sessions, chat, history, and activity. |
+| FastAPI | Contracts, identity, ownership, limits, and SSE. |
+| ChatService | Builds state, consumes updates, and persists answers. |
+| LangGraph | Routes, researches, retrieves, analyzes, responds, validates. |
+| Security | Resolves users and enforces input and tool policies. |
+| Retrieval | Applies filters, searches, and fuses ranked results. |
+| Memory | Stores owner-scoped sessions and messages in SQLite. |
+| Observability | Logs, activity events, and optional external traces. |
+
+Streamlit calls FastAPI for all user and conversation data. SQLite remains
+synchronous but API request paths offload calls to worker threads. Seven
+live trace trees were read back on 2026-11-15; see
+`docs/observability.md` for their IDs and verification details.
 
 The API service container is created by the application factory. Tests can
 inject a session store or retriever; ordinary startup selects SQLite and
@@ -107,19 +117,20 @@ messages, with content truncated to 4,000 characters per message.
 
 ## Graph behavior and failure containment
 
-The configured model returns a validated retrieval or research route. The
-deterministic mock uses the existing investigate, compare, and analyze
-keyword rule. Research asks the provider for validated subtask strings,
-recursively expands tasks up to depth two, and runs up to four authorized
-searches under a twenty-document and thirty-second budget. Findings retain
-task-to-source identities and are fused by complete document/chunk pairs.
-Partial search failures preserve successful sibling results. Both paths
-generate structured claims from authorized evidence and validate citation
-pairs. Explicit numeric commands may select the analysis route; the graph
-parses a narrow literal-number grammar and enforces analyst/admin policy
-before using the arithmetic handler. No model-generated code is executed.
-The API input guard blocks obvious instruction overrides and credential
-exfiltration before it stores or sends the user message. See
+The configured model returns a validated small-talk, retrieval, research,
+or numeric-analysis route. Research asks the provider for validated subtask
+strings, recursively expands tasks up to depth two, and runs at most four
+authorized searches under twenty-document and thirty-second budgets. It
+preserves successful sibling results after a partial search failure and
+fuses evidence by complete document/chunk pairs.
+
+Incident aggregate questions use Research, which analyzes authorized source
+metadata in batches with trusted Python. It counts distinct incidents,
+groups explicitly classified root causes, and retains source attribution.
+Numeric commands use a separate arithmetic tool with a narrow literal
+grammar and Analyst/Administrator authorization. No model-generated code
+is executed. The input guard blocks selected override and
+credential-exfiltration patterns before persistence. See
 `docs/model-provider.md`, `docs/security.md`, and `docs/agent-design.md`.
 
 Graph node updates use a reducer that appends each node's event list.
@@ -145,10 +156,10 @@ role and department filters first, and ranks by lexical overlap. It remains a
 deterministic mock score. In Pinecone mode, the configured document schema
 provides an embedding query and BM25 full-text query. Both rankings are
 filtered and merged by reciprocal rank fusion. `scripts/ingest_pinecone.py`
-upserts the six synthetic incident chunks under stable document/chunk IDs.
-The opt-in live integration test verifies semantic paraphrase retrieval,
-exact incident-ID lookup, and viewer filtering. Detailed schema, filters,
-ranking, failure behavior, and limitations are in `docs/retrieval-design.md`.
+upserts eighteen synthetic incident chunks under stable document/chunk IDs.
+Live checks cover semantic paraphrase, exact incident-ID lookup, Viewer
+filtering, and a four-case labeled evaluation. See
+`docs/retrieval-design.md` for schema, metrics, and limits.
 
 ## Process, configuration, and operations
 
@@ -162,14 +173,17 @@ API readiness check; the API mounts local `data/` for SQLite and
 fixture files. The readiness endpoint checks the session store only. It does
 not test Pinecone or LangSmith.
 
-`make setup` prepares local credentials and `make dev`
-starts both local processes. `make check` runs lint, comment and line-length
-checks, formatting, package build, type checking, docstring validation,
-syntax checks, and tests. CI presents three stages: independent quality
-checks first; package build, the Python test matrix, type checking, and the
-dependency audit after they pass; then the Docker Compose smoke test after
-all verification jobs pass. Each check remains its own job, while the test
-matrix groups the supported Python versions.
+`make setup` prepares local credentials and `make dev` starts both local
+processes. `make check` runs local lint, comment, line-length, formatting,
+package build, type, docstring, syntax, and test checks. `make verify-live`
+runs the opt-in OpenAI, Pinecone, and LangSmith end-to-end test;
+`make evaluate-retrieval` runs the labeled Pinecone evaluation.
+
+CI has separate jobs for lint, format, docblocks, comments, line length,
+syntax, package build, tests, type checking, dependency audit, and Docker
+Compose smoke. Pytest has a Python 3.12, 3.13, and 3.14 matrix. The Compose
+job starts both services with `docker compose up`, checks API health and
+readiness, opens the UI, and verifies UI-to-API connectivity.
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values
@@ -199,22 +213,24 @@ exits or the operator interrupts the command.
 
 | Make target | Purpose |
 |---|---|
-| setup | Sync dependencies and create local development credentials. |
-| dev | Sync dependencies, bootstrap if needed, and start both processes. |
-| api / ui | Start one development process for split-terminal workflows. |
-| test | Run pytest across unit and integration suites. |
-| lint | Run Ruff lint rules. |
-| comments-check | Reject commented-out Python code with Ruff ERA001. |
-| line-length-check | Enforce the configured 80-character Python limit. |
-| format / format-check | Apply or verify Autopep8 formatting. |
-| build | Build the source distribution and wheel. |
-| typecheck | Run strict mypy over src and apps. |
-| docs-check | Run the AST docstring validator. |
-| syntax-check | Compile Python files without executing them. |
-| audit | Check installed dependencies with pip-audit. |
-| check | Run all local checks except dependency audit and Docker. |
-| verify-langsmith | Send a synthetic trace and verify delivery and redaction. |
-| docker-up / docker-down | Start or stop the Compose services. |
+| `setup` | Sync dependencies and create local development credentials. |
+| `dev` | Bootstrap if needed and start both local processes. |
+| `api` / `ui` | Start one development process in a separate terminal. |
+| `test` | Run unit and offline integration tests. |
+| `lint` | Run Ruff lint rules. |
+| `comments-check` | Reject commented-out Python with Ruff ERA001. |
+| `line-length-check` | Enforce the configured 80-character Python limit. |
+| `format` / `format-check` | Apply or verify Autopep8 formatting. |
+| `build` | Build the source distribution and wheel. |
+| `typecheck` | Run strict mypy over `src` and `apps`. |
+| `docs-check` | Run the AST docstring validator. |
+| `syntax-check` | Compile Python files without executing them. |
+| `audit` | Check installed dependencies with pip-audit. |
+| `check` | Run local checks except dependency audit and Docker. |
+| `verify-langsmith` | Send a synthetic trace and verify readback/redaction. |
+| `verify-live` | Run opt-in OpenAI, Pinecone, and LangSmith workflows. |
+| `evaluate-retrieval` | Measure dense, BM25, and RRF on labeled cases. |
+| `docker-up` / `docker-down` | Start or stop the Compose services. |
 
 Runtime and development dependencies are declared in pyproject.toml and
 resolved in uv.lock. Python metadata supports 3.12 through 3.14. CI runs
@@ -227,22 +243,20 @@ commit SHAs and repository permissions are read-only.
 
 Pytest uses automatic asyncio mode and a function-scoped event loop. The
 shared client fixture creates a temporary SQLite database, synthetic local
-accounts, fixture retrieval, and disabled tracing. Unit tests protect graph,
-retrieval, security, and documentation-validator behavior. Standard
-integration tests exercise FastAPI routes, SSE, persistence, failure mapping,
-and UI package imports without external service calls. The Pinecone live test
-is opt-in and writes synthetic records; the OpenAI test is opt-in and skips
-without a configured key.
+accounts, fixture retrieval, and disabled tracing. Standard tests exercise
+graph, retrieval, security, API routes, SSE, persistence, failures, and UI
+imports without external service calls. `make verify-live` is opt-in: it
+upserts the synthetic records and exercises OpenAI, Pinecone, and LangSmith.
 
 ## Async and scaling constraints
 
-FastAPI endpoints and graph node functions are declared async, but that does
-not make every dependency non-blocking. SQLite calls are synchronous. The
-fixture retriever's async search performs a synchronous in-memory scan.
-Pinecone's synchronous SDK runs in worker threads with operation timeouts.
-The Streamlit API client uses blocking httpx while the UI consumes SSE. These
-choices suit the local deterministic demo; they require measurement and
-offloading or async-native replacements before high-concurrency deployment.
+FastAPI endpoints and graph node functions are async, but not every
+dependency is non-blocking. SQLite calls are synchronous and are offloaded
+to worker threads from API request paths. Fixture search performs its
+in-memory scan in the event loop. Pinecone SDK calls use worker threads and
+operation timeouts. The Streamlit API client uses blocking httpx while the
+UI consumes SSE. These choices suit the local demo; higher concurrency
+needs measurement and may justify async-native replacements.
 
 Tokens and rate buckets are process-local. Multiple API workers would have
 independent authentication maps and quotas. SQLite and the fixture file are

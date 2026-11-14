@@ -34,14 +34,15 @@ have different responsibilities and are not conflated.
 ## Trade-offs
 
 The API can restore messages after restart, but graph state does not persist.
-SQLite calls are synchronous and are executed directly from async route and
-service code.
+SQLite calls are synchronous and are offloaded from API request paths to
+worker threads.
 
 ## Consequences
 
-The UI renders saved history but sends only the current prompt to the graph.
-SQLite creates parent directories for file-backed paths and enables foreign
-keys. The current API does not offload database calls to a worker thread.
+The UI renders saved history. ChatService also loads bounded recent turns
+into graph context. SQLite creates parent directories for file-backed paths
+and enables foreign keys. API operations use `asyncio.to_thread` so the
+synchronous driver does not block the event loop while calls are running.
 
 ## Security and Operational Implications
 

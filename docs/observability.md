@@ -54,10 +54,10 @@ Trace export errors are logged by exception type, without exception text,
 and do not prevent normal chat requests from running.
 
 The structured OpenAI provider creates an `llm` child span for each actual
-provider request. Mock mode creates no model-request span. Live supervisor
-and response calls have been traced; live recursive decomposition has not
-yet been exercised. Pinecone hybrid retrieval has separate live verification
-against the synthetic corpus. MCP has no executable handler.
+provider request. Mock mode creates no model-request span. The live suite
+verified model-backed Supervisor, decomposition, and Response calls, plus
+Pinecone search, incident analysis, numeric tool use, and failure traces.
+MCP has no executable handler.
 
 ## Agent-based destination
 
@@ -152,19 +152,22 @@ environment, hierarchy, and payload redaction.
 
 Results have distinct meanings:
 
-- **VERIFIED:** Remote readback confirmed the run, destination metadata,
-  expected nested spans, and hidden inputs and outputs.
-- **SUBMITTED:** The SDK flush completed without reporting export errors,
-  but remote readback was unavailable or incomplete. This may be normal for
-  a tracing-only API key.
-- **FAILED:** Trace execution, submission, or a remote redaction check failed.
-- **BLOCKED:** Required configuration is missing or invalid.
+- **Configuration PASS:** Required settings are present; this alone does not
+  prove that the service accepted a trace.
+- **Trace submission PASS:** SDK flush completed without reported errors;
+  this is not remote readback verification.
+- **VERIFIED:** Remote readback confirmed destination, spans, hierarchy, and
+  hidden inputs and outputs.
+- **FAILED:** Trace execution, submission, or a remote assertion failed.
+- **BLOCKED:** Required configuration or remote read permission is
+  unavailable. The command exits with status 2.
 
 The command never prints the API key, question payload, evidence, or answer.
 It prints a unique verification ID. In LangSmith Cloud, open the
 `Enterprise Knowledge Assistant` agent, select the `Local` environment, and
-find the trace with that ID. If the result is `SUBMITTED`, use this UI check
-to confirm receipt when the API key cannot read traces.
+find the trace with that ID. If submission passed but readback is BLOCKED,
+use the UI to inspect that verification ID; do not call it verified until
+the remote trace is visible and its payload is checked.
 
 ## Application verification
 
@@ -198,8 +201,26 @@ local FastAPI service. Trace
 same agent and environment. Its hierarchy placed `openai_supervisor` beneath
 the Supervisor node and `openai_response` beneath the Response node. The
 agent destination matched, every run had empty inputs and outputs, and the
-question text was absent from the serialized trace. This verifies one
-model-backed retrieval turn; it does not verify the live Research route.
+question text was absent from the serialized trace.
+
+On 2026-11-15, `make verify-live` completed seven real chat turns and read
+each trace tree back from the same agent environment. It confirmed the
+destination, expected graph/model/tool spans, parent-child links, and hidden
+inputs and outputs. The Viewer-denial trace did not contain
+`python_analysis`. The trace IDs are:
+
+| Workflow | Trace ID |
+|---|---|
+| Retrieval | `107153f4-40a6-4afd-aab1-f2f52c01e071` |
+| Multi-subtask Research | `7f74e6d9-be91-4272-bc48-e3e5a38d2ce2` |
+| Incident analysis | `00325724-ffb8-406b-afa3-22b11f6d6257` |
+| Numeric Analysis | `1e2e9ec1-3d98-4bd5-a5e6-32d08eebe52d` |
+| Viewer denial | `0ac7a031-0bf7-499b-8124-4d7ed00ceecd` |
+| Retrieval failure | `da1607ab-30f0-46fb-a988-c228f2d2a881` |
+| OpenAI failure | `bdcecb0d-3127-41e2-9867-15b3f8f0c8a2` |
+
+These runs use synthetic assessment data. They verify current trace routing
+and redaction, not a production data-transfer or retention policy.
 
 ## Troubleshooting and limitations
 
@@ -213,15 +234,14 @@ model-backed retrieval turn; it does not verify the live Research route.
   not a substitute for the ID.
 - **Agent not found or archived:** Confirm the exact ID and that the
   registered agent is active in the selected workspace.
-- **Result is SUBMITTED:** The key may have trace-write permission without
-  run-read permission. Confirm the verification ID in the LangSmith UI.
+- **Submission passed but readback is BLOCKED:** The key may have trace-write
+  permission without run-read permission. Confirm the ID in the LangSmith UI.
 - **No model spans:** `LLM_PROVIDER=mock` makes deterministic local
   decisions and emits no model-request spans. In OpenAI mode, check that
   `LLM_PROVIDER=openai` and the key were set before starting the API.
 
-LangSmith availability is optional. A missing key, rejected request, or
-network failure is reported without stopping ordinary chat execution. The
-configured LangSmith key and destination have verified deterministic trace
-delivery and redaction, as well as one OpenAI-backed direct retrieval trace.
-See `docs/demo-guide.md` for the reproducible procedure and remaining
-verification limits.
+LangSmith availability is optional for ordinary chat. A missing key,
+rejected request, or network failure is reported without stopping the turn.
+The current configured key and destination have remotely verified model
+workflows, tool behavior, failure traces, and redaction. See
+`docs/demo-guide.md` for the reproducible procedure and limits.

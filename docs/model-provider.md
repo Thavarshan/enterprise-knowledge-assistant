@@ -43,8 +43,10 @@ integration test uses synthetic evidence:
 uv run pytest tests/integration/test_llm_live.py -q
 ```
 
-That test skips when `OPENAI_API_KEY` is absent. On 2026-11-14, the live test
-received valid structured supervisor and grounded-answer outputs. A separate
-model-backed API chat also completed with real structured route and response
-calls. Live recursive decomposition and broad response-quality evaluation
-remain unverified.
+That test skips when `OPENAI_API_KEY` is absent. On 2026-11-15, the opt-in
+live workflow suite verified structured routing for direct Retrieval,
+multi-subtask Research, document-backed incident aggregation, and numeric
+Analysis. The Research run confirmed more than one subtask, authorized
+Pinecone evidence, a grounded answer, and successful citation validation.
+The run also remotely verified redacted LangSmith traces. Model quality,
+latency, and cost have not been broadly benchmarked.

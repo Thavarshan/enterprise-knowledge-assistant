@@ -2,139 +2,128 @@
 
 ## Workflow overview
 
-The application compiles a LangGraph workflow around a configurable
-`ModelProvider`. OpenAI structured output is used when selected; the
-deterministic mock provider keeps local development and tests independent
-of credentials. Provider output can select a route and propose query text,
-but cannot select a role, access level, department filter, or tool policy.
+The compiled LangGraph graph uses a configured ModelProvider. OpenAI mode
+returns validated structured routing and answer claims. Mock mode keeps
+routing and answers deterministic for offline tests. The model selects a
+workflow only; backend identity, permissions, and retrieval access remain
+outside the model boundary.
 
 ```mermaid
 flowchart LR
   START --> Supervisor
-  Supervisor -->|greeting or capability question| Response
+  Supervisor -->|greeting| SmallTalk[Fixed conversational response]
   Supervisor -->|direct question| Retrieval
   Supervisor -->|investigation| Research
   Supervisor -->|explicit arithmetic| Analysis
-  Research -->|authorized leaf searches| KnowledgeSearch
-  Retrieval --> KnowledgeSearch
+  Retrieval --> KnowledgeSearch[Authorized knowledge search]
+  Research --> KnowledgeSearch
+  Research --> IncidentAnalysis[Structured Python aggregation]
   KnowledgeSearch --> Response
+  IncidentAnalysis --> Response[Grounded or formatted response]
   Analysis --> Response
-  Response --> Validate
+  SmallTalk --> Validate
+  Response --> Validate[Citation validation]
   Validate --> END
 ```
 
-The graph has no cycles or autonomous tool-selection loop. Research uses a
-bounded recursive executor outside the LangGraph topology. It can execute
-multiple authorized searches, then returns one aggregated evidence set to
-the Response node.
+The graph has no autonomous tool-selection loop. Research uses a bounded
+executor outside the graph topology. It recursively expands structured
+subtasks, makes authorized searches, and fuses evidence by complete
+document/chunk identity.
 
 Plain greetings, thanks, farewells, and brief capability questions use a
-small-talk route directly to Response. The route returns a fixed
-product-aware reply and does not search documents or call the answer model.
-Mock mode recognizes a bounded phrase list; the live Supervisor selects the
-route through its validated structured output. Longer factual requests
-continue through retrieval, research, or analysis.
+fixed small-talk reply. They do not invoke retrieval. Longer factual requests
+go through Retrieval, Research, or numeric Analysis.
 
 ## Node contracts
 
-| Node | Reads | Writes | Behavior |
-|---|---|---|---|
-| Supervisor | Question, recent history | Route, event | Provider returns a validated small-talk, retrieval, research, or analysis choice. |
-| Research | Question, authenticated role | Results, findings, budget summary, events | Recursively decomposes, searches, and fuses bounded findings. |
-| Retrieval | Question, authenticated role | Results and source event | Runs one direct search through the authorized tool registry. |
-| Analysis | Question, authenticated role | Validated numeric result or safe failure | Parses explicit numeric literals and calls role-gated Python arithmetic. |
-| Response | Question, authorized serialized results | Response and citations | Gives a fixed conversational reply, returns an analysis result, or uses provider claims citing full document/chunk identities. |
-| Validate | Response, citations, retrieved identities | Final response, validation flag, events | Withholds model output if source identities do not match. |
+| Node | Responsibility |
+|---|---|
+| Supervisor | Selects small talk, retrieval, research, or numeric analysis. |
+| Retrieval | Calls knowledge search through the role policy registry. |
+| Research | Decomposes, searches, and aggregates bounded evidence. |
+| Analysis | Runs validated literal-number arithmetic for analyst/admin. |
+| Response | Renders conversational replies, analysis, or cited claims. |
+| Validate | Checks full source identity pairs before emitting answer chunks. |
 
-`ToolRegistry` has policies for knowledge search, Python analysis, and MCP.
-Knowledge search and Python analysis have executable handlers; MCP remains
-an interface and policy boundary without an installed handler.
+Knowledge search is available to all roles. Python arithmetic and incident
+analysis are allowed to analysts and administrators. The MCP policy exists,
+but there is no MCP server or executable handler.
 
-## Routing and recursive research
+## Model routing and research
 
-The real Supervisor uses structured provider output to select `retrieval` or
-`research`. The deterministic mock selects research for questions that
-contain `investigate`, `compare`, or `analyze`. This simple rule is only the
-offline test behavior; it is not presented as real intent classification.
+The live OpenAI Supervisor selects Retrieval for a direct question about one
+fact or source, Research for comparison and synthesis, and Analysis only for
+supported arithmetic over numeric literals. A deterministic provider keeps
+the same interfaces usable without credentials.
 
-`BoundedResearchExecutor` calls the provider's structured decomposition
-method. A task with multiple subtasks recursively expands until it reaches a
-single search task or the depth limit. Every leaf calls the same
-`KnowledgeSearchTool` and `ToolRegistry` used by direct retrieval. The
-backend derives allowed access levels from the authenticated role before
-the retriever receives any query.
+Research receives a validated TaskDecomposition containing one to four
+distinct query strings. SearchPlan is the declarative Python plan contract.
+Its interpreter applies server-set depth and call limits; model output cannot
+raise those limits or request executable code.
 
-The graph constructs an `ExecutionBudget` for research:
+Each leaf uses KnowledgeSearchTool and ToolRegistry. The tool derives access
+levels from the authenticated graph state. Question filters may narrow by a
+known department, supported document type, and inclusive date range. They
+cannot broaden the role-derived access set.
 
-| Limit | Value | Enforcement |
-|---|---:|---|
-| Maximum recursion depth | 2 | A task at the limit becomes a search leaf. |
-| Retrieval calls | 4 | A shared counter blocks additional calls. |
-| Retrieved documents | 20 | Each leaf reserves remaining result capacity. |
-| Total elapsed time | 30 seconds | Decomposition and retrieval calls use the remaining deadline. |
+The executor enforces this shared budget:
 
-Each call returns at most five chunks, bounded by remaining document
-capacity. Provider subtasks are validated, trimmed, deduplicated, and
-limited to four strings of at most 500 characters. The executor does not
-execute model-generated Python, shell commands, or filesystem operations.
+| Limit | Value |
+|---|---:|
+| Maximum recursion depth | 2 |
+| Knowledge search calls | 4 |
+| Retrieved chunks | 20 |
+| Total investigation time | 30 seconds |
+| Incident-analysis batch size | 5 records |
 
-Each leaf finding retains its task and source results. The final evidence
-list uses reciprocal rank fusion by complete `(document_id, chunk_id)`
-identity, so repeated evidence is combined without comparing unrelated
-search score scales. The response model receives the resulting authorized
-evidence and must cite exact identities. The graph also retains per-task
-source IDs in its research state for explainability.
+Leaf findings keep their task and source identities. Results use reciprocal
+rank fusion by complete document/chunk identity. Duplicate expansion is
+prevented, partial failures preserve successful siblings, and cancellation
+propagates.
 
-Decomposition or search failures are represented by safe failure codes.
-When a branch fails, successful sibling results remain available to the
-Response node. If decomposition fails, the executor searches the current
-objective as a bounded leaf. Cancellation propagates to the caller and is
-not converted into a partial success.
+## Structured incident analysis
 
-The deterministic incident demonstration splits symptoms, causes, and
-mitigations into three searches. The unit and graph tests verify all three
-branches execute, viewer filters remain applied, and source attribution is
-preserved. Live OpenAI decomposition still requires a successful external
-model call; see `docs/roadmap.md`.
+Aggregate incident questions such as “Summarize payment outages during the
+last year and identify recurring root causes” route to Research. The graph
+retrieves only authorized incident reports, filters them with the same
+inclusive rolling-year window, and copies explicit metadata into validated
+IncidentEvidence records.
 
-An explicit command such as `calculate average of 10, 20, 30` selects the
-analysis route. The parser accepts only a count, sum, or average over
-comma-separated decimal literals; ToolRegistry denies viewers before the
-handler runs. The result is deterministic and does not use retrieved
-documents or execute generated code.
+IncidentAnalysisTool uses trusted Python to count distinct incidents,
+group source-classified root causes, calculate percentages, and retain every
+supporting source identity. Repeated chunks count once per incident.
+Conflicting cause labels and missing labels remain unknown. The tool does
+not infer causes from prose or execute model-generated Python.
 
-## Shared graph state and conversation history
+Analyst and Administrator roles may run this analysis. Viewer requests are
+rejected before the tool executes. The graph reports bounded counts and
+source IDs in activity events; the final summary is deterministic and
+citation-validated against evidence returned in this turn.
 
-`AgentState` is a `TypedDict(total=False)`. Nodes return partial
-dictionaries, so fields are optional at the type level even when a node
-expects them at runtime. The API initializes request ID, session ID, user
-ID, role, question, recent history, and events.
+The separate Analysis node remains a narrow calculator for count, sum, and
+average of comma-separated finite numbers. Its role check runs before the
+tool handler.
 
-The event field uses `operator.add`, so LangGraph appends node event lists.
-Ordinary fields use the graph's standard update behavior. Identity and role
-come from the authenticated API user. Never initialize graph state from
-client-supplied role or owner fields.
+## State, history, and streaming
 
-The session ID is passed as LangGraph `thread_id` metadata, but the graph
-has no checkpointer. `ChatService` loads up to twelve recent owner-scoped
-messages and supplies them to the model provider; history is not durable
-graph state.
+ChatService loads up to twelve recent owner-scoped messages into graph
+context and omits the current message, which is already the question. The
+graph has no checkpointer; a LangGraph thread ID is correlation metadata,
+not durable state.
 
-## Events and citation validation
+The UI receives agent and tool starts/completions, route decisions, retrieval
+source IDs, research counts, validation outcomes, memory updates, and safe
+failure codes. Response chunks are emitted only after citation validation.
+Activity data contains no chain-of-thought, prompts, or document content.
 
-The graph streams `agent_start` and `agent_complete` around node execution,
-and `tool_start` and `tool_complete` around each actual search or arithmetic
-call. Failures carry stable error codes without provider text. Node updates
-also emit workflow decisions, retrieval source IDs, validation results, and
-response chunks. Chunks are slices of the completed, validated answer, not
-provider token streaming. Research lifecycle events expose call counts and
-result counts without search queries or document contents.
+## Verification and limits
 
-The Response provider receives only results returned after server-side
-filtering. Model citations are resolved against the complete pair of
-document ID and chunk ID, then canonical metadata is copied from the
-retrieved chunk. The validation node checks markers against the full set of
-retrieved pairs. Unknown identities cause the answer to be withheld.
+Deterministic unit tests cover recursive budgets, partial failures,
+deduplication, source attribution, date filtering, arithmetic, and tool
+authorization. The opt-in live suite verifies OpenAI routing, a multi-subtask
+comparison over Pinecone, date-bounded incident analysis, arithmetic, Viewer
+denial, and remote LangSmith trees.
 
-See `docs/security.md` for prompt-injection, tool-input, and data-exfiltration
-controls as they are implemented in Phase 4.
+The live suite passed on 2026-11-15. It uses a small synthetic corpus and
+does not establish production relevance or adversarial robustness.

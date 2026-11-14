@@ -34,16 +34,16 @@ prompts or UI affordances are changed.
 ## Trade-offs
 
 Development is simple, but passwords are plaintext, tokens do not expire,
-and token state disappears at restart. The current policy table is small and
-does not provide route-level role distinctions beyond authentication and
-session ownership.
+and token state disappears at restart. Role policies are tool-level and do
+not implement a production identity lifecycle.
 
 ## Consequences
 
 Viewer can chat and search viewer-level documents. Analyst can also access
-analyst-level material and policy entries for analytics and MCP.
-Administrator is allowed by all current policy entries. Analytics and MCP
-have no installed handlers; policy permission alone does not create a tool.
+analyst-level material and use Python arithmetic and incident aggregation.
+Administrator is allowed by all active tool policies and may access every
+document level. The MCP policy entry has no executable server or handler;
+policy permission alone does not create an integration.
 
 ## Security and Operational Implications
 

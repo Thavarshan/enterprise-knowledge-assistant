@@ -1,177 +1,133 @@
 # Enterprise Knowledge Assistant
 
-An explainable, multi-agent enterprise assistant delivered as one Python
-modular monolith. It provides deterministic mock conversations and a
-configurable structured OpenAI provider for supervisor routing, research
-decomposition, and evidence-grounded response claims.
+An explainable assistant built as a modular Python monolith. FastAPI,
+Streamlit, LangGraph, SQLite, Pinecone, OpenAI, and LangSmith are kept behind
+small internal module boundaries. Deterministic mock mode remains available
+for tests and local development.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    UI[Streamlit UI] -->|HTTP + SSE| API[FastAPI]
+    UI[Streamlit] -->|HTTP and SSE| API[FastAPI]
     API --> AUTH[Authentication and RBAC]
-    API --> LIMIT[Per-user rate limiter]
     API --> MEM[(SQLite sessions)]
     API --> GRAPH[LangGraph]
-    GRAPH --> SUP[Model supervisor or mock]
+    GRAPH --> SUP[Model supervisor or deterministic mock]
+    SUP -->|greeting| SMALL[Small talk]
     SUP -->|direct question| RET[Retrieval]
-    SUP -->|investigation| RES[Bounded recursive research]
-    SUP -->|explicit arithmetic| ANA[Python analysis]
+    SUP -->|investigation| RES[Bounded Research]
+    SUP -->|numeric calculation| ANA[Python analysis]
     RET --> TOOL[Authorized knowledge search]
     RES --> TOOL
-    ANA --> RESP
-    TOOL --> MOCK[Fixture-backed retrieval]
-    TOOL --> HYBRID[Pinecone dense + BM25]
+    RES --> IANA[Structured incident analysis]
+    TOOL --> FIXTURE[Local fixtures]
+    TOOL --> HYBRID[Pinecone dense and BM25]
     HYBRID --> RRF[Reciprocal rank fusion]
-    MOCK --> RESP[Grounded model response or mock]
+    FIXTURE --> RESP[Grounded Response]
     RRF --> RESP
-    RESP --> VAL[Citation validation]
+    IANA --> RESP
+    ANA --> RESP
+    RESP --> VALIDATE[Citation validation]
     GRAPH -. optional tracing .-> LS[LangSmith]
 ```
 
-FastAPI and Streamlit run as separate processes because they have different runtime needs. They share one repository, package, lockfile, and Compose build. Internal capabilities remain in one deployable Python package.
+## Quick start
 
-## Requirements and quick start
-
-- Python 3.13 (3.12+ is supported), `uv`, and GNU Make.
-- Docker and Docker Compose are optional for containerized startup.
+Requirements: Python 3.12–3.14, `uv`, and GNU Make. Docker Compose is
+optional.
 
 ```bash
-uv sync
-make setup   # creates ignored .env and user file; prints demo credentials
-make dev     # starts FastAPI on :8000 and Streamlit on :8501
+uv sync --all-groups
+make setup
+make dev
 ```
 
-Use the displayed `viewer`, `analyst`, or `admin` credentials in the UI. `make dev` keeps both processes in the foreground; Ctrl+C stops them. Alternatively, run `make api` and `make ui` in separate terminals after setup.
+`make setup` creates local demo users only when no user file exists. It prints
+generated passwords once; they are stored in the ignored
+`data/users/default.json`. Open <http://localhost:8501> and sign in. The UI
+uses FastAPI for authentication, sessions, chat, and event streaming.
 
-Open [http://localhost:8501](http://localhost:8501). The UI logs in through the API, creates an owned session, and consumes the API's SSE stream. Mock mode returns deterministic synthetic evidence without provider keys.
+For deterministic mock mode, use `MOCK_MODE=true` and
+`LLM_PROVIDER=mock`. For live model answers and Pinecone retrieval, configure
+local `.env` credentials, set `MOCK_MODE=false` and `LLM_PROVIDER=openai`,
+then start the services again. The application does not silently fall back
+to mock output when a live provider fails.
 
-## VS Code Python tooling
-
-The workspace formats Python files on save with Autopep8 at an 80-character
-line limit. Ruff enforces the same limit in editor diagnostics and CI; Pylint
-is disabled for this workspace to avoid duplicate linter output. Install the
-recommended VS Code extensions from `.vscode/extensions.json`.
-
-## Docker
-
-Run `make setup` once to create the local ignored `.env`, then:
+Docker Compose startup:
 
 ```bash
 docker compose up --build
 ```
 
-The API and UI containers use the same image and environment file. SQLite data is persisted in the local `data/` directory. `docker compose down` stops the services; it does not remove that local database.
+The API and UI use the same image. SQLite and local data are mounted under
+`data/`.
 
-## Development commands
+## Verification
 
 ```bash
-uv sync --all-groups
-make test
-make lint
-make format-check
-make typecheck
-make docs-check
+make check
 make audit
 make verify-langsmith
-make check
+make verify-live
+make evaluate-retrieval
 ```
 
-`uv.lock` pins the resolved dependency graph. Autopep8 formats Python files; Ruff handles linting and import fixes. GitHub Actions checks Python 3.12 through 3.14, audits installed dependencies weekly and on each change, and builds and starts both Docker services. No CI job requires external credentials.
+`make verify-live` is opt-in and requires working OpenAI, Pinecone, and
+LangSmith credentials. It writes the checked-in synthetic incident corpus
+to the configured existing Pinecone namespace, sends a small set of model
+requests, and requires remote LangSmith read access. It does not create an
+index or delete records. `make evaluate-retrieval` runs a separate four-case
+synthetic evaluation. Neither result predicts quality on production data.
 
-## Configuration
+CI runs independent lint, formatting, docblock, comment, line-length, and
+syntax jobs; package build, type, dependency, and test verification; a test
+matrix for Python 3.12 through 3.14; and a Docker Compose smoke test. CI does
+not need external credentials.
 
-Copy `.env.example` to `.env`, or let `make setup` generate local-only
-credentials. `.env` is ignored by Git. The mock system works without
-model-provider keys. LangSmith uses the existing agent ID and environment
-from `.env.example`; keep the API key in `.env`. Agent addressing does not
-use a tracing project name, and a workspace ID is omitted unless the API
-key's scope requires one. `LLM_PROVIDER=mock` remains deterministic;
-`LLM_PROVIDER=openai` requires `OPENAI_API_KEY` and `OPENAI_MODEL`. With
-`MOCK_MODE=false`, Pinecone settings select the existing document-schema
-index and namespace; the app never creates an index.
+## Implemented behavior
 
-Run `make verify-langsmith` to execute a nested, fictional trace and check
-for SDK submission errors. The equivalent direct command is
-`uv run --env-file .env python scripts/verify_langsmith.py`. The command
-reports `VERIFIED` when remote readback confirms the exact agent, environment,
-and span tree; it reports `SUBMITTED` when sending succeeds but read access is
-unavailable. It never prints the API key or trace payloads.
+- Server-assigned Viewer, Analyst, and Administrator roles protect tools and
+  document access. User and model input cannot grant permissions.
+- LangGraph routes greetings, direct knowledge questions, multi-step
+  investigations, and supported numeric calculations.
+- OpenAI structured output handles live routing, research decomposition,
+  and cited response claims. Deterministic mock behavior is separately
+  tested.
+- Bounded Research performs multiple authorized searches, retains full
+  source identity, and can aggregate explicit incident metadata with trusted
+  Python.
+- Pinecone dense and BM25 full-text searches use trusted metadata filters
+  and reciprocal rank fusion. A synthetic 18-incident corpus demonstrates
+  retrieval, date filtering, and source-backed cause counts.
+- SQLite stores owner-scoped conversation history; recent turns are passed
+  to the model as bounded context.
+- SSE events report graph and tool activity. Answer chunks are emitted only
+  after source identity validation.
+- LangSmith tracing redacts run inputs and outputs and filters metadata.
+  Live tests read back model-backed workflow traces and check their hierarchy.
 
-Important settings include `MOCK_MODE`, `LLM_PROVIDER`, `OPENAI_MODEL`,
-`API_BASE_URL`, `SQLITE_PATH`, CORS origins, rate limits, LangSmith tracing,
-and Pinecone index/namespace configuration. Never commit `.env` or real
-provider credentials.
+## Limits
 
-## What is implemented
+The checked-in data is synthetic. Ingestion accepts pre-chunked JSON rather
+than arbitrary PDF or DOCX documents. The labeled retrieval evaluation has
+four cases. The input guardrail detects selected obvious patterns, not every
+prompt injection. MCP, semantic memory, production identity, distributed
+rate limits, and a human approval flow are not implemented. SQLite, users,
+and rate limits are local demonstration components. No recording is included.
 
-- Async FastAPI app factory, lifespan, request IDs, JSON logs, CORS, health/readiness, typed routes, and SSE contracts.
-- Development authentication with server-side role assignment, backend tool permission checks, and in-memory per-user token buckets.
-- SQLite session ownership and turn history.
-- A compiled LangGraph graph with model-backed Supervisor and Response
-  nodes, a bounded recursive Research executor, authorized retrieval, and
-  citation validation. Explicit arithmetic routes to the role-gated analysis
-  tool.
-- An asynchronous OpenAI Responses adapter that parses structured
-  supervisor decisions, research decomposition, and answer claims. Live
-  supervisor and answer calls passed; live research decomposition remains
-  unverified.
-- Pinecone Documents API ingestion with stable source IDs, server-side role and department filters, dense and BM25 queries, and RRF. The opt-in test verifies six synthetic incidents in the configured namespace.
-- Deterministic fixture retrieval with access filtering before evidence enters graph state. Citations resolve to actual synthetic chunks.
-- Streamlit login/session controls, chat history, response streaming, and graph activity display.
-- Agent-addressed LangSmith tracing for chat, LangGraph nodes, tool calls,
-  OpenAI structured requests, and assistant persistence, with input/output
-  hiding and safe metadata.
-- A standalone LangSmith connectivity command that reports submission and
-  remote verification as separate outcomes.
+## Guides
 
-## Boundaries and limitations
+- [Architecture](docs/architecture.md) and
+  [request lifecycle](docs/request-lifecycle.md)
+- [Agent design](docs/agent-design.md),
+  [retrieval design](docs/retrieval-design.md), and
+  [model provider](docs/model-provider.md)
+- [Security](docs/security.md),
+  [observability](docs/observability.md), and
+  [evaluation matrix](docs/evaluation-matrix.md)
+- [Demonstration guide](docs/demo-guide.md) and
+  [architecture decisions](docs/decisions/README.md)
 
-The mock adapter uses deterministic lexical matching. Pinecone mode uses the existing document schema's integrated dense embedding and BM25 full-text fields, then fuses ranks. The live check covers only six synthetic incidents, so broader relevance evaluation remains necessary.
-
-The recursive executor is verified with deterministic decomposition and
-synthetic retrieval. It enforces depth two, four retrieval calls, twenty
-documents, and a thirty-second wall-clock budget. The Python analysis tool
-supports count, sum, and average over explicit numeric literals; it does not
-execute model-generated code. A live OpenAI-backed retrieval conversation
-and redacted LangSmith parent-child trace were verified on 2026-11-14.
-Live recursive decomposition and broad model-quality evaluation remain
-outstanding. The input guardrail checks clear
-instruction-override and credential-exfiltration patterns, but it is not a
-general prompt-injection classifier. There is no MCP server, production
-identity provider, distributed rate limiter, semantic memory, or human
-approval flow. In-memory rate limits and login tokens do not coordinate
-across API processes.
-
-LangSmith tracing remains optional for normal requests. The UI continues to
-show application activity events; LangSmith spans are a separate diagnostic
-view. The Streamlit UI makes a synchronous HTTP call while consuming the
-streamed response, which is suitable for local demonstration.
-
-## Assessment status
-
-See [the evaluation matrix](docs/evaluation-matrix.md) for requirement weights, implementation status, evidence locations, and remaining work. Architecture and assumptions are documented in `docs/`; concise decisions are in `docs/decisions/`.
-
-## Engineering documentation
-
-- [System architecture](docs/architecture.md) and
-  [request lifecycle](docs/request-lifecycle.md) explain component and API
-  boundaries.
-- [Agent design](docs/agent-design.md) and
-  [retrieval design](docs/retrieval-design.md) describe graph execution,
-  RLM limits, ranking, and evidence.
-- [Model provider](docs/model-provider.md) documents structured outputs,
-  safety boundaries, and live integration status.
-- [Security](docs/security.md) and
-  [observability](docs/observability.md) describe trust boundaries, logs,
-  activity events, and LangSmith limitations.
-- [Documentation standards](docs/documentation-standards.md) explains the
-  Ruff and AST checks. [ADRs](docs/decisions/README.md) record current
-  architectural choices and proposed integration boundaries.
-
-## Demonstration guide
-
-See [the demo guide](docs/demo-guide.md) for startup commands, role setup,
-representative questions, expected evidence, the verified LangSmith trace,
-and known limitations. Mock mode remains available for deterministic runs.
+The authoritative assessment is `docs/assignment.md`. Planning files are
+kept local and ignored by Git.

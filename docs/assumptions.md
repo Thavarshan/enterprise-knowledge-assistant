@@ -1,78 +1,80 @@
 # Assumptions
 
-- `docs/assignment.md` is the authoritative specification. Its evaluation
-  table supplies the weights reproduced in `docs/evaluation-matrix.md`.
-- Python 3.13.9 is selected and verified locally. Project metadata declares Python `>=3.12,<3.15`; CI is configured for 3.13, so other minor versions have not been verified here.
-- All fixture documents are synthetic examples for an invented enterprise and product. They do not contain real banking customer data or claim affiliation with a real bank.
-- Development roles are configured in ignored `.env`. `make setup` generates random local passwords and prints them once to the operator; application logs do not print credentials or bearer tokens.
-- `MOCK_MODE=true` uses fixture retrieval. `MOCK_MODE=false` uses dense and
-  full-text BM25 queries against the configured Pinecone document schema and
-  fuses their rankings. It does not create or change indexes.
-- The backend is intended to run as one API process while using local in-memory tokens and rate buckets. Production multi-instance deployment needs shared identity and rate-limit state.
-- `LANGSMITH_TRACING` controls agent-addressed LangSmith tracing. The example
-  configuration selects the existing assessment agent. Inputs and outputs
-  are hidden, metadata is allowlisted, and trace errors are anonymized. Run
-  `make verify-langsmith` to check external delivery; CI needs no key.
-- `LLM_PROVIDER=mock` is the default and requires no model credentials.
-  `LLM_PROVIDER=openai` enables the structured OpenAI adapter. Routing,
-  grounded response generation, and one model-backed LangSmith trace passed
-  live verification on 2026-11-14; recursive decomposition remains pending.
-  Structured calls create redacted LangSmith child spans when tracing is on.
-- Explicit arithmetic requests accept only finite numeric literals for
-  count, sum, or average. The analysis tool does not inspect retrieved
-  documents or execute Python expressions.
-- The input guardrail blocks clear instruction-override and
-  credential-exfiltration patterns before user-message persistence. It is a
-  narrow deterministic check and does not classify every injection style.
+- `docs/assignment.md` is the authoritative specification. Its scoring
+  weights are copied into `docs/evaluation-matrix.md`.
+- The application is a local assessment demonstration, not a production
+  identity or data-isolation service.
+- All fixture documents are synthetic examples for an invented enterprise.
+  They contain no real customer data or claim affiliation with a real bank.
+- Development roles are configured in ignored `.env`. `make setup` creates
+  local passwords and prints them once; credentials are not logged.
+- `MOCK_MODE=true` selects local fixture retrieval. `MOCK_MODE=false` selects
+  Pinecone dense and full-text BM25 search with reciprocal rank fusion. The
+  application uses the configured existing index and does not manage its
+  schema or lifecycle.
+- `LLM_PROVIDER=mock` is deterministic. `LLM_PROVIDER=openai` independently
+  enables model-backed routing, research decomposition, and response claims.
+  On 2026-11-15, live verification exercised Retrieval, multi-subtask
+  Research, incident aggregation, numeric Analysis, and Viewer denial.
+- LangSmith tracing is optional for normal application use. The live
+  verification confirmed the configured agent destination, seven workflow
+  and failure span trees, parent-child links, and hidden run inputs/outputs.
+- Incident-analysis fields come from validated source metadata. Trusted
+  Python counts records and source-classified root causes; missing or
+  conflicting causes remain unknown. It does not infer causes from prose.
+- The input guard blocks selected override and secret-exfiltration patterns.
+  It is defense in depth, not a general prompt-injection classifier.
+- SQLite operations are synchronous but API request paths offload them to
+  worker threads. Fixture retrieval still performs an in-memory scan on the
+  event loop; the Streamlit client is synchronous.
 
 ## Configuration reference
 
-The API's Settings model reads process environment variables and then the
-repository .env file. Empty values are ignored. Secret-bearing fields are
-excluded from the Pydantic model representation. Mock mode needs no model,
-LangSmith, or Pinecone credentials.
+The API Settings model reads process environment variables and then `.env`.
+Empty values are ignored. Secret fields are excluded from Settings model
+representations. Mock mode needs no provider credentials.
 
 | Variable | Default | Use and limits |
 |---|---|---|
 | APP_NAME | Enterprise Knowledge Assistant | FastAPI title. |
-| APP_ENV | development | Environment label; does not itself enable production controls. |
-| MOCK_MODE | true | Selects fixture retrieval. False selects Pinecone dense and BM25 hybrid retrieval. |
+| APP_ENV | development | Environment label; not a production control. |
+| MOCK_MODE | true | Fixture retrieval; false selects Pinecone hybrid search. |
 | API_PREFIX | /api/v1 | Prefix for authentication and chat routes. |
-| API_HOST | 0.0.0.0 | Settings field only; launch commands currently bind 0.0.0.0 directly. |
-| API_PORT | 8000 | Read by run_dev and Compose host-port mapping; make api currently uses 8000. |
-| UI_PORT | 8501 | Read by run_dev and Compose host-port mapping. |
-| API_BASE_URL | http://localhost:8000 | Read by Streamlit from its process environment; Compose overrides it to api:8000. |
-| SQLITE_PATH | data/sessions.sqlite3 | Local synchronous SQLite store path. |
-| CORS_ORIGINS | http://localhost:8501 | JSON list of browser origins accepted by FastAPI. |
+| API_HOST | 0.0.0.0 | Settings field; launcher currently binds directly. |
+| API_PORT | 8000 | Launcher and Compose host-port mapping. |
+| UI_PORT | 8501 | Launcher and Compose host-port mapping. |
+| API_BASE_URL | http://localhost:8000 | UI target; Compose sets `api:8000`. |
+| SQLITE_PATH | data/sessions.sqlite3 | Local SQLite database path. |
+| CORS_ORIGINS | http://localhost:8501 | Browser origin allowlist. |
 | LOG_LEVEL | INFO | Root application log level. |
-| RATE_LIMIT_CAPACITY | 30 | Initial token capacity per user in this process. |
-| RATE_LIMIT_REFILL_PER_SECOND | 0.5 | Token refill rate per user. |
-| DEV_USERS_JSON | empty | Inline account JSON or file path; setup writes data/users/default.json. |
-| LLM_PROVIDER | mock | Selects deterministic mock or configured OpenAI. |
-| OPENAI_API_KEY | empty | Secret required only when `LLM_PROVIDER=openai`. |
-| OPENAI_MODEL | gpt-4.1-mini | Model used for structured outputs; live suitability is not yet evaluated. |
-| LLM_TIMEOUT_SECONDS | 30 | Per-request model timeout from 1 to 120 seconds. |
-| LANGSMITH_TRACING | false | Opt-in; see `observability.md` for verification. |
+| RATE_LIMIT_CAPACITY | 30 | Initial per-user token count in this process. |
+| RATE_LIMIT_REFILL_PER_SECOND | 0.5 | Per-user token refill rate. |
+| DEV_USERS_JSON | empty | Inline user JSON or path to local user file. |
+| LLM_PROVIDER | mock | Deterministic mock or configured OpenAI. |
+| OPENAI_API_KEY | empty | Required only when the provider is OpenAI. |
+| OPENAI_MODEL | gpt-4.1-mini | Structured-output model; not benchmarked. |
+| LLM_TIMEOUT_SECONDS | 30 | Per-request deadline from 1 through 120 seconds. |
+| LANGSMITH_TRACING | false | Optional; see observability guide. |
 | LANGSMITH_ENDPOINT | api.smith.langchain.com | LangSmith Cloud API endpoint. |
-| LANGSMITH_API_KEY | empty | Secret required with tracing enabled. |
-| LANGSMITH_AGENT_ID | enterprise-knowledge-assistant | Existing agent identifier. |
-| LANGSMITH_AGENT_ENVIRONMENT | local | Destination environment for agent traces. |
+| LANGSMITH_API_KEY | empty | Secret required when tracing is enabled. |
+| LANGSMITH_AGENT_ID | enterprise-knowledge-assistant | Existing agent ID. |
+| LANGSMITH_AGENT_ENVIRONMENT | local | Agent destination environment. |
 | PINECONE_API_KEY | empty | Secret used by the Documents API adapter. |
-| PINECONE_INDEX_NAME | empty | Existing document-schema index; the app never creates it. |
-| PINECONE_NAMESPACE | empty | Explicit namespace selected by server configuration. |
-| PINECONE_EMBEDDING_MODEL | llama-text-embed-v2 | Must match the model declared on the existing `chunk_text` field. |
-| PINECONE_EMBEDDING_DIMENSION | 1024 | Must match the existing dense schema dimension. |
-| PINECONE_TIMEOUT_SECONDS | 15 | Per-operation timeout for Pinecone SDK calls. |
-| PINECONE_DOCUMENTS_PATH | data/samples/incident_corpus.json | Pre-chunked JSON source used by the ingestion command. |
+| PINECONE_INDEX_NAME | empty | Existing index; the app never creates it. |
+| PINECONE_NAMESPACE | empty | Explicit namespace selected by server config. |
+| PINECONE_EMBEDDING_MODEL | llama-text-embed-v2 | Must match index schema. |
+| PINECONE_EMBEDDING_DIMENSION | 1024 | Must match the index's dense schema. |
+| PINECONE_TIMEOUT_SECONDS | 15 | Pinecone SDK operation deadline. |
+| PINECONE_DOCUMENTS_PATH | data/samples/incident_corpus.json | Ingest source. |
 
-The UI reads API_BASE_URL directly from its process environment and falls
-back to localhost:8000. The API_HOST and Settings.api_port fields do not
-currently control Uvicorn's bind address or port. The local launcher reads
-API_PORT and UI_PORT from the process environment; Docker Compose also uses
-them for host port mappings. These launcher values are not a replacement
-for checking the effective runtime environment.
+`make setup` creates `data/users/default.json` when it is missing. The UI
+reads `API_BASE_URL` from its process environment and defaults to localhost.
+The local launcher reads ports from the process environment; Compose also
+uses them for host-port mappings. The API's `API_HOST` and `api_port` fields
+do not currently control Uvicorn's bind address or port. Compose supplies
+the internal UI URL as `http://api:8000`.
 
-The API and UI may use different configuration sources: the API Settings
-model reads .env, while run_dev reads port variables from os.environ and the
-UI reads API_BASE_URL from os.environ. Compose injects .env values and
-overrides the UI's internal service URL.
+The API and UI can use different configuration sources. API Settings reads
+`.env`; the launcher reads process environment variables; the UI reads its
+own `API_BASE_URL`. Check the effective environment when changing local
+ports or starting the processes outside Compose.

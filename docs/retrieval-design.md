@@ -2,66 +2,47 @@
 
 ## Retrieval modes
 
-`MOCK_MODE=true` selects `InMemoryRetriever` over
-`data/samples/documents.json`. It applies access and department filters before
-deterministic lexical overlap scoring and makes no provider calls.
+MOCK_MODE=true selects InMemoryRetriever over
+data/samples/documents.json. It filters by access, department, type, and
+date before deterministic lexical-overlap ranking. It makes no provider
+calls.
 
-`MOCK_MODE=false` selects `HybridRetriever` over the configured Pinecone
-adapter. The adapter runs separate semantic and full-text BM25 searches in
-the same namespace; `HybridRetriever` fuses both ranked lists with reciprocal
-rank fusion. It does not fall back silently if Pinecone fails.
+MOCK_MODE=false selects HybridRetriever over the configured Pinecone
+Documents API index. EmbedQuery supplies dense semantic ranking;
+TextQuery supplies Pinecone full-text BM25 ranking. Reciprocal rank fusion
+combines both ordered lists by position, not by raw score. Both component
+queries are required; live mode does not fall back silently.
 
 ## Pinecone schema and ingestion
 
-The configured index is a document-schema index. Inspection showed a
-1024-dimensional cosine embedding on `chunk_text` using the
-`llama-text-embed-v2` model, plus English full-text search on `chunk_text` and
-`title`. The SDK's Documents API is required for this schema; vector API
-upserts are rejected by the service. The adapter validates the existing
-schema before use and never creates or changes an index.
+The existing index schema has a 1024-dimensional cosine embedding on
+chunk_text using llama-text-embed-v2 and English full-text search on
+chunk_text and title. The Documents API is required for this schema. The
+adapter validates the existing schema and never creates or changes an index.
 
-The source corpus at `data/samples/incident_corpus.json` contains six
-synthetic payment incidents. Each source record is already one chunk and
-contains stable document and chunk IDs, title, department, type, access
-level, date, source, and content. Ingestion is explicit:
+The checked-in incident corpus contains 18 synthetic payment incidents with
+stable document and chunk IDs. Records vary by date, root cause, incident
+category, severity, and viewer, analyst, or administrator access. Some
+incidents are older than the rolling-year window; analyst/admin records test
+authorization boundaries. No real customer information is used.
 
-```bash
-uv run python scripts/ingest_pinecone.py
-```
+Ingestion is explicit and idempotent:
 
-The script calls `documents.upsert` with `_id` derived from the complete
-document/chunk pair and stores content in `chunk_text`. Repeating ingestion
-updates the same records. It does not create namespaces or indexes and does
-not split arbitrary source documents into chunks.
+    uv run --env-file .env python scripts/ingest_pinecone.py
 
-The live verification used the configured `assessment-demo` namespace, which
-was empty before the test. The test upserts only the synthetic corpus and
-checks semantic retrieval, exact incident-ID retrieval, and viewer filtering.
-It is opt-in because it writes to the configured Pinecone namespace:
+The source JSON already contains one chunk per record. IDs are stable across
+re-ingestion; raw PDF, DOCX, and arbitrary source splitting are not
+implemented. The command writes only to the configured existing index and
+namespace. It does not delete records or create an index.
 
-```bash
-PINECONE_RUN_LIVE_TESTS=true \
-  uv run pytest tests/integration/test_pinecone_live.py -q
-```
+The live workflow verification upserts only this synthetic corpus to the
+configured namespace before testing. It does not change schema or delete
+records.
 
-## Dense and BM25 searches
+## Search filters and authorization
 
-Dense retrieval sends `EmbedQuery(field="chunk_text", query=...)` to the
-Documents API. The index schema embeds the query with its configured model.
-Sparse retrieval sends `TextQuery(fields=["chunk_text"], query=...)`, which
-uses Pinecone full-text BM25 scoring. Exact incident IDs and service terms
-are therefore ranked separately from semantic similarity. See the
-[Pinecone SDK scoring reference](https://sdk.pinecone.io/python/_modules/pinecone/models/documents/score_by.html).
-
-The repository also contains a local `BM25Retriever` for deterministic tests
-and local corpus evaluation. Live application hybrid search uses Pinecone's
-BM25 full-text query so both production rankings come from the indexed
-corpus.
-
-## Authorization and metadata
-
-The API resolves the user's role from the bearer token. The knowledge tool
-maps it to allowed labels:
+The API resolves the role from its bearer token. Retrieval maps roles to
+access labels:
 
 | Role | Allowed document levels |
 |---|---|
@@ -69,67 +50,82 @@ maps it to allowed labels:
 | Analyst | viewer, analyst |
 | Administrator | viewer, analyst, administrator |
 
-Both Pinecone queries receive an `access_level` filter and the optional
-department filter before fields are returned. The adapter checks the returned
-access level and department again before it constructs a `DocumentChunk`.
-Client input, model output, and retrieved metadata never choose a role or
-access label. The namespace comes from server configuration and is not
-treated as a substitute for document-level authorization.
+The server applies that access set before Pinecone exposes fields and checks
+returned metadata again before constructing a chunk. User and model text
+cannot select roles or access labels.
 
-`DocumentChunk` and `DocumentMetadata` reject extra fields and validate
-provenance types. Pinecone source content is capped at 30,000 UTF-8 bytes per
-chunk before ingestion. The current corpus is synthetic; connecting real
-documents requires a reviewed source and retention policy.
+Validated optional filters include exact department, document type, and
+inclusive source dates. Recognized department names narrow the search. The
+source-type parser recognizes incidents, runbooks, policies, architecture
+notes, and product specifications. Relative phrases "last year", "past
+year", and "last 12 months" mean a rolling calendar-year window ending on
+the injected current date. On 2026-11-15, the range is 2025-11-15 through
+2026-11-15, inclusive.
+
+The index stores created_date_ordinal as a numeric metadata field so
+Pinecone can apply date bounds in provider filters. The adapter also checks
+the returned ISO date, department, type, and access label before it returns
+content. Authorization always comes from the backend role policy.
 
 ## Hybrid ranking
 
-`reciprocal_rank_fusion` combines dense and BM25 lists by one-based position:
+For each stable document/chunk identity, RRF adds one reciprocal-rank
+contribution per ranking list:
 
-```text
-RRF(document, chunk) = sum(1 / (rank_constant + position))
-```
+    score = sum(1 / (rank_constant + one_based_position))
 
-The default `rank_constant` is 60. The score is a fusion score, not a
-probability or direct provider relevance value. Duplicate candidates use the
-full `(document_id, chunk_id)` identity, and ties sort by both identifiers.
-The live adapter requests up to three times the final result limit, capped at
-twenty candidates, from each ranking method.
+The default rank constant is 60. The result is a fusion score, not a
+probability. Duplicates are combined by the full document/chunk pair; ties
+sort by both IDs. Pinecone requests up to three times the final result limit,
+capped at twenty candidates, from each ranking mode.
 
-The live synthetic checks confirmed that a paraphrase about a saturated
-webhook queue ranked `incident-2026-057` first, an exact `INC-2026-099`
-query ranked `incident-2026-099` first, and viewer search omitted analyst
-and administrator incidents.
+## Reproducible evaluation
 
-## Timeouts and failures
+The labeled dataset is data/evaluation/retrieval_cases.json. It includes an
+exact incident-ID query, a semantic paraphrase, a Viewer access-boundary
+case, and a date-filtered empty-result case. Run:
 
-The Pinecone SDK client timeout and an enclosing async timeout both use the
-configured `PINECONE_TIMEOUT_SECONDS` value. SDK retries are disabled so one
-operation stays within its deadline. Synchronous SDK calls run in worker
-threads. Cancellation propagates, while other provider errors are logged by
-type and returned to ChatService as a generic assistant failure.
+    make evaluate-retrieval
 
-Hybrid retrieval requires both ranked lists. If either Pinecone query fails,
-the graph fails the turn; there is no deterministic or BM25-only fallback in
-live mode. Empty rankings are valid and produce the no-accessible-evidence
-response when both searches complete without matches.
+The script requires the configured Pinecone index and namespace. It reports
+dense, BM25, and hybrid RRF metrics separately and emits IDs, not source
+content. On 2026-11-15, the configured assessment namespace produced:
 
-## Attribution and citation validation
+| Mode | Recall@5 | MRR | Source attribution | Access leakage | Empty accuracy |
+|---|---:|---:|---:|---:|---:|
+| Dense | 1.00 | 1.00 | 1.00 | 0.00 | 1.00 |
+| BM25 | 1.00 | 0.67 | 1.00 | 0.00 | 1.00 |
+| Hybrid RRF | 1.00 | 1.00 | 1.00 | 0.00 | 1.00 |
 
-The response model returns claims with complete document and chunk IDs.
-Graph code resolves each identity against the current authorized result set,
-constructs citations from canonical metadata, and renders markers as
-`[document_id#chunk_id]`. Citation validation compares the complete identity
-pair before answer chunks are emitted. Unknown model identities cause the
-answer to be withheld.
+Recall is averaged over labeled positive queries. MRR is the mean reciprocal
+rank of the first expected document. Source attribution checks every returned
+document/chunk pair against the checked-in corpus. Access leakage counts
+unexpected access levels and explicitly forbidden document IDs. Empty
+accuracy uses only cases with a labeled empty or non-empty outcome; the
+Viewer boundary case measures leakage without assuming other accessible
+results are absent.
 
-The marker grammar allows ASCII letters, digits, underscore, and hyphen in
-each ID. Ingestion must preserve those characters unless the marker grammar
-and validator are changed together.
+Four synthetic queries are a smoke evaluation, not evidence of production
+relevance. The dense embedding and BM25 index may change over time. The
+scores must not be generalized to an approved enterprise corpus.
 
-## Evaluation limits
+## Timeouts, failures, and evidence
 
-The live test covers six synthetic incidents, one paraphrased semantic
-query, one exact incident ID, and one viewer access boundary. It is a useful
-smoke check, not a labeled retrieval benchmark. Production evaluation needs
-broader queries, multiple departments, empty-result checks, and recall and
-ranking measures over an approved corpus.
+Pinecone SDK timeouts and an outer async deadline use the configured
+PINECONE_TIMEOUT_SECONDS. SDK retries are disabled. Synchronous SDK calls
+run in worker threads; caller cancellation propagates, although it cannot
+stop an HTTP request already running in a worker. Provider errors are
+sanitized at the adapter boundary.
+
+The response model may cite only complete document and chunk IDs from the
+authorized result set. The graph copies title and source from those chunks
+and withholds claims with unknown identities. Incident-analysis summaries
+use source-classified metadata and include each supporting source pair.
+Provenance validation does not prove semantic entailment.
+
+## Remaining limits
+
+Searchable content is synthetic. The current ingestion source is pre-chunked
+JSON, the local scoring function is lexical overlap, and the four-query
+evaluation set is intentionally small. Production use needs an approved
+content pipeline, relevance labels, privacy review, and broader evaluation.

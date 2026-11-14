@@ -36,17 +36,18 @@ external transfer.
 
 The logging allowlist limits diagnostic detail. Agent and tool lifecycle
 events stream while operations run. Response chunks follow citation
-validation; they are not live model tokens. External LangSmith delivery and
-redaction have been verified for synthetic mock and model-backed chat runs.
+validation; they are not live model tokens. LangSmith delivery and redaction
+have been verified on synthetic mock and model-backed runs.
 
 ## Consequences
 
 The UI displays activity and validated response chunks. In OpenAI mode,
 structured provider calls have `llm` child spans beneath their graph nodes.
 The LangSmith client hides run inputs and outputs, allowlists metadata, and
-redacts trace errors. A synthetic trace check reports submission and remote
-readback separately; a live model-backed retrieval trace has also been
-verified.
+redacts trace errors. The standalone check distinguishes submission from
+remote readback. Seven live workflow and failure traces were remotely read
+back on 2026-11-15, including Research, numeric Analysis, Viewer denial, and
+provider failures.
 
 ## Security and Operational Implications
 

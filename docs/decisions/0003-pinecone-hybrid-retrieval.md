@@ -16,14 +16,15 @@ and `title`. The installed Pinecone SDK is 10.3.0.
 
 Use the Pinecone Documents API for this index. Store stable document/chunk
 identities and validated metadata in its configured namespace. Run one
-`EmbedQuery` search and one `TextQuery` BM25 search with identical
-server-derived access and department filters. Combine both rankings with
+`EmbedQuery` search and one `TextQuery` BM25 search with server-derived
+access, department, type, and date filters. Combine both rankings with
 reciprocal rank fusion keyed by the complete document/chunk pair.
 
 The adapter validates the existing embedding and full-text schema before
 use. It does not create, configure, or delete indexes. The ingestion command
 accepts pre-chunked JSON records and uses deterministic IDs so repeat runs
-update the same synthetic chunks.
+update the same synthetic chunks. The assessment corpus contains eighteen
+fictional incident records.
 
 ## Alternatives Considered
 
@@ -44,9 +45,10 @@ separate embedding configuration.
 ## Trade-offs
 
 Hybrid retrieval needs two requests and the quality of both ranked lists
-matters. The current live test covers six synthetic incidents only. The
-corpus is already chunked; no general document loader, chunking, update
-workflow, or deletion workflow is included.
+matters. A four-case evaluation produced Recall@5 of 1.00 for dense, BM25,
+and RRF. BM25 MRR was 0.67; dense and RRF MRR were 1.00. These results are
+only a smoke evaluation on synthetic records. The corpus is pre-chunked; no
+general PDF/DOCX loader or source chunker is included.
 
 ## Consequences
 

@@ -2,9 +2,8 @@
 
 ## Status
 
-Accepted and implemented with deterministic-provider verification. Live
-model-backed decomposition remains unverified until provider credentials
-are available.
+Accepted and live verified with OpenAI, Pinecone, and LangSmith on
+2026-11-15.
 
 ## Context
 
@@ -46,16 +45,18 @@ is tracked separately from local functional verification.
 
 The fixed limits may truncate broad investigations. Decomposition errors
 fall back to searching the current objective, while search errors retain
-other successful branches. The executor does not yet invoke a Python
-analysis tool or execute batch computations.
+other successful branches. Incident aggregation runs trusted Python over
+validated metadata in bounded batches; unsupported classifications remain
+unknown.
 
 ## Consequences
 
-The graph's Research path now performs multiple queries and recursive
+The graph's Research path performs multiple queries and recursive
 sub-investigations. It exposes per-task source identities in graph state and
-passes fused authorized evidence to the Response agent. Tests cover nested
-plans, budgets, partial failures, and an incident question that triggers
-three subtask searches.
+passes fused authorized evidence to Response or structured incident
+aggregation. Unit tests cover nested plans, budgets, partial failures, and
+multi-subtask searches. The live test verifies model decomposition, multiple
+retrievals, aggregation, source citations, and trace relationships.
 
 ## Security and Operational Implications
 
@@ -66,6 +67,6 @@ time-limited and exceptions are represented with safe failure codes.
 
 ## Revisit Conditions
 
-Revisit the budget values after labeled relevance and latency evaluation.
-Require a credential-backed model run before claiming live model-driven
-decomposition has been verified.
+Revisit the budget values after broader relevance and latency evaluation.
+The current live check verifies the workflow on a small synthetic corpus;
+it does not establish production-scale retrieval or model quality.
