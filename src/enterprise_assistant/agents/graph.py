@@ -178,7 +178,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
                     event_type="response_chunk",
                     agent="response",
                     node="validate",
-                    message=answer[start : start + 80],
+                    message=answer[start: start + 80],
                 )
                 for start in range(0, len(answer), 80)
             )

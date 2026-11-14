@@ -1,0 +1,11 @@
+{
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.autopep8",
+    "editor.formatOnSave": true
+  },
+  "autopep8.args": [
+    "--max-line-length=100"
+  ],
+  "ruff.lint.enable": true,
+  "pylint.enabled": false
+}

@@ -21,10 +21,10 @@ lint:
 	uv run ruff check .
 
 format:
-	uv run ruff format .
+	uv run autopep8 --in-place --recursive src apps tests scripts
 
 format-check:
-	uv run ruff format --check .
+	uv run autopep8 --diff --recursive --exit-code src apps tests scripts
 
 typecheck:
 	uv run mypy src apps

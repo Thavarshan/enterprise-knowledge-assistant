@@ -39,6 +39,10 @@ Use the displayed `viewer`, `analyst`, or `admin` credentials in the UI. `make d
 
 Open <http://localhost:8501>. The UI logs in through the API, creates an owned session, and consumes the API's SSE stream. The mock graph returns synthetic, cited evidence without paid provider keys.
 
+## VS Code Python tooling
+
+The workspace formats Python files on save with Autopep8 at a 100-character line limit. Ruff provides the project's editor lint diagnostics and CI lint checks; Pylint is disabled for this workspace to avoid duplicate linter output. Install the recommended VS Code extensions from `.vscode/extensions.json`.
+
 ## Docker
 
 Run `make setup` once to create the local ignored `.env`, then:
@@ -60,7 +64,7 @@ make typecheck
 make check
 ```
 
-`uv.lock` pins the resolved dependency graph. GitHub Actions runs the same test, lint, formatting, and type-check commands on Python 3.13. No CI job requires external credentials.
+`uv.lock` pins the resolved dependency graph. Autopep8 formats Python files; Ruff handles linting and import fixes. GitHub Actions runs the same test, lint, formatting, and type-check commands on Python 3.13. No CI job requires external credentials.
 
 ## Configuration
 

@@ -22,7 +22,8 @@ def get_current_user(
         )
     user = cast(
         AuthenticatedUser | None,
-        request.app.state.container.auth.resolve_token(credentials.credentials),
+        request.app.state.container.auth.resolve_token(
+            credentials.credentials),
     )
     if user is None:
         raise HTTPException(
