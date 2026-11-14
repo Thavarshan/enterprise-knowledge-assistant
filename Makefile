@@ -1,5 +1,6 @@
-.PHONY: setup dev api ui test lint format format-check typecheck \
-	docs-check audit check docker-up docker-down
+.PHONY: setup dev api ui test lint comments-check line-length-check \
+	format format-check build typecheck docs-check syntax-check audit check \
+	docker-up docker-down
 
 setup:
 	uv sync --all-groups
@@ -21,11 +22,20 @@ test:
 lint:
 	uv run ruff check .
 
+comments-check:
+	uv run ruff check --select ERA001 .
+
+line-length-check:
+	uv run ruff check --select E501 .
+
 format:
 	uv run autopep8 --in-place --recursive src apps tests scripts
 
 format-check:
 	uv run autopep8 --diff --recursive --exit-code src apps tests scripts
+
+build:
+	uv build
 
 typecheck:
 	uv run mypy src apps
@@ -33,10 +43,14 @@ typecheck:
 docs-check:
 	uv run python scripts/check_docstrings.py
 
+syntax-check:
+	uv run python -m compileall -q src apps scripts tests
+
 audit:
 	uv run pip-audit --local --skip-editable --progress-spinner off
 
-check: lint format-check typecheck docs-check test
+check: lint comments-check line-length-check format-check build typecheck \
+	docs-check syntax-check test
 
 docker-up:
 	docker compose up --build

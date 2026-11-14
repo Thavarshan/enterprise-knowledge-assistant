@@ -139,9 +139,10 @@ fixture files. The readiness endpoint checks the session store only. It does
 not test Pinecone or LangSmith.
 
 `make setup` prepares local credentials and `make dev`
-starts both local processes. `make check` runs lint, format
-validation, type checking, docstring validation, and tests. CI separately
-runs quality, the test matrix, dependency audit, and a container smoke check.
+starts both local processes. `make check` runs lint, comment and line-length
+checks, formatting, package build, type checking, docstring validation,
+syntax checks, and tests. CI runs these as separate jobs, plus a Python
+version matrix, dependency audit, and Docker API/UI smoke test.
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values

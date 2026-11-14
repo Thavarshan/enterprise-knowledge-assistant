@@ -95,8 +95,9 @@ important fixtures, and the behavior a test protects.
   configured 80-character Python limit.
 - `make docs-check` runs `scripts/check_docstrings.py`, which parses source
   with `ast`, reports the path and line, and exits nonzero on a violation.
-- The local pre-commit hook and the CI quality job run the AST validator.
-- `make check` includes lint, formatting, type checking, docstrings, and tests.
+- The local pre-commit hook and the CI docblock job run the AST validator.
+- `make check` includes lint, comment and line-length checks, formatting,
+  package build, type checking, docstrings, syntax, and tests.
 
 The validator skips generated or environment directories and only scans the
 four first-party project roots above. It deliberately avoids arbitrary

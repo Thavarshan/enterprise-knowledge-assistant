@@ -12,28 +12,73 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    ci-${{ github.workflow }}-${{ github.event.pull_request.number
+    || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Code quality
+  lint:
+    name: Lint
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa  # v10.3.1
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           version: 0.13.7
-          python-version: '3.13'
+          python-version: "3.13"
           enable-cache: true
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
       - run: uv sync --locked --all-groups --python 3.13
-      - run: make lint format-check typecheck docs-check
+      - run: make lint
+
+  format:
+    name: Format check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make format-check
+
+  build:
+    name: Package build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: make build
 
   tests:
     name: Tests (Python ${{ matrix.python-version }})
@@ -44,10 +89,12 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa  # v10.3.1
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           version: 0.13.7
           python-version: ${{ matrix.python-version }}
@@ -55,18 +102,127 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python "${{ matrix.python-version }}"
+      - run: >-
+          uv sync --locked --all-groups --python
+          "${{ matrix.python-version }}"
       - run: make test
+
+  docblocks:
+    name: Docblock check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make docs-check
+
+  comments:
+    name: Comments (no commented-out code)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make comments-check
+
+  line-length:
+    name: Line length check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make line-length-check
+
+  syntax:
+    name: Syntax check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make syntax-check
+
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make typecheck
 
   dependency-audit:
     name: Dependency vulnerability audit
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa  # v10.3.1
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           version: 0.13.7
           python-version: "3.13"
@@ -77,12 +233,13 @@ jobs:
       - run: uv sync --locked --all-groups --python 3.13
       - run: make audit
 
-  container-smoke:
-    name: Container build and startup smoke test
+  docker-api-ui:
+    name: Docker build and API/UI smoke test
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Build application image
@@ -117,9 +274,8 @@ jobs:
             --publish 8501:8501 \
             --env API_BASE_URL=http://eka-ci-api:8000 \
             enterprise-knowledge-assistant:ci \
-            streamlit run apps/ui/main.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
-
-          docker exec --workdir /tmp eka-ci-ui python -c "from apps.ui.services.api_client import AssistantApiClient"
+            streamlit run apps/ui/main.py --server.address 0.0.0.0 \
+            --server.port 8501 --server.headless true
 
           for _ in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8000/ready >/dev/null; then
@@ -129,6 +285,17 @@ jobs:
           done
           curl --fail --show-error http://127.0.0.1:8000/health
           curl --fail --show-error http://127.0.0.1:8000/ready
+
+          docker exec eka-ci-ui python -c '
+          import os
+          import httpx
+
+          response = httpx.get(
+              os.environ["API_BASE_URL"] + "/ready",
+              timeout=5.0,
+          )
+          response.raise_for_status()
+          '
 
           for _ in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8501/ >/dev/null; then
