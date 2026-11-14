@@ -3,17 +3,25 @@
 import pytest
 
 from enterprise_assistant.security.authorization import Role
-from enterprise_assistant.security.rate_limiting import RateLimitExceeded, TokenBucketRateLimiter
-from enterprise_assistant.tools.registry import ToolAuthorizationError, ToolRegistry
+from enterprise_assistant.security.rate_limiting import (
+    RateLimitExceeded,
+    TokenBucketRateLimiter,
+)
+from enterprise_assistant.tools.registry import (
+    ToolAuthorizationError,
+    ToolRegistry,
+)
 
 
 def test_tool_registry_rejects_viewer_before_handler_runs() -> None:
     registry = ToolRegistry()
-    assert registry.authorize("knowledge_search", Role.VIEWER).name == "knowledge_search"
+    assert registry.authorize(
+        "knowledge_search", Role.VIEWER).name == "knowledge_search"
     with pytest.raises(ToolAuthorizationError):
         registry.authorize("python_analysis", Role.VIEWER)
     assert registry.authorize("mcp", Role.ANALYST).name == "mcp"
-    assert registry.authorize("python_analysis", Role.ADMINISTRATOR).name == "python_analysis"
+    assert registry.authorize(
+        "python_analysis", Role.ADMINISTRATOR).name == "python_analysis"
 
 
 def test_token_bucket_refills_per_user() -> None:

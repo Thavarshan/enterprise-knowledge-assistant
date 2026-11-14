@@ -38,7 +38,8 @@ def login(client: TestClient):
     def _login(username: str = "viewer") -> dict[str, str]:
         response = client.post(
             "/api/v1/auth/token",
-            json={"username": username, "password": TEST_USERS[username]["password"]},
+            json={"username": username,
+                  "password": TEST_USERS[username]["password"]},
         )
         assert response.status_code == 200
         return {"Authorization": f"Bearer {response.json()['access_token']}"}

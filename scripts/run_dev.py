@@ -18,7 +18,11 @@ def main() -> None:
         if line.startswith("DEV_USERS_JSON=")
     )
     if not configured:
-        subprocess.run([sys.executable, "scripts/bootstrap_dev_env.py"], cwd=ROOT, check=True)
+        subprocess.run(
+            [sys.executable, "scripts/bootstrap_dev_env.py"],
+            cwd=ROOT,
+            check=True,
+        )
 
     api_port = os.environ.get("API_PORT", "8000")
     ui_port = os.environ.get("UI_PORT", "8501")
@@ -61,7 +65,10 @@ def main() -> None:
             if process.poll() is None:
                 process.terminate()
         deadline = time.monotonic() + 10
-        while any(process.poll() is None for process in (ui, api)) and time.monotonic() < deadline:
+        while (
+            any(process.poll() is None for process in (ui, api))
+            and time.monotonic() < deadline
+        ):
             try:
                 time.sleep(0.1)
             except KeyboardInterrupt:

@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     ui_port: int = 8501
     api_base_url: str = "http://localhost:8000"
     sqlite_path: str = "data/sessions.sqlite3"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:8501"])
+    cors_origins: list[str] = Field(default_factory=lambda: [
+                                    "http://localhost:8501"])
     log_level: str = "INFO"
     rate_limit_capacity: int = Field(default=30, gt=0)
     rate_limit_refill_per_second: float = Field(default=0.5, gt=0)

@@ -1,4 +1,4 @@
-"""Translate LangGraph node updates into safe activity events and persisted turns."""
+"""Translate LangGraph updates into safe events and persisted turns."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -49,7 +49,10 @@ class ChatService:
                 stream_mode="updates",
                 config={
                     "configurable": {"thread_id": session_id},
-                    "metadata": {"request_id": request_id, "session_id": session_id},
+                    "metadata": {
+                        "request_id": request_id,
+                        "session_id": session_id,
+                    },
                 },
             ):
                 for node_update in update.values():
@@ -63,7 +66,8 @@ class ChatService:
         except Exception as exc:
             logger.error(
                 "Agent graph failed",
-                extra={"request_id": request_id, "error_type": type(exc).__name__},
+                extra={"request_id": request_id,
+                       "error_type": type(exc).__name__},
             )
             yield ActivityEvent(
                 event_type="failure",
@@ -71,15 +75,20 @@ class ChatService:
                 session_id=session_id,
                 agent="assistant",
                 node="graph",
-                message="The assistant could not complete this request. Please try again.",
+                message=(
+                    "The assistant could not complete this request. "
+                    "Please try again."
+                ),
                 metadata={"error_code": "agent_execution_failed"},
             )
             return
 
         try:
-            self.memory.append_message(session_id, user.user_id, "assistant", response_text)
+            self.memory.append_message(
+                session_id, user.user_id, "assistant", response_text)
         except LookupError:
-            logger.error("Assistant turn persistence failed", extra={"request_id": request_id})
+            logger.error("Assistant turn persistence failed",
+                         extra={"request_id": request_id})
             yield ActivityEvent(
                 event_type="failure",
                 request_id=request_id,

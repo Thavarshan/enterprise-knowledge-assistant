@@ -41,10 +41,16 @@ def main() -> None:
         contents.rstrip() + f"\nDEV_USERS_JSON='{encoded}'\n",
         encoding="utf-8",
     )
-    print("Generated local-only demo credentials. Store these outside the repository:")
+    print(
+        "Generated local-only demo credentials. "
+        "Store these outside the repository:"
+    )
     for username, account in accounts.items():
         print(f"  {username}: {account['password']}")
-    print("The credentials are saved in ignored .env and are not logged by the application.")
+    print(
+        "The credentials are saved in ignored .env and are not logged "
+        "by the application."
+    )
 
 
 if __name__ == "__main__":

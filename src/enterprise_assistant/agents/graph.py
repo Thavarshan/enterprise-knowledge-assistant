@@ -47,7 +47,7 @@ def validate_citations(
     citations: list[SourceCitation],
     retrieved_chunk_ids: frozenset[str],
 ) -> bool:
-    """Require every response citation to identify evidence retrieved this turn."""
+    """Require citations to identify evidence retrieved for this turn."""
     markers = set(_CITATION_PATTERN.findall(response))
     allowed_markers = {
         f"{citation.document_id}#{citation.chunk_id}"
@@ -60,7 +60,7 @@ def validate_citations(
 
 
 def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
-    """Compile the deterministic workflow; a checkpointer can be supplied later."""
+    """Compile the workflow; add a checkpointer when persistence is needed."""
 
     async def supervisor(state: AgentState) -> dict[str, Any]:
         route = select_workflow(state["question"])
@@ -82,10 +82,14 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
             agent="research",
             node="research",
             message="Prepared a bounded structured search plan.",
-            metadata={"query_count": len(queries), "max_depth": budget.max_depth},
+            metadata={"query_count": len(
+                queries), "max_depth": budget.max_depth},
         )
         return {
-            "search_plan": {"queries": list(queries), "max_depth": plan.max_depth},
+            "search_plan": {
+                "queries": list(queries),
+                "max_depth": plan.max_depth,
+            },
             "events": [event],
         }
 
@@ -97,7 +101,8 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         results = await tool_registry.execute(
             "knowledge_search",
             role,
-            {"query": query, "role": role.value, "limit": ExecutionBudget().max_documents},
+            {"query": query, "role": role.value,
+                "limit": ExecutionBudget().max_documents},
             {"knowledge_search": knowledge_search.run},
         )
         serialized = [result.model_dump(mode="json") for result in results]
@@ -117,7 +122,8 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
                 agent="retrieval",
                 node="retrieval",
                 message="Knowledge search completed.",
-                metadata={"tool": "knowledge_search", "result_count": len(results)},
+                metadata={"tool": "knowledge_search",
+                          "result_count": len(results)},
             ),
             _event(
                 state,
@@ -131,7 +137,8 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         return {"results": serialized, "events": events}
 
     async def response(state: AgentState) -> dict[str, Any]:
-        results = [SearchResult.model_validate(result) for result in state.get("results", [])]
+        results = [SearchResult.model_validate(
+            result) for result in state.get("results", [])]
         answer, citations = grounded_response(results)
         events = [
             _event(
@@ -139,7 +146,10 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
                 event_type="agent_transition",
                 agent="response",
                 node="response",
-                message="Prepared a response grounded in retrieved fixture evidence.",
+                message=(
+                    "Prepared a response grounded in "
+                    "retrieved fixture evidence."
+                ),
                 metadata={"citation_count": len(citations)},
             )
         ]
@@ -151,23 +161,32 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
 
     async def validate(state: AgentState) -> dict[str, Any]:
         citations = [
-            SourceCitation.model_validate(citation) for citation in state.get("citations", [])
+            SourceCitation.model_validate(citation)
+            for citation in state.get("citations", [])
         ]
         retrieved_ids = frozenset(
             SearchResult.model_validate(result).chunk.metadata.chunk_id
             for result in state.get("results", [])
         )
-        valid = validate_citations(state.get("response", ""), citations, retrieved_ids)
+        valid = validate_citations(
+            state.get("response", ""), citations, retrieved_ids)
         answer = state.get("response", "")
         if not valid:
-            answer = "I could not return a response because its source citations did not validate."
+            answer = (
+                "I could not return a response because its source citations "
+                "did not validate."
+            )
             citations = []
         event = _event(
             state,
             event_type="validation",
             agent="response",
             node="validate",
-            message="Citation references validated." if valid else "Citation validation failed.",
+            message=(
+                "Citation references validated."
+                if valid
+                else "Citation validation failed."
+            ),
             metadata={"valid": valid, "citation_count": len(citations)},
         )
         events = [event]
@@ -189,7 +208,10 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
                     event_type="failure",
                     agent="response",
                     node="validate",
-                    message="The response was withheld because its citations did not validate.",
+                    message=(
+                        "The response was withheld because its citations "
+                        "did not validate."
+                    ),
                     metadata={"error_code": "citation_validation_failed"},
                 )
             )
@@ -219,7 +241,9 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
     return graph.compile()
 
 
-async def graph_updates(graph: Any, state: AgentState) -> AsyncIterator[dict[str, Any]]:
+async def graph_updates(
+    graph: Any, state: AgentState
+) -> AsyncIterator[dict[str, Any]]:
     """Typed wrapper for consumers that need node-level update iteration."""
     async for update in graph.astream(state, stream_mode="updates"):
         yield update

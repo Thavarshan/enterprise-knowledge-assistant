@@ -8,6 +8,7 @@ Workflow = Literal["retrieval", "research"]
 def select_workflow(question: str) -> Workflow:
     """Choose the bounded investigation path for explicit analysis requests."""
     normalized = question.casefold()
-    if any(word in normalized for word in ("investigate", "compare", "analyze")):
+    investigation_words = ("investigate", "compare", "analyze")
+    if any(word in normalized for word in investigation_words):
         return "research"
     return "retrieval"

@@ -3,7 +3,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from enterprise_assistant.api.dependencies.auth import get_current_user
-from enterprise_assistant.api.schemas.auth import TokenRequest, TokenResponse, UserResponse
+from enterprise_assistant.api.schemas.auth import (
+    TokenRequest,
+    TokenResponse,
+    UserResponse,
+)
 from enterprise_assistant.security.authentication import (
     AuthenticatedUser,
     AuthenticationConfigurationError,
@@ -19,12 +23,16 @@ async def issue_token(payload: TokenRequest, request: Request) -> TokenResponse:
     try:
         token = auth.issue_token(payload.username, payload.password)
     except InvalidCredentialsError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     except AuthenticationConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
-    return TokenResponse(access_token=token.access_token, token_type=token.token_type)
+    return TokenResponse(
+        access_token=token.access_token,
+        token_type=token.token_type,
+    )
 
 
 @router.get("/me", response_model=UserResponse)

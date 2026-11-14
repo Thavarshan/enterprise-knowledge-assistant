@@ -32,5 +32,6 @@ class PineconeRetriever:
     ) -> list[SearchResult]:
         del query, allowed_access_levels, department, limit
         raise PineconeNotConfigured(
-            "Pinecone query execution is scaffolded; configure the production adapter first."
+            "Pinecone query execution is scaffolded; configure the production "
+            "adapter first."
         )

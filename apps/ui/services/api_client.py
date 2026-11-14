@@ -1,4 +1,4 @@
-"""Small HTTP/SSE client; application behavior remains in the FastAPI backend."""
+"""Small HTTP/SSE client for the FastAPI backend."""
 
 import json
 from collections.abc import Iterator
@@ -26,11 +26,14 @@ class AssistantApiClient:
         return str(response.json()["access_token"])
 
     def get_identity(self) -> dict[str, Any]:
-        response = httpx.get(f"{self.base_url}/api/v1/me", headers=self.headers, timeout=10)
+        response = httpx.get(f"{self.base_url}/api/v1/me",
+                             headers=self.headers, timeout=10)
         response.raise_for_status()
         return cast(dict[str, Any], response.json())
 
-    def create_session(self, title: str = "Demo conversation") -> dict[str, Any]:
+    def create_session(
+        self, title: str = "Demo conversation"
+    ) -> dict[str, Any]:
         response = httpx.post(
             f"{self.base_url}/api/v1/chat/sessions",
             headers=self.headers,
@@ -49,7 +52,9 @@ class AssistantApiClient:
         response.raise_for_status()
         return cast(dict[str, Any], response.json())
 
-    def stream_chat(self, session_id: str, message: str) -> Iterator[dict[str, Any]]:
+    def stream_chat(
+        self, session_id: str, message: str
+    ) -> Iterator[dict[str, Any]]:
         with httpx.stream(
             "POST",
             f"{self.base_url}/api/v1/chat/stream",

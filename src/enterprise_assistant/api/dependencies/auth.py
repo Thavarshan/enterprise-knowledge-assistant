@@ -8,11 +8,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from enterprise_assistant.security.authentication import AuthenticatedUser
 
 _bearer = HTTPBearer(auto_error=False)
+_bearer_dependency = Depends(_bearer)
 
 
 def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
+    credentials: HTTPAuthorizationCredentials | None = (
+        _bearer_dependency
+    ),
 ) -> AuthenticatedUser:
     if credentials is None:
         raise HTTPException(

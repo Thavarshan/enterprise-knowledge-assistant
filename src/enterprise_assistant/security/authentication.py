@@ -51,7 +51,8 @@ class AuthService:
             if not isinstance(raw_users, dict) or not raw_users:
                 raise ValueError("expected a non-empty JSON object")
             self._users = {
-                username: DevUserConfig.model_validate(user) for username, user in raw_users.items()
+                username: DevUserConfig.model_validate(user)
+                for username, user in raw_users.items()
             }
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:
             raise AuthenticationConfigurationError(
@@ -61,14 +62,22 @@ class AuthService:
     def issue_token(self, username: str, password: str) -> IssuedToken:
         if not self._users:
             raise AuthenticationConfigurationError(
-                "No development accounts configured. Run `make setup` to create .env."
+                "No development accounts configured. "
+                "Run `make setup` to create .env."
             )
         account = self._users.get(username)
-        expected_password = account.password if account is not None else secrets.token_urlsafe(24)
-        if account is None or not hmac.compare_digest(password, expected_password):
+        expected_password = (
+            account.password
+            if account is not None
+            else secrets.token_urlsafe(24)
+        )
+        if account is None or not hmac.compare_digest(
+            password, expected_password
+        ):
             raise InvalidCredentialsError("Invalid username or password.")
         token = secrets.token_urlsafe(32)
-        self._tokens[token] = AuthenticatedUser(user_id=username, role=account.role)
+        self._tokens[token] = AuthenticatedUser(
+            user_id=username, role=account.role)
         return IssuedToken(access_token=token)
 
     def resolve_token(self, token: str) -> AuthenticatedUser | None:

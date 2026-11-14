@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from enterprise_assistant.memory.models import ChatMessage, ChatSession, MessageRole
+from enterprise_assistant.memory.models import (
+    ChatMessage,
+    ChatSession,
+    MessageRole,
+)
 
 
 class SQLiteSessionStore:
@@ -30,10 +34,12 @@ class SQLiteSessionStore:
                     title TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS sessions_owner_idx ON sessions(owner_id);
+                CREATE INDEX IF NOT EXISTS sessions_owner_idx
+                    ON sessions(owner_id);
                 CREATE TABLE IF NOT EXISTS messages (
                     message_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+                    session_id TEXT NOT NULL
+                        REFERENCES sessions(session_id) ON DELETE CASCADE,
                     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
                     content TEXT NOT NULL,
                     created_at TEXT NOT NULL
@@ -51,7 +57,9 @@ class SQLiteSessionStore:
         except sqlite3.Error:
             return False
 
-    def create_session(self, owner_id: str, title: str | None = None) -> ChatSession:
+    def create_session(
+        self, owner_id: str, title: str | None = None
+    ) -> ChatSession:
         session = ChatSession(
             session_id=str(uuid4()),
             owner_id=owner_id,
@@ -60,8 +68,11 @@ class SQLiteSessionStore:
         )
         with self._connect() as connection:
             connection.execute(
-                "INSERT INTO sessions(session_id, owner_id, title, created_at) VALUES (?, ?, ?, ?)",
-                (session.session_id, session.owner_id, session.title, session.created_at),
+                "INSERT INTO sessions("
+                "session_id, owner_id, title, created_at"
+                ") VALUES (?, ?, ?, ?)",
+                (session.session_id, session.owner_id,
+                 session.title, session.created_at),
             )
         return session
 
@@ -74,7 +85,9 @@ class SQLiteSessionStore:
             ).fetchone()
         return ChatSession(**dict(row)) if row else None
 
-    def list_messages(self, session_id: str, owner_id: str) -> list[ChatMessage] | None:
+    def list_messages(
+        self, session_id: str, owner_id: str
+    ) -> list[ChatMessage] | None:
         with self._connect() as connection:
             owns_session = connection.execute(
                 "SELECT 1 FROM sessions WHERE session_id = ? AND owner_id = ?",
@@ -83,7 +96,8 @@ class SQLiteSessionStore:
             if owns_session is None:
                 return None
             rows = connection.execute(
-                "SELECT message_id, session_id, role, content, created_at FROM messages "
+                "SELECT message_id, session_id, role, content, created_at "
+                "FROM messages "
                 "WHERE session_id = ? ORDER BY message_id",
                 (session_id,),
             ).fetchall()
@@ -110,11 +124,14 @@ class SQLiteSessionStore:
             if owner is None:
                 raise LookupError("Session does not exist for this user.")
             cursor = connection.execute(
-                "INSERT INTO messages(session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                "INSERT INTO messages("
+                "session_id, role, content, created_at"
+                ") VALUES (?, ?, ?, ?)",
                 (session_id, role, content, created_at),
             )
             if cursor.lastrowid is None:
-                raise RuntimeError("SQLite did not return the inserted message ID.")
+                raise RuntimeError(
+                    "SQLite did not return the inserted message ID.")
             message_id = cursor.lastrowid
         return ChatMessage(
             message_id=message_id,

@@ -1,4 +1,4 @@
-"""Minimal Streamlit chat client for observing the backend's real graph events."""
+"""Minimal Streamlit client for observing backend graph events."""
 
 import os
 from typing import Any
@@ -132,7 +132,9 @@ if prompt and client and session_id:
                     source_titles = ", ".join(source.get(
                         "title", "source") for source in sources)
                     activity.append(
-                        f"**Retrieval:** {len(sources)} source(s) {source_titles}")
+                        f"**Retrieval:** {len(sources)} source(s) "
+                        f"{source_titles}"
+                    )
                 elif event_type == "tool_execution":
                     tool = event.get("metadata", {}).get("tool", "tool")
                     activity.append(f"**Tool:** {tool} completed")
@@ -146,13 +148,18 @@ if prompt and client and session_id:
                 elif event_type == "failure":
                     activity.append(f"**Error:** {event_message}")
                 activity_placeholder.markdown(
-                    f"**Current agent/node:** {current_agent} / {current_node}\n\n"
+                    f"**Current agent/node:** {current_agent} / "
+                    f"{current_node}\n\n"
                     + "\n\n".join(activity[-12:])
                 )
             if not answer_parts:
                 answer_placeholder.info("The stream ended without a response.")
         except httpx.HTTPStatusError as exc:
-            detail = exc.response.json().get("error", {}).get("message", "Request failed.")
+            detail = (
+                exc.response.json()
+                .get("error", {})
+                .get("message", "Request failed.")
+            )
             st.error(detail)
         except httpx.HTTPError as exc:
             st.error(f"Could not reach the assistant API: {exc}")

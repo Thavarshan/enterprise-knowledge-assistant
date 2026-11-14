@@ -22,7 +22,10 @@ from enterprise_assistant.observability.langsmith import configure_langsmith
 from enterprise_assistant.observability.logging import configure_logging
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.retrieval.interfaces import Retriever
-from enterprise_assistant.retrieval.pinecone import PineconeConfig, PineconeRetriever
+from enterprise_assistant.retrieval.pinecone import (
+    PineconeConfig,
+    PineconeRetriever,
+)
 from enterprise_assistant.security.authentication import AuthService
 from enterprise_assistant.security.rate_limiting import TokenBucketRateLimiter
 from enterprise_assistant.tools.registry import ToolRegistry
@@ -82,7 +85,8 @@ def create_app(
         container.memory.initialize()
         logger.info(
             "Application startup complete",
-            extra={"tracing_enabled": tracing_enabled, "mock_mode": app_settings.mock_mode},
+            extra={"tracing_enabled": tracing_enabled,
+                   "mock_mode": app_settings.mock_mode},
         )
         yield
 
@@ -109,7 +113,9 @@ def create_app(
     application.include_router(versioned)
 
     @application.exception_handler(APIError)
-    async def handle_api_error(_request: Request, exc: APIError) -> JSONResponse:
+    async def handle_api_error(
+        _request: Request, exc: APIError
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": exc.code, "message": exc.message}},
@@ -119,7 +125,8 @@ def create_app(
     async def handle_validation_error(
         _request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        errors = [{"type": error["type"], "loc": error["loc"]} for error in exc.errors()]
+        errors = [{"type": error["type"], "loc": error["loc"]}
+                  for error in exc.errors()]
         return JSONResponse(
             status_code=422,
             content={
@@ -132,14 +139,17 @@ def create_app(
         )
 
     @application.exception_handler(StarletteHTTPException)
-    async def handle_http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def handle_http_error(
+        _request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
         code = {
             401: "unauthorized",
             403: "forbidden",
             404: "not_found",
             429: "rate_limited",
         }.get(exc.status_code, "http_error")
-        detail = exc.detail if isinstance(exc.detail, str) else "Request failed."
+        detail = exc.detail if isinstance(
+            exc.detail, str) else "Request failed."
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": code, "message": detail}},
@@ -147,8 +157,11 @@ def create_app(
         )
 
     @application.exception_handler(Exception)
-    async def handle_unexpected_error(_request: Request, exc: Exception) -> JSONResponse:
-        logger.error("Unhandled API error", extra={"error_type": type(exc).__name__})
+    async def handle_unexpected_error(
+        _request: Request, exc: Exception
+    ) -> JSONResponse:
+        logger.error("Unhandled API error", extra={
+                     "error_type": type(exc).__name__})
         return JSONResponse(
             status_code=500,
             content={

@@ -37,11 +37,14 @@ make dev     # starts FastAPI on :8000 and Streamlit on :8501
 
 Use the displayed `viewer`, `analyst`, or `admin` credentials in the UI. `make dev` keeps both processes in the foreground; Ctrl+C stops them. Alternatively, run `make api` and `make ui` in separate terminals after setup.
 
-Open <http://localhost:8501>. The UI logs in through the API, creates an owned session, and consumes the API's SSE stream. The mock graph returns synthetic, cited evidence without paid provider keys.
+Open [http://localhost:8501](http://localhost:8501). The UI logs in through the API, creates an owned session, and consumes the API's SSE stream. The mock graph returns synthetic, cited evidence without paid provider keys.
 
 ## VS Code Python tooling
 
-The workspace formats Python files on save with Autopep8 at a 100-character line limit. Ruff provides the project's editor lint diagnostics and CI lint checks; Pylint is disabled for this workspace to avoid duplicate linter output. Install the recommended VS Code extensions from `.vscode/extensions.json`.
+The workspace formats Python files on save with Autopep8 at an 80-character
+line limit. Ruff enforces the same limit in editor diagnostics and CI; Pylint
+is disabled for this workspace to avoid duplicate linter output. Install the
+recommended VS Code extensions from `.vscode/extensions.json`.
 
 ## Docker
 

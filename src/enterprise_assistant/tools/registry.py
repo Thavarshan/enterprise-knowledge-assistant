@@ -38,7 +38,8 @@ class ToolRegistry:
         if policy is None:
             raise ToolNotFoundError(tool_name)
         if role not in policy.allowed_roles:
-            raise ToolAuthorizationError(f"Role '{role.value}' cannot use '{tool_name}'.")
+            raise ToolAuthorizationError(
+                f"Role '{role.value}' cannot use '{tool_name}'.")
         return policy
 
     async def execute(

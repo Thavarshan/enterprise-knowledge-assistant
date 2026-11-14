@@ -16,5 +16,6 @@ async def health() -> dict[str, str]:
 async def ready(request: Request) -> dict[str, str]:
     container: Any = request.app.state.container
     if not container.memory.healthcheck():
-        raise HTTPException(status_code=503, detail="Session store is not ready.")
+        raise HTTPException(
+            status_code=503, detail="Session store is not ready.")
     return {"status": "ready"}

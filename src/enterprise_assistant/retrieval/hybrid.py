@@ -1,4 +1,4 @@
-"""Score-safe reciprocal-rank fusion for planned dense and sparse result lists."""
+"""Score-safe reciprocal-rank fusion for dense and sparse results."""
 
 from collections import defaultdict
 from collections.abc import Sequence
@@ -19,8 +19,10 @@ def reciprocal_rank_fusion(
             chunk_id = result.chunk.metadata.chunk_id
             fused_scores[chunk_id] += 1 / (rank_constant + position)
             chunks.setdefault(chunk_id, result)
-    ordered = sorted(chunks, key=lambda chunk_id: (-fused_scores[chunk_id], chunk_id))
+    ordered = sorted(
+        chunks, key=lambda chunk_id: (-fused_scores[chunk_id], chunk_id))
     return [
-        SearchResult(chunk=chunks[chunk_id].chunk, score=fused_scores[chunk_id], rank=rank)
+        SearchResult(chunk=chunks[chunk_id].chunk,
+                     score=fused_scores[chunk_id], rank=rank)
         for rank, chunk_id in enumerate(ordered, start=1)
     ]

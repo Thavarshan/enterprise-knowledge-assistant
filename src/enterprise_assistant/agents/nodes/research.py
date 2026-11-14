@@ -8,8 +8,10 @@ from enterprise_assistant.rlm.contracts import (
 )
 
 
-def plan_research(question: str) -> tuple[SearchPlan, tuple[str, ...], ExecutionBudget]:
-    """Create one approved query under fixed depth, document, and call budgets."""
+def plan_research(
+    question: str,
+) -> tuple[SearchPlan, tuple[str, ...], ExecutionBudget]:
+    """Create one approved query under fixed execution budgets."""
     plan = plan_queries(question, max_queries=1)
     budget = ExecutionBudget(max_depth=1, max_search_calls=1, max_documents=5)
     return plan, interpret_search_plan(plan, budget), budget

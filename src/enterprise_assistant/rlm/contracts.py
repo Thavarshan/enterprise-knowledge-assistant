@@ -34,12 +34,14 @@ class BatchAnalysis(BaseModel):
 
 
 def plan_queries(question: str, *, max_queries: int = 1) -> SearchPlan:
-    """Create a tiny deterministic plan; model-proposed Python is never executed."""
+    """Create a tiny plan; model-proposed Python is never executed."""
     bounded_count = max(1, min(max_queries, 4))
     return SearchPlan(queries=[question][:bounded_count], max_depth=1)
 
 
-def interpret_search_plan(plan: SearchPlan, budget: ExecutionBudget) -> tuple[str, ...]:
+def interpret_search_plan(
+    plan: SearchPlan, budget: ExecutionBudget
+) -> tuple[str, ...]:
     """Interpret validated query strings under a hard search-call budget."""
     if plan.max_depth > budget.max_depth:
         raise ValueError("search plan exceeds the configured depth budget")

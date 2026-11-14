@@ -15,7 +15,9 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
-            "request_id": getattr(record, "request_id", request_id_context.get()),
+            "request_id": getattr(
+                record, "request_id", request_id_context.get()
+            ),
         }
         for field in (
             "method",

@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 
-def test_ui_api_client_imports_when_running_from_the_streamlit_directory() -> None:
+def test_ui_api_client_imports_when_running_from_the_streamlit_directory(
+) -> None:
     repository_root = Path(__file__).resolve().parents[2]
     result = subprocess.run(
         [

@@ -1,4 +1,4 @@
-"""Restricted analysis request contract; arbitrary Python execution is excluded."""
+"""Restricted analysis contract; arbitrary Python execution is excluded."""
 
 from pydantic import BaseModel, ConfigDict, Field
 

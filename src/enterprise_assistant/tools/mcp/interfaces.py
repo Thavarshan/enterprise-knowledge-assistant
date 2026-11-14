@@ -4,4 +4,5 @@ from typing import Any, Protocol
 
 
 class MCPClient(Protocol):
-    async def invoke(self, tool_name: str, arguments: dict[str, Any]) -> Any: ...
+    async def invoke(self, tool_name: str,
+                     arguments: dict[str, Any]) -> Any: ...

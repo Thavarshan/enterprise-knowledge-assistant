@@ -35,15 +35,18 @@ class TokenBucketRateLimiter:
 
     def consume(self, user_id: str, cost: float = 1) -> None:
         if cost <= 0 or cost > self.capacity:
-            raise ValueError("cost must be positive and no greater than bucket capacity")
+            raise ValueError(
+                "cost must be positive and no greater than bucket capacity")
         now = self._clock()
         bucket = self._buckets.get(user_id, _Bucket(self.capacity, now))
         bucket.tokens = min(
             self.capacity,
-            bucket.tokens + max(0.0, now - bucket.updated_at) * self.refill_per_second,
+            bucket.tokens + max(0.0, now - bucket.updated_at) *
+            self.refill_per_second,
         )
         bucket.updated_at = now
         self._buckets[user_id] = bucket
         if bucket.tokens < cost:
-            raise RateLimitExceeded((cost - bucket.tokens) / self.refill_per_second)
+            raise RateLimitExceeded(
+                (cost - bucket.tokens) / self.refill_per_second)
         bucket.tokens -= cost

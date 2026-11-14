@@ -31,7 +31,8 @@ class Chunker(Protocol):
 
 
 class Embedder(Protocol):
-    async def embed_dense(self, texts: Sequence[str]) -> Sequence[Sequence[float]]: ...
+    async def embed_dense(
+        self, texts: Sequence[str]) -> Sequence[Sequence[float]]: ...
 
 
 class SparseIndexer(Protocol):
@@ -39,4 +40,7 @@ class SparseIndexer(Protocol):
 
 
 class HybridRanker(Protocol):
-    def fuse(self, result_lists: Sequence[Sequence[SearchResult]]) -> Sequence[SearchResult]: ...
+    def fuse(
+        self,
+        result_lists: Sequence[Sequence[SearchResult]],
+    ) -> Sequence[SearchResult]: ...

@@ -18,7 +18,11 @@ class InMemoryRetriever:
     def from_json(cls, path: Path | None = None) -> "InMemoryRetriever":
         source = path or Path.cwd() / "data" / "samples" / "documents.json"
         raw_documents: Any = json.loads(source.read_text(encoding="utf-8"))
-        return cls([DocumentChunk.model_validate(document) for document in raw_documents])
+        chunks = [
+            DocumentChunk.model_validate(document)
+            for document in raw_documents
+        ]
+        return cls(chunks)
 
     async def search(
         self,
@@ -28,7 +32,7 @@ class InMemoryRetriever:
         department: str | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
-        """Filter access metadata before reading candidates into ranked evidence."""
+        """Filter access metadata before ranking evidence candidates."""
         if limit <= 0:
             return []
         query_terms = set(_TOKEN_PATTERN.findall(query.casefold()))
@@ -40,7 +44,8 @@ class InMemoryRetriever:
             if department is not None and metadata.department != department:
                 continue
             searchable = f"{metadata.title} {chunk.content}".casefold()
-            overlap = sum(1 for token in _TOKEN_PATTERN.findall(searchable) if token in query_terms)
+            overlap = sum(1 for token in _TOKEN_PATTERN.findall(
+                searchable) if token in query_terms)
             if overlap:
                 ranked.append((overlap, chunk))
         ranked.sort(key=lambda item: (-item[0], item[1].metadata.document_id))
@@ -51,4 +56,6 @@ class InMemoryRetriever:
         ]
 
     def contains_chunk(self, chunk_id: str) -> bool:
-        return any(chunk.metadata.chunk_id == chunk_id for chunk in self._chunks)
+        return any(
+            chunk.metadata.chunk_id == chunk_id for chunk in self._chunks
+        )

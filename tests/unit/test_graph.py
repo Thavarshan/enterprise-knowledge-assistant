@@ -9,7 +9,8 @@ from enterprise_assistant.tools.registry import ToolRegistry
 
 
 @pytest.mark.asyncio
-async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events() -> None:
+async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events(
+) -> None:
     graph = build_graph(InMemoryRetriever.from_json(), ToolRegistry())
     state: AgentState = {
         "request_id": "graph-test",
@@ -19,9 +20,12 @@ async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events() -> 
         "question": "Investigate gateway timeout response steps",
         "events": [],
     }
-    updates = [update async for update in graph.astream(state, stream_mode="updates")]
+    updates = [
+        update async for update in graph.astream(state, stream_mode="updates")
+    ]
     node_names = [node for update in updates for node in update]
-    assert node_names == ["supervisor", "research", "retrieval", "response", "validate"]
+    assert node_names == ["supervisor", "research",
+                          "retrieval", "response", "validate"]
     event_types = [
         event["event_type"]
         for update in updates

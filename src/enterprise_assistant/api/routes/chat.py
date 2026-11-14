@@ -22,13 +22,18 @@ from enterprise_assistant.security.rate_limiting import RateLimitExceeded
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("/sessions", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/sessions",
+    response_model=SessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_session(
     payload: CreateSessionRequest,
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
 ) -> SessionResponse:
-    session = request.app.state.container.memory.create_session(user.user_id, payload.title)
+    session = request.app.state.container.memory.create_session(
+        user.user_id, payload.title)
     return SessionResponse.from_record(session)
 
 
@@ -42,7 +47,8 @@ async def get_session(
     session: ChatSession | None = memory.get_session(session_id, user.user_id)
     messages = memory.list_messages(session_id, user.user_id)
     if session is None or messages is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
     summary = SessionResponse.from_record(session)
     return SessionDetailResponse(
         **summary.model_dump(),
@@ -58,18 +64,24 @@ async def stream_chat(
 ) -> StreamingResponse:
     container: Any = request.app.state.container
     if container.memory.get_session(payload.session_id, user.user_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
     try:
         container.rate_limiter.consume(user.user_id)
     except RateLimitExceeded as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Request rate limit exceeded.",
-            headers={"Retry-After": str(max(1, int(exc.retry_after_seconds + 0.99)))},
+            headers={
+                "Retry-After": str(
+                    max(1, int(exc.retry_after_seconds + 0.99))
+                ),
+            },
         ) from exc
 
     request_id = request.state.request_id
-    container.memory.append_message(payload.session_id, user.user_id, "user", payload.message)
+    container.memory.append_message(
+        payload.session_id, user.user_id, "user", payload.message)
 
     async def event_stream() -> AsyncIterator[str]:
         try:
@@ -88,7 +100,10 @@ async def stream_chat(
                     session_id=payload.session_id,
                     agent="api",
                     node="stream",
-                    message="The assistant could not complete this request. Please try again.",
+                    message=(
+                        "The assistant could not complete this request. "
+                        "Please try again."
+                    ),
                     metadata={"error_code": "stream_failed"},
                 )
             )
