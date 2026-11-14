@@ -9,8 +9,8 @@ make the application a production identity or data-isolation system.
 
 - **Environment and local users:** Operator-controlled. Settings validate
   values; secret values are hidden in representations.
-- **Bearer token:** Untrusted until AuthService resolves its local identity
-  and role.
+- **Bearer token:** Untrusted until AuthService verifies its signature,
+  issuer, audience, expiry, subject, and backend-assigned role.
 - **Request body:** Untrusted. Pydantic caps text; the input guard runs before
   persistence.
 - **Retrieved document:** Untrusted. Backend filters precede model context;
@@ -27,10 +27,17 @@ The local file contains plaintext development passwords and is ignored by
 Git. The bootstrap script creates it with restrictive permissions and
 prints generated passwords once.
 
-AuthService validates credentials and issues opaque bearer tokens. Roles
-come from server configuration; login input cannot choose a role. Tokens
-are process-local and disappear after restart. Use a reviewed identity
-provider before production.
+AuthService validates configured demo credentials and issues short-lived
+HS256 bearer tokens. Roles come from backend configuration; login input
+cannot choose a role. Production must set an explicit signing key of at least
+32 characters. API instances configured with the same key, issuer, and
+audience can verify the same token without shared process state.
+
+Stateless tokens cannot be individually revoked before expiry. Rotating the
+signing key invalidates every token. Demo passwords are plain strings in
+server-only configuration and local development files; this is not password
+storage for real users. Replace demo login with a reviewed identity provider
+before production use.
 
 The backend roles are Viewer, Analyst, and Administrator. Knowledge search
 is available to all roles. Python arithmetic and structured incident
@@ -88,10 +95,19 @@ TokenBucketRateLimiter keeps one bucket per user in the API process. Its
 default capacity is 30 and refill rate is 0.5 token per second. Buckets do
 not coordinate across processes and login attempts are not rate-limited.
 
-SQLite remains synchronous, with operation-scoped connections. API lifespan,
-health checks, history reads, and message writes use asyncio.to_thread so
-they do not block the request event loop. SQLite is a local demo store, not
-shared or high-latency production storage.
+The async SessionStore contract selects the local SQLite adapter or the D1
+HTTP adapter. SQLite still uses synchronous operation-scoped connections,
+offloaded to threads so API requests do not block the event loop. D1 requests
+use a reused async HTTP client, a bounded timeout, and no automatic retries.
+The FastAPI backend sends a service token and the authenticated owner's ID
+only after it verifies the user's bearer token.
+
+The Cloudflare Worker checks the service token before accessing D1. It
+validates the owner ID and payload, uses prepared SQL statements, and scopes
+every session read and append by both session and owner. Missing and foreign
+sessions both return 404. D1 credentials are never sent to Streamlit. Worker
+errors are reduced to safe 4xx/5xx responses; D1 does not provide a general
+SQL route. The local simulation uses a separate disposable D1 database.
 
 ## Logging, traces, and secrets
 
@@ -111,7 +127,9 @@ are emitted only after validation.
 
 Never commit .env, local account JSON, provider keys, or customer data.
 Root ignore rules exclude docs/plan.md and docs/assignment.md. The
-data/users directory has its own ignore rule for development accounts.
+data/users directory has its own ignore rule for development accounts. The
+Docker build context also excludes local account JSON and environment files.
+The cloud simulation uses only synthetic hard-coded local accounts.
 
 ## Automated security coverage
 
@@ -124,6 +142,8 @@ Unit and API tests cover:
 - Invalid tool fields, calculation bounds, and complete citation identities.
 - Provider failures, timeouts, and cancellation without raw error leakage.
 - Oversized request validation and pre-persistence rejection.
+- Signed-token expiry, tampering, wrong audience, and cross-instance use.
+- D1 Worker authentication, owner isolation, input limits, and local migrations.
 
 The tests exercise defined examples. They do not prove robustness against
 all prompt-injection styles, real confidential data, or future tools.

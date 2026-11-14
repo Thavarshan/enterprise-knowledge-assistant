@@ -8,15 +8,15 @@ Accepted for the current local foundation.
 
 FastAPI and LangGraph expose asynchronous request and graph APIs. SQLite,
 the local fixture retriever, Pinecone SDK calls, and the Streamlit API client
-have synchronous components.
+have synchronous components. A remote D1 adapter performs network I/O.
 
 ## Decision
 
-Keep async FastAPI and graph contracts. Offload blocking SQLite calls from
-API request paths and synchronous Pinecone SDK calls to worker threads.
-Retain the synchronous Streamlit client and the in-memory fixture scan.
-Preserve cancellation at async boundaries and use configured provider
-timeouts where supported.
+Keep async FastAPI, graph, and `SessionStore` contracts. Offload blocking
+SQLite calls from API request paths and synchronous Pinecone SDK calls to
+worker threads. Use async HTTP for D1. Retain the synchronous Streamlit
+client and in-memory fixture scan. Preserve cancellation at async boundaries
+and use configured provider timeouts where supported.
 
 ## Alternatives Considered
 
@@ -31,7 +31,8 @@ These alternatives are future options, not recorded historical evaluations.
 
 Thread offloading avoids blocking the API event loop during local database
 operations without replacing the simple SQLite persistence architecture.
-The same boundary accommodates the installed synchronous Pinecone SDK.
+The same boundary accommodates the installed synchronous Pinecone SDK;
+async HTTP accommodates D1 without blocking FastAPI.
 
 ## Trade-offs
 
@@ -43,11 +44,10 @@ while consuming SSE.
 
 ## Consequences
 
-API lifecycle, health, chat, and session operations call SQLite through
-`asyncio.to_thread`. Tests check event-loop responsiveness and cancellation
-at the coroutine boundary. Pinecone calls use worker threads, bounded
-timeouts, and no automatic retries. Production concurrency needs measurement
-and may justify async-native storage and retrieval adapters.
+API lifecycle, health, chat, and session operations use async adapters.
+SQLite uses `asyncio.to_thread`; D1 uses a reusable async HTTP client.
+Pinecone calls use worker threads, bounded timeouts, and no automatic
+retries. Production concurrency still needs measurement.
 
 ## Security and Operational Implications
 

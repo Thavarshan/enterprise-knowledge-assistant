@@ -4,15 +4,14 @@
 
 The API prefix defaults to `/api/v1`. Health routes are not versioned.
 
-| Method and path | Authentication | Behavior |
-|---|---|---|
-| `GET /health` | None | Confirms the process can answer. |
-| `GET /ready` | None | Checks the configured session store only. |
-| `POST /api/v1/auth/token` | None | Validates local credentials and issues an opaque token. |
-| `GET /api/v1/me` | Bearer | Returns the token's server-resolved user ID and role. |
-| `POST /api/v1/chat/sessions` | Bearer | Creates an owner-scoped session. |
-| `GET /api/v1/chat/sessions/{session_id}` | Bearer | Reads an owned session and its ordered messages. |
-| `POST /api/v1/chat/stream` | Bearer | Stores a user turn and streams activity as SSE. |
+- `GET /health` (no auth): confirms the process can answer.
+- `GET /ready` (no auth): checks the configured session store.
+- `POST /api/v1/auth/token` (no auth): validates credentials and issues a
+  signed bearer token.
+- `GET /api/v1/me` (bearer): returns the signed identity and role.
+- `POST /api/v1/chat/sessions` (bearer): creates an owner-scoped session.
+- `GET /api/v1/chat/sessions/{session_id}` (bearer): returns owned history.
+- `POST /api/v1/chat/stream` (bearer): stores a turn and streams SSE events.
 
 Request schemas reject unexpected fields, cap user text lengths, and trim
 chat-message whitespace. A blank message receives HTTP 422 before route
@@ -159,16 +158,16 @@ answer.
 
 ## Error contract
 
-| Failure | HTTP or stream behavior |
-|---|---|
-| Missing/unknown bearer | HTTP 401 before route work. |
-| Invalid request body | HTTP 422 with error type and field location only. |
-| Missing or foreign session | HTTP 404 with the same message. |
-| Empty rate bucket | HTTP 429 with `Retry-After`. |
-| Rejected override or credential-exfiltration prompt | HTTP 400 before persistence. |
-| Graph or provider exception after SSE starts | Generic `failure` event; exception text stays server-side. |
-| Assistant persistence `LookupError` | Generic memory `failure` event. |
-| Other stream exception | Generic `failure` event from the route boundary. |
+- Missing/unknown bearer: HTTP 401 before route work.
+- Invalid request body: HTTP 422 with error type and field location only.
+- Missing or foreign session: HTTP 404 with the same message.
+- Empty rate bucket: HTTP 429 with `Retry-After`.
+- Rejected prompt injection or credential exfiltration: HTTP 400 before
+  persistence.
+- Graph/provider exception after SSE starts: generic `failure` event; details
+  stay server-side.
+- Assistant persistence `LookupError`: generic memory `failure` event.
+- Other stream exception: generic `failure` event from the route boundary.
 
 The route cannot change the HTTP status after the streaming response begins.
 Failures during event generation are represented in the SSE body instead.

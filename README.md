@@ -1,9 +1,9 @@
 # Enterprise Knowledge Assistant
 
 An explainable assistant built as a modular Python monolith. FastAPI,
-Streamlit, LangGraph, SQLite, Pinecone, OpenAI, and LangSmith are kept behind
-small internal module boundaries. Deterministic mock mode remains available
-for tests and local development.
+Streamlit, LangGraph, SQLite, D1, Pinecone, OpenAI, and LangSmith are kept
+behind small internal module boundaries. Deterministic mock mode remains
+available for tests and local development.
 
 ## Architecture
 
@@ -11,7 +11,9 @@ for tests and local development.
 flowchart LR
     UI[Streamlit] -->|HTTP and SSE| API[FastAPI]
     API --> AUTH[Authentication and RBAC]
-    API --> MEM[(SQLite sessions)]
+  API --> MEM[(SQLite or D1 sessions)]
+  MEM -->|D1 mode| WORKER[Authenticated Cloudflare Worker]
+  WORKER --> D1[(Cloudflare D1)]
     API --> GRAPH[LangGraph]
     GRAPH --> SUP[Model supervisor or deterministic mock]
     SUP -->|greeting| SMALL[Small talk]
@@ -38,7 +40,7 @@ Requirements: Python 3.12–3.14, `uv`, and GNU Make. Docker Compose is
 optional.
 
 ```bash
-uv sync --all-groups
+uv sync --all-groups --extra ui
 make setup
 make dev
 ```
@@ -63,6 +65,11 @@ docker compose up --build
 The API and UI use the same image. SQLite and local data are mounted under
 `data/`.
 
+For a local cloud-style simulation with a Wrangler Worker and disposable D1
+state, use `make cloud-sim`. Stop it with `make cloud-sim-down`; its named
+local database volume remains available. See the
+[multi-cloud deployment guide](docs/deployment.md) for setup and test details.
+
 ## Verification
 
 ```bash
@@ -82,8 +89,8 @@ synthetic evaluation. Neither result predicts quality on production data.
 
 CI runs independent lint, formatting, docblock, comment, line-length, and
 syntax jobs; package build, type, dependency, and test verification; a test
-matrix for Python 3.12 through 3.14; and a Docker Compose smoke test. CI does
-not need external credentials.
+matrix for Python 3.12 through 3.14; Cloudflare Worker tests against local
+D1; and a Docker Compose smoke test. CI does not need external credentials.
 
 ## Implemented behavior
 
@@ -126,6 +133,7 @@ and rate limits are local demonstration components. No recording is included.
 - [Security](docs/security.md),
   [observability](docs/observability.md), and
   [evaluation matrix](docs/evaluation-matrix.md)
+- [Multi-cloud deployment guide](docs/deployment.md)
 - [Demonstration guide](docs/demo-guide.md) and
   [architecture decisions](docs/decisions/README.md)
 

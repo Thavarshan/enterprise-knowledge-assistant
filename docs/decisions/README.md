@@ -20,8 +20,9 @@ verified.
 | 0004 | Owner-scoped SQLite session persistence | Accepted |
 | 0005 | Local identity and backend role policy | Accepted |
 | 0006 | Logs, graph events, and optional LangSmith tracing | Accepted |
-| 0007 | Async API boundaries with synchronous local adapters | Accepted |
+| 0007 | Async API boundaries with local and remote adapters | Accepted |
 | 0008 | Structured Research executor with shared budgets | Accepted |
+| 0009 | Multi-cloud modular monolith: Vercel, Streamlit, D1 | Accepted |
 
 ## Record template
 

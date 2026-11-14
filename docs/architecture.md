@@ -2,10 +2,11 @@
 
 ## Overview
 
-The repository is a modular monolith with separate FastAPI and Streamlit
-processes. They share a Python package and dependency lockfile. Domain, API,
-retrieval, memory, security, tools, agents, and observability remain internal
-module boundaries rather than separate services.
+The repository is a modular Python monolith with separate FastAPI and
+Streamlit processes. They share backend contracts and a Python lockfile; the
+UI has a small standalone dependency file. Domain, API, retrieval, memory,
+security, tools, agents, and observability remain in the monolith. The
+Cloudflare Worker is a narrow persistence adapter, not another business API.
 
 Mock mode remains deterministic. With `LLM_PROVIDER=openai`, the structured
 OpenAI adapter routes messages, decomposes research, and generates grounded
@@ -23,7 +24,9 @@ flowchart TB
   Browser --> UI[Streamlit UI]
   UI -->|HTTP and SSE| API[FastAPI]
   API --> Auth[Development AuthService]
-  API --> Owner[Owner-scoped SQLite]
+  API --> Owner[Owner-scoped session store]
+  Owner -->|D1 backend| Worker[Authenticated Cloudflare Worker]
+  Worker --> D1[(Cloudflare D1)]
   API --> Limit[Per-user token bucket]
   API --> Chat[ChatService]
   Chat --> Graph[Compiled LangGraph]
@@ -61,12 +64,13 @@ flowchart TB
 | LangGraph | Routes, researches, retrieves, analyzes, responds, validates. |
 | Security | Resolves users and enforces input and tool policies. |
 | Retrieval | Applies filters, searches, and fuses ranked results. |
-| Memory | Stores owner-scoped sessions and messages in SQLite. |
+| Memory | Stores owner-scoped sessions in local SQLite or Cloudflare D1. |
 | Observability | Logs, activity events, and optional external traces. |
 
-Streamlit calls FastAPI for all user and conversation data. SQLite remains
-synchronous but API request paths offload calls to worker threads. Seven
-live trace trees were read back on 2026-11-15; see
+Streamlit calls FastAPI for all user and conversation data. An async storage
+contract selects either an async wrapper around SQLite or an HTTP D1 adapter.
+The D1 Worker is a storage gateway, not a second business-logic backend.
+Seven live trace trees were read back on 2026-11-15; see
 `docs/observability.md` for their IDs and verification details.
 
 The API service container is created by the application factory. Tests can
@@ -84,12 +88,12 @@ sequenceDiagram
   participant U as Streamlit user
   participant UI as Streamlit UI
   participant API as FastAPI
-  participant S as Auth and SQLite
+  participant S as Auth and configured session store
   participant G as LangGraph
   participant R as Retriever
   U->>UI: Submit question
   UI->>API: Authenticated POST /chat/stream
-  API->>S: Resolve identity and verify session owner
+  API->>S: Resolve signed identity and verify session owner
   API->>S: Inspect message, consume token, and persist user message
   API->>G: Start graph with trusted user, role, and question
   G->>R: Search with role-derived access labels
@@ -167,11 +171,14 @@ filtering, and a four-case labeled evaluation. See
 |---|---:|---|
 | FastAPI | 8000 | Uvicorn; reads API and provider settings. |
 | Streamlit | 8501 | UI process; calls FastAPI over HTTP. |
+| D1 Worker | 8787 local | Wrangler local mode or Cloudflare Workers. |
 
-Docker Compose builds the same image for both processes. The UI waits for the
-API readiness check; the API mounts local `data/` for SQLite and
-fixture files. The readiness endpoint checks the session store only. It does
-not test Pinecone or LangSmith.
+Docker Compose builds the same image for the API and UI. The UI waits for the
+API readiness check; the API mounts local `data/` for SQLite and fixture
+files. The readiness endpoint checks the session store only. It does not
+test Pinecone or LangSmith. `MEMORY_BACKEND=sqlite` is the default. Cloud
+deployment selects `MEMORY_BACKEND=d1`, and FastAPI calls the dedicated
+Worker over HTTPS with a service token. Only the Worker holds a D1 binding.
 
 `make setup` prepares local credentials and `make dev` starts both local
 processes. `make check` runs local lint, comment, line-length, formatting,
@@ -180,10 +187,12 @@ runs the opt-in OpenAI, Pinecone, and LangSmith end-to-end test;
 `make evaluate-retrieval` runs the labeled Pinecone evaluation.
 
 CI has separate jobs for lint, format, docblocks, comments, line length,
-syntax, package build, tests, type checking, dependency audit, and Docker
-Compose smoke. Pytest has a Python 3.12, 3.13, and 3.14 matrix. The Compose
-job starts both services with `docker compose up`, checks API health and
-readiness, opens the UI, and verifies UI-to-API connectivity.
+syntax, package build, tests, type checking, dependency audit, a Worker and
+local-D1 check, and Docker Compose smoke. Pytest has a Python 3.12, 3.13,
+and 3.14 matrix. The Worker job checks types, route behavior against local
+D1, and the Python API adapter through Wrangler. The Compose job starts the
+existing services with `docker compose up`, checks API health and readiness,
+opens the UI, and verifies UI-to-API connectivity.
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values
@@ -230,16 +239,18 @@ exits or the operator interrupts the command.
 | `verify-langsmith` | Send a synthetic trace and verify readback/redaction. |
 | `verify-live` | Run opt-in OpenAI, Pinecone, and LangSmith workflows. |
 | `evaluate-retrieval` | Measure dense, BM25, and RRF on labeled cases. |
-| `docker-up` / `docker-down` | Start or stop the Compose services. |
+| `docker-up` / `docker-down` | Start or stop default Compose services. |
+| `cloud-sim` / `cloud-sim-down` | Run or stop local Worker, D1, API, and UI. |
+| `cloud-sim-test` | Run API integration through local Wrangler and D1. |
 
 Runtime and development dependencies are declared in pyproject.toml and
 resolved in uv.lock. Python metadata supports 3.12 through 3.14. CI runs
 lint, formatting, package build, tests, docblock, comment, line-length,
 syntax, type, and dependency-audit checks as separate jobs. The test matrix
-runs pytest on all three supported minor versions. A separate Docker Compose
-job builds and starts both services, checks API health and readiness, opens
-the UI, and verifies UI-to-API connectivity. GitHub Actions are pinned to
-commit SHAs and repository permissions are read-only.
+runs pytest on all three supported minor versions. A Cloudflare job tests
+Worker routes against local D1 and exercises the Python adapter through
+Wrangler. A Docker Compose job starts the existing API and UI. GitHub Actions
+are pinned to commit SHAs and repository permissions are read-only.
 
 Pytest uses automatic asyncio mode and a function-scoped event loop. The
 shared client fixture creates a temporary SQLite database, synthetic local
@@ -247,21 +258,22 @@ accounts, fixture retrieval, and disabled tracing. Standard tests exercise
 graph, retrieval, security, API routes, SSE, persistence, failures, and UI
 imports without external service calls. `make verify-live` is opt-in: it
 upserts the synthetic records and exercises OpenAI, Pinecone, and LangSmith.
+Cloudflare checks use local emulation and do not require account access.
 
 ## Async and scaling constraints
 
 FastAPI endpoints and graph node functions are async, but not every
-dependency is non-blocking. SQLite calls are synchronous and are offloaded
-to worker threads from API request paths. Fixture search performs its
-in-memory scan in the event loop. Pinecone SDK calls use worker threads and
-operation timeouts. The Streamlit API client uses blocking httpx while the
-UI consumes SSE. These choices suit the local demo; higher concurrency
-needs measurement and may justify async-native replacements.
+dependency is non-blocking. The SQLite adapter offloads synchronous calls to
+worker threads. D1 uses async httpx with bounded timeouts. Fixture search
+performs its in-memory scan in the event loop. Pinecone SDK calls use worker
+threads and operation timeouts. The Streamlit API client uses blocking httpx
+while the UI consumes SSE. Higher concurrency needs measurement.
 
-Tokens and rate buckets are process-local. Multiple API workers would have
-independent authentication maps and quotas. SQLite and the fixture file are
-local adapters. Production deployment requires shared identity, storage,
-and quota services plus a reviewed data and tracing policy.
+Signed tokens verify across API instances that share the same signing key,
+issuer, and audience. Tokens cannot be revoked individually before expiry.
+Rate-limit buckets remain process-local. SQLite is local; D1 is a separate
+cloud adapter. Production use still needs a reviewed identity, quota,
+retention, and tracing policy.
 
 ## Related guides
 
@@ -269,5 +281,6 @@ and quota services plus a reviewed data and tracing policy.
 - `docs/agent-design.md`: nodes, state, routing, and RLM scope.
 - `docs/retrieval-design.md`: metadata, scoring, and citations.
 - `docs/security.md`: trust boundaries and limitations.
+- `docs/deployment.md`: Vercel, Streamlit, and Cloudflare setup.
 - `docs/observability.md`: logs, events, and LangSmith behavior.
 - `docs/decisions/`: recorded architectural decisions.

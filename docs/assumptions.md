@@ -2,12 +2,14 @@
 
 - `docs/assignment.md` is the authoritative specification. Its scoring
   weights are copied into `docs/evaluation-matrix.md`.
-- The application is a local assessment demonstration, not a production
-  identity or data-isolation service.
+- The default profile is a local assessment demonstration. A D1-backed cloud
+  profile is available, but it is not a production identity or
+  data-isolation service.
 - All fixture documents are synthetic examples for an invented enterprise.
   They contain no real customer data or claim affiliation with a real bank.
-- Development roles are configured in ignored `.env`. `make setup` creates
-  local passwords and prints them once; credentials are not logged.
+- Development roles are configured in server-only `.env` or an ignored
+  local user file. Demo passwords are plain strings, `make setup` prints
+  generated values once, and credentials are not logged.
 - `MOCK_MODE=true` selects local fixture retrieval. `MOCK_MODE=false` selects
   Pinecone dense and full-text BM25 search with reciprocal rank fusion. The
   application uses the configured existing index and does not manage its
@@ -24,9 +26,14 @@
   conflicting causes remain unknown. It does not infer causes from prose.
 - The input guard blocks selected override and secret-exfiltration patterns.
   It is defense in depth, not a general prompt-injection classifier.
-- SQLite operations are synchronous but API request paths offload them to
-  worker threads. Fixture retrieval still performs an in-memory scan on the
-  event loop; the Streamlit client is synchronous.
+- The async storage contract selects SQLite by default or D1 for cloud
+  deployment. The SQLite adapter offloads synchronous operations to worker
+  threads; D1 uses bounded async HTTP requests. Fixture retrieval still scans
+  in the event loop; the Streamlit client is synchronous.
+- Stateless bearer tokens work across API instances with the same signing
+  configuration. They cannot be revoked individually before expiration.
+- No live Vercel, Streamlit Cloud, Worker, or remote D1 resource has been
+  created or verified for this deployment preparation.
 
 ## Configuration reference
 
@@ -43,13 +50,21 @@ representations. Mock mode needs no provider credentials.
 | API_HOST | 0.0.0.0 | Settings field; launcher currently binds directly. |
 | API_PORT | 8000 | Launcher and Compose host-port mapping. |
 | UI_PORT | 8501 | Launcher and Compose host-port mapping. |
-| API_BASE_URL | http://localhost:8000 | UI target; Compose sets `api:8000`. |
+| API_BASE_URL | http://localhost:8000 | UI API target; set per deployment. |
+| MEMORY_BACKEND | sqlite | `sqlite` locally or `d1` via the Worker. |
 | SQLITE_PATH | data/sessions.sqlite3 | Local SQLite database path. |
+| D1_API_URL | empty | Dedicated Worker origin; HTTPS in production. |
+| D1_SERVICE_TOKEN | empty | Shared backend/Worker secret; minimum 32 chars. |
+| D1_TIMEOUT_SECONDS | 5 | D1 request timeout between 1 and 30 seconds. |
+| AUTH_SIGNING_SECRET | empty | Shared JWT key; production requires 32+ chars. |
+| AUTH_ISSUER | enterprise-knowledge-assistant | Expected token issuer. |
+| AUTH_AUDIENCE | enterprise-knowledge-assistant-api | JWT audience check. |
+| AUTH_TOKEN_TTL_SECONDS | 900 | Token lifetime from 60 to 86400 seconds. |
 | CORS_ORIGINS | http://localhost:8501 | Browser origin allowlist. |
 | LOG_LEVEL | INFO | Root application log level. |
 | RATE_LIMIT_CAPACITY | 30 | Initial per-user token count in this process. |
 | RATE_LIMIT_REFILL_PER_SECOND | 0.5 | Per-user token refill rate. |
-| DEV_USERS_JSON | empty | Inline user JSON or path to local user file. |
+| DEV_USERS_JSON | empty | Inline demo accounts or local user-file path. |
 | LLM_PROVIDER | mock | Deterministic mock or configured OpenAI. |
 | OPENAI_API_KEY | empty | Required only when the provider is OpenAI. |
 | OPENAI_MODEL | gpt-4.1-mini | Structured-output model; not benchmarked. |
