@@ -1,4 +1,4 @@
-.PHONY: setup dev api ui test lint format format-check typecheck check docker-up docker-down
+.PHONY: setup dev api ui test lint format format-check typecheck audit check docker-up docker-down
 
 setup:
 	uv sync --all-groups
@@ -28,6 +28,9 @@ format-check:
 
 typecheck:
 	uv run mypy src apps
+
+audit:
+	uv run pip-audit --local --skip-editable --progress-spinner off
 
 check: lint format-check typecheck test
 

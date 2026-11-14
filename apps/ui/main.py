@@ -10,7 +10,8 @@ from apps.ui.services.api_client import AssistantApiClient
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
 st.title("Enterprise Knowledge Assistant")
-st.caption("Deterministic mock mode · synthetic documents · LangGraph activity stream")
+st.caption(
+    "Deterministic mock mode · synthetic documents · LangGraph activity stream")
 
 base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
 if "access_token" not in st.session_state:
@@ -22,7 +23,8 @@ if "current_session_id" not in st.session_state:
 
 with st.sidebar:
     st.header("Demo access")
-    st.caption("Choose a server-configured demo user; the backend assigns the role.")
+    st.caption(
+        "Choose a server-configured demo user; the backend assigns the role.")
     if not st.session_state.access_token:
         username = st.selectbox("User", ["viewer", "analyst", "admin"])
         password = st.text_input("Password", type="password")
@@ -51,7 +53,8 @@ with st.sidebar:
             st.session_state.current_session_id = ""
             st.rerun()
 
-        sidebar_client = AssistantApiClient(base_url, st.session_state.access_token)
+        sidebar_client = AssistantApiClient(
+            base_url, st.session_state.access_token)
         if st.button("New session"):
             try:
                 session = sidebar_client.create_session()
@@ -76,7 +79,8 @@ with st.sidebar:
             st.caption(f"Session ID: `{selected}`")
 
 st.sidebar.subheader("Agent activity")
-st.sidebar.caption("Current graph node, retrieval, tools, validation, and errors.")
+st.sidebar.caption(
+    "Current graph node, retrieval, tools, validation, and errors.")
 activity_placeholder = st.sidebar.empty()
 activity_placeholder.info("Activity will appear while a chat turn is running.")
 
@@ -125,16 +129,20 @@ if prompt and client and session_id:
                     st.error(event_message)
                 if event_type == "retrieval":
                     sources = event.get("metadata", {}).get("sources", [])
-                    source_titles = ", ".join(source.get("title", "source") for source in sources)
-                    activity.append(f"**Retrieval:** {len(sources)} source(s) {source_titles}")
+                    source_titles = ", ".join(source.get(
+                        "title", "source") for source in sources)
+                    activity.append(
+                        f"**Retrieval:** {len(sources)} source(s) {source_titles}")
                 elif event_type == "tool_execution":
                     tool = event.get("metadata", {}).get("tool", "tool")
                     activity.append(f"**Tool:** {tool} completed")
                 elif event_type == "validation":
                     valid = event.get("metadata", {}).get("valid", False)
-                    activity.append(f"**Validation:** {'passed' if valid else 'failed'}")
+                    activity.append(
+                        f"**Validation:** {'passed' if valid else 'failed'}")
                 elif event_type == "agent_transition":
-                    activity.append(f"**{agent.title()} · {node}:** {event_message}")
+                    activity.append(
+                        f"**{agent.title()} · {node}:** {event_message}")
                 elif event_type == "failure":
                     activity.append(f"**Error:** {event_message}")
                 activity_placeholder.markdown(

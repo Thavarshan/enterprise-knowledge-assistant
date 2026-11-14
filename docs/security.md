@@ -22,4 +22,6 @@ Guardrail protocols exist for prompt injection, output validation, and unsafe to
 
 `.env` is ignored and generated demo passwords are local-only. Rotate them by replacing `.env` and rerunning setup. API tokens and rate-limit buckets are in memory, so run one API worker locally. SQLite is appropriate for this phase, not an HA deployment.
 
+GitHub Actions uses read-only repository permissions for pull request checks, pins third-party actions to full commit SHAs, installs from the lockfile, and runs `pip-audit` against the local dependency environment on every change and weekly. These checks require no repository secrets.
+
 LangSmith is disabled by default. Enabling tracing may transmit graph inputs and outputs to the configured LangSmith project. Review the organization's data policy and add redaction before using confidential documents or production identities. External trace delivery has not been validated here.

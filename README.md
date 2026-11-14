@@ -61,10 +61,11 @@ make test
 make lint
 make format-check
 make typecheck
+make audit
 make check
 ```
 
-`uv.lock` pins the resolved dependency graph. Autopep8 formats Python files; Ruff handles linting and import fixes. GitHub Actions runs the same test, lint, formatting, and type-check commands on Python 3.13. No CI job requires external credentials.
+`uv.lock` pins the resolved dependency graph. Autopep8 formats Python files; Ruff handles linting and import fixes. GitHub Actions checks Python 3.12 through 3.14, audits installed dependencies weekly and on each change, and builds and starts both Docker services. No CI job requires external credentials.
 
 ## Configuration
 

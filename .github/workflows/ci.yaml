@@ -1,20 +1,139 @@
+---
 name: CI
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 8 * * 1"
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    name: Code quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa  # v10.3.1
+        with:
+          version: 0.13.7
+          python-version: '3.13'
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make lint format-check typecheck
+
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa  # v10.3.1
+        with:
+          version: 0.13.7
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python "${{ matrix.python-version }}"
+      - run: make test
+
+  dependency-audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa  # v10.3.1
+        with:
+          version: 0.13.7
           python-version: "3.13"
           enable-cache: true
-      - run: uv sync --locked --all-groups
-      - run: make check
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --python 3.13
+      - run: make audit
+
+  container-smoke:
+    name: Container build and startup smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build application image
+        run: docker build --pull --tag enterprise-knowledge-assistant:ci .
+      - name: Start services and check readiness
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cleanup() {
+            status=$?
+            if (( status != 0 )); then
+              docker logs eka-ci-api || true
+              docker logs eka-ci-ui || true
+            fi
+            docker rm --force eka-ci-api eka-ci-ui >/dev/null 2>&1 || true
+            docker network rm eka-ci >/dev/null 2>&1 || true
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          docker network create eka-ci
+          docker run --detach \
+            --name eka-ci-api \
+            --network eka-ci \
+            --publish 8000:8000 \
+            --env SQLITE_PATH=/tmp/ci-sessions.sqlite3 \
+            enterprise-knowledge-assistant:ci
+          docker run --detach \
+            --name eka-ci-ui \
+            --network eka-ci \
+            --publish 8501:8501 \
+            --env API_BASE_URL=http://eka-ci-api:8000 \
+            enterprise-knowledge-assistant:ci \
+            streamlit run apps/ui/main.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+
+          docker exec --workdir /tmp eka-ci-ui python -c "from apps.ui.services.api_client import AssistantApiClient"
+
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/ready >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --show-error http://127.0.0.1:8000/health
+          curl --fail --show-error http://127.0.0.1:8000/ready
+
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8501/ >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --show-error --output /dev/null http://127.0.0.1:8501/
