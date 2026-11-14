@@ -7,7 +7,8 @@ complete identities before answer chunks can reach the client.
 
 import asyncio
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from datetime import date
 from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
@@ -19,6 +20,7 @@ from enterprise_assistant.llm.contracts import GroundedAnswer, ModelProvider
 from enterprise_assistant.llm.providers import MockModelProvider
 from enterprise_assistant.llm.small_talk import small_talk_response
 from enterprise_assistant.observability.events import ActivityEvent, EventType
+from enterprise_assistant.retrieval.filters import filters_for_question
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.rlm.contracts import ExecutionBudget
 from enterprise_assistant.rlm.executor import BoundedResearchExecutor
@@ -28,6 +30,12 @@ from enterprise_assistant.tools.analysis import (
     AnalysisResult,
     PythonAnalysisTool,
     parse_analysis_question,
+)
+from enterprise_assistant.tools.incident_analysis import (
+    IncidentAnalysisResult,
+    IncidentAnalysisTool,
+    evidence_from_results,
+    is_incident_analysis_question,
 )
 from enterprise_assistant.tools.knowledge import KnowledgeSearchTool
 from enterprise_assistant.tools.registry import (
@@ -188,10 +196,104 @@ def render_grounded_answer(
     return "\n\n".join(rendered_claims), list(citations.values()), grounded
 
 
+def render_incident_analysis(
+    analysis: IncidentAnalysisResult,
+    results: list[SearchResult],
+    failure_codes: list[str] | None = None,
+) -> tuple[str, list[SourceCitation], bool]:
+    """Render deterministic aggregate facts with canonical source markers.
+
+    Args:
+        analysis: Validated Python aggregate over retrieved incidents.
+        results: Authorized retrieved chunks used to verify source identities.
+        failure_codes: Safe research failure labels, when coverage is partial.
+
+    Returns:
+        Answer text, citations copied from retrieved chunks, and whether all
+        aggregate source identities map to this turn's evidence.
+    """
+    chunks = {
+        (
+            result.chunk.metadata.document_id,
+            result.chunk.metadata.chunk_id,
+        ): result.chunk
+        for result in results
+    }
+    citations: dict[tuple[str, str], SourceCitation] = {}
+    missing_source = False
+    lines: list[str] = []
+    date_range = ""
+    if analysis.date_from and analysis.date_to:
+        date_range = (
+            f" from {analysis.date_from.isoformat()} through "
+            f"{analysis.date_to.isoformat()} (inclusive)"
+        )
+    lines.append(
+        f"Analyzed {analysis.incidents_analyzed} unique incident(s)"
+        f"{date_range}."
+    )
+
+    categorized_ids: set[tuple[str, str]] = set()
+    for frequency in analysis.root_causes:
+        markers: list[str] = []
+        for source in frequency.sources:
+            identity = (source.document_id, source.chunk_id)
+            chunk = chunks.get(identity)
+            if chunk is None:
+                missing_source = True
+                continue
+            citations[identity] = SourceCitation.from_chunk(chunk)
+            categorized_ids.add(identity)
+            markers.append(f"[{identity[0]}#{identity[1]}]")
+        label = frequency.category.replace("_", " ")
+        suffix = f" {' '.join(markers)}" if markers else ""
+        lines.append(
+            f"- {label}: {frequency.incident_count} incident(s), "
+            f"{frequency.percentage:.2f}% of classified incidents.{suffix}"
+        )
+
+    if analysis.unknown_root_cause_count:
+        unknown_markers: list[str] = []
+        for source in analysis.sources:
+            identity = (source.document_id, source.chunk_id)
+            if identity in categorized_ids:
+                continue
+            chunk = chunks.get(identity)
+            if chunk is None:
+                missing_source = True
+                continue
+            citations[identity] = SourceCitation.from_chunk(chunk)
+            unknown_markers.append(f"[{identity[0]}#{identity[1]}]")
+        suffix = f" {' '.join(unknown_markers)}" if unknown_markers else ""
+        lines.append(
+            f"Root cause was missing or conflicting for "
+            f"{analysis.unknown_root_cause_count} incident(s).{suffix}"
+        )
+    if analysis.unclassified_incident_count:
+        lines.append(
+            f"Incident category was not source-classified for "
+            f"{analysis.unclassified_incident_count} incident(s)."
+        )
+    if not analysis.root_causes and analysis.incidents_analyzed:
+        lines.append(
+            "No retrieved incident has a source-classified root cause."
+        )
+    if not analysis.incidents_analyzed:
+        lines.append("No matching accessible incident records were found.")
+    if failure_codes:
+        lines.append(
+            "Coverage is partial because one or more bounded research "
+            "operations did not complete."
+        )
+    return "\n".join(lines), list(citations.values()), not missing_source
+
+
 def build_graph(
     retriever: Retriever,
     tool_registry: ToolRegistry,
     model_provider: ModelProvider | None = None,
+    *,
+    today: Callable[[], date] = date.today,
 ) -> Any:
     """Compile the bounded conversation workflow from injected adapters.
 
@@ -204,6 +306,7 @@ def build_graph(
         retriever: Search adapter used by the knowledge tool.
         tool_registry: Backend policy registry for tool dispatch.
         model_provider: Structured provider; defaults to deterministic mock.
+        today: Injectable clock for relative date filters.
 
     Returns:
         A compiled LangGraph runnable consumed by ChatService.
@@ -213,8 +316,9 @@ def build_graph(
         graph itself does not use a checkpointer.
     """
     language_model = model_provider or MockModelProvider()
-    knowledge_search = KnowledgeSearchTool(retriever)
+    knowledge_search = KnowledgeSearchTool(retriever, today=today)
     python_analysis = PythonAnalysisTool()
+    incident_analysis = IncidentAnalysisTool()
 
     async def supervisor(
         state: AgentState,
@@ -317,6 +421,32 @@ def build_graph(
             message="Research started.",
         )
         role = Role(state["role"])
+        incident_question = is_incident_analysis_question(
+            state["question"]
+        )
+        if incident_question:
+            try:
+                tool_registry.authorize("incident_analysis", role)
+            except ToolAuthorizationError:
+                return {
+                    "analysis_error": "incident_analysis_forbidden",
+                    "results": [],
+                    "events": [
+                        _event(
+                            state,
+                            event_type="failure",
+                            agent="research",
+                            node="research",
+                            message=(
+                                "This account is not authorized to "
+                                "analyze incidents."
+                            ),
+                            metadata={
+                                "error_code": "incident_analysis_forbidden"
+                            },
+                        )
+                    ],
+                }
 
         async def authorized_search(
             query: str,
@@ -336,7 +466,12 @@ def build_graph(
                 await tool_registry.execute(
                     "knowledge_search",
                     role,
-                    {"query": query, "role": role.value, "limit": limit},
+                    {
+                        "query": query,
+                        "filter_question": state["question"],
+                        "role": role.value,
+                        "limit": limit,
+                    },
                     {"knowledge_search": knowledge_search.run},
                 ),
             )
@@ -405,6 +540,117 @@ def build_graph(
                 metadata={"error_code": "research_failed"},
             )
             raise
+        results = list(report.results)
+        incident_summary: IncidentAnalysisResult | None = None
+        batch_count = 0
+        if incident_question:
+            records = evidence_from_results(results)
+            filters = filters_for_question(
+                state["question"],
+                today=today(),
+            )
+            record_batches = [
+                records[offset:offset + 5]
+                for offset in range(0, len(records), 5)
+            ]
+            batch_summaries: list[IncidentAnalysisResult] = []
+            try:
+                for batch_number, batch in enumerate(record_batches, start=1):
+                    _stream_event(
+                        writer,
+                        state,
+                        event_type="tool_start",
+                        agent="research",
+                        node="research",
+                        message="Analyzing a bounded incident batch.",
+                        metadata={
+                            "tool": "incident_analysis",
+                            "batch_number": batch_number,
+                        },
+                    )
+                    result = cast(
+                        IncidentAnalysisResult,
+                        await tool_registry.execute(
+                            "incident_analysis",
+                            role,
+                            {
+                                "records": [
+                                    record.model_dump(mode="json")
+                                    for record in batch
+                                ],
+                                "date_from": filters.date_from,
+                                "date_to": filters.date_to,
+                            },
+                            {"incident_analysis": incident_analysis.run},
+                        ),
+                    )
+                    batch_summaries.append(result)
+                    batch_count += 1
+                    _stream_event(
+                        writer,
+                        state,
+                        event_type="tool_complete",
+                        agent="research",
+                        node="research",
+                        message="Incident batch analysis completed.",
+                        metadata={
+                            "tool": "incident_analysis",
+                            "batch_number": batch_number,
+                            "incident_count": result.incidents_analyzed,
+                        },
+                    )
+                if len(batch_summaries) == 1:
+                    incident_summary = batch_summaries[0]
+                else:
+                    incident_summary = cast(
+                        IncidentAnalysisResult,
+                        await tool_registry.execute(
+                            "incident_analysis",
+                            role,
+                            {
+                                "records": [
+                                    record.model_dump(mode="json")
+                                    for record in records
+                                ],
+                                "date_from": filters.date_from,
+                                "date_to": filters.date_to,
+                            },
+                            {"incident_analysis": incident_analysis.run},
+                        ),
+                    )
+            except asyncio.CancelledError:
+                _stream_event(
+                    writer,
+                    state,
+                    event_type="failure",
+                    agent="research",
+                    node="research",
+                    message="Incident analysis was cancelled.",
+                    metadata={"error_code": "incident_analysis_cancelled"},
+                )
+                raise
+            except Exception:
+                _stream_event(
+                    writer,
+                    state,
+                    event_type="failure",
+                    agent="research",
+                    node="research",
+                    message="Incident analysis could not be completed.",
+                    metadata={"error_code": "incident_analysis_failed"},
+                )
+                return {
+                    "results": [],
+                    "analysis_error": "incident_analysis_failed",
+                    "investigation_summary": {
+                        "search_calls": report.search_calls,
+                        "decomposition_calls": report.decomposition_calls,
+                        "subtask_count": report.subtask_count,
+                        "batch_count": batch_count,
+                        "failure_codes": list(report.failure_codes),
+                    },
+                    "events": [],
+                }
         _stream_event(
             writer,
             state,
@@ -415,9 +661,9 @@ def build_graph(
             metadata={
                 "search_calls": report.search_calls,
                 "finding_count": len(report.findings),
+                "batch_count": batch_count,
             },
         )
-        results = list(report.results)
         sources = [
             {
                 "document_id": result.chunk.metadata.document_id,
@@ -437,7 +683,19 @@ def build_graph(
                 metadata={
                     "search_calls": report.search_calls,
                     "decomposition_calls": report.decomposition_calls,
+                    "subtask_count": report.subtask_count,
                     "max_depth_reached": report.max_depth_reached,
+                    "batch_count": batch_count,
+                    "analyzed_incident_count": (
+                        incident_summary.incidents_analyzed
+                        if incident_summary is not None
+                        else 0
+                    ),
+                    "root_cause_count": (
+                        len(incident_summary.root_causes)
+                        if incident_summary is not None
+                        else 0
+                    ),
                 },
             ),
             _event(
@@ -487,9 +745,16 @@ def build_graph(
             "investigation_summary": {
                 "search_calls": report.search_calls,
                 "decomposition_calls": report.decomposition_calls,
+                "subtask_count": report.subtask_count,
                 "max_depth_reached": report.max_depth_reached,
+                "batch_count": batch_count,
                 "failure_codes": list(report.failure_codes),
             },
+            "incident_analysis_result": (
+                incident_summary.model_dump(mode="json")
+                if incident_summary is not None
+                else None
+            ),
             "events": events,
         }
 
@@ -538,7 +803,12 @@ def build_graph(
                 await tool_registry.execute(
                     "knowledge_search",
                     role,
-                    {"query": query, "role": role.value, "limit": 5},
+                    {
+                        "query": query,
+                        "filter_question": state["question"],
+                        "role": role.value,
+                        "limit": 5,
+                    },
                     {"knowledge_search": knowledge_search.run},
                 ),
             )
@@ -798,6 +1068,7 @@ def build_graph(
             for result in state.get("results", [])
         ]
         analysis_data = state.get("analysis_result")
+        incident_analysis_data = state.get("incident_analysis_result")
         analysis_error = state.get("analysis_error")
         citations: list[SourceCitation]
         conversational_answer = None
@@ -820,6 +1091,33 @@ def build_graph(
             answer = (
                 f"{label} of {result.field} over {result.input_count} "
                 f"value(s): {result.value:g}."
+            )
+            citations = []
+            grounded = True
+        elif incident_analysis_data:
+            summary = IncidentAnalysisResult.model_validate(
+                incident_analysis_data
+            )
+            research_status = state.get("investigation_summary", {})
+            raw_failures = research_status.get("failure_codes", [])
+            failure_codes = (
+                raw_failures if isinstance(raw_failures, list) else []
+            )
+            answer, citations, grounded = render_incident_analysis(
+                summary,
+                results,
+                failure_codes,
+            )
+        elif analysis_error == "incident_analysis_forbidden":
+            answer = (
+                "This account is not authorized to analyze incidents."
+            )
+            citations = []
+            grounded = True
+        elif analysis_error == "incident_analysis_failed":
+            answer = (
+                "I could not complete the incident analysis. "
+                "Please try again."
             )
             citations = []
             grounded = True
@@ -878,6 +1176,10 @@ def build_graph(
             response_message = "Answered a brief conversational message."
         elif analysis_data:
             response_message = "Returned a validated Python analysis result."
+        elif incident_analysis_data:
+            response_message = (
+                "Returned a source-attributed incident analysis."
+            )
         elif analysis_error:
             response_message = "Returned a safe Python analysis rejection."
         else:

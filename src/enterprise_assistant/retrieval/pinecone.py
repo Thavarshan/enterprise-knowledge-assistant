@@ -10,6 +10,7 @@ import asyncio
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from pinecone import EmbedQuery, Pinecone, RetryConfig, TextQuery
@@ -32,6 +33,12 @@ _ATTRIBUTION_FIELDS = (
     "access_level",
     "created_date",
     "source",
+    "incident_id",
+    "incident_category",
+    "root_cause_category",
+    "severity",
+    "impact_summary",
+    "created_date_ordinal",
 )
 _SEARCH_FIELDS = (_CONTENT_FIELD, _TITLE_FIELD, *_ATTRIBUTION_FIELDS)
 
@@ -179,6 +186,9 @@ class PineconeRetriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Return dense semantic results under Pinecone metadata filters.
@@ -187,6 +197,9 @@ class PineconeRetriever:
             query: Natural-language request to embed through the index schema.
             allowed_access_levels: Trusted role-derived access labels.
             department: Optional trusted exact department constraint.
+            document_type: Optional exact document type constraint.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of matches to convert.
 
         Returns:
@@ -200,6 +213,9 @@ class PineconeRetriever:
             query,
             allowed_access_levels=allowed_access_levels,
             department=department,
+            document_type=document_type,
+            date_from=date_from,
+            date_to=date_to,
             limit=limit,
             scoring=EmbedQuery(field=_CONTENT_FIELD, query=query),
         )
@@ -210,6 +226,9 @@ class PineconeRetriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Return full-text BM25 results under the same metadata filters.
@@ -218,6 +237,9 @@ class PineconeRetriever:
             query: Natural-language or exact identifier search text.
             allowed_access_levels: Trusted role-derived access labels.
             department: Optional trusted exact department constraint.
+            document_type: Optional exact document type constraint.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of matches to convert.
 
         Returns:
@@ -227,6 +249,9 @@ class PineconeRetriever:
             query,
             allowed_access_levels=allowed_access_levels,
             department=department,
+            document_type=document_type,
+            date_from=date_from,
+            date_to=date_to,
             limit=limit,
             scoring=TextQuery(fields=[_CONTENT_FIELD], query=query),
         )
@@ -237,6 +262,9 @@ class PineconeRetriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None,
+        document_type: str | None,
+        date_from: date | None,
+        date_to: date | None,
         limit: int,
         scoring: Any,
     ) -> list[SearchResult]:
@@ -246,6 +274,9 @@ class PineconeRetriever:
             query: Query text used by the selected index scoring clause.
             allowed_access_levels: Backend-derived readable labels.
             department: Optional trusted department constraint.
+            document_type: Optional exact document type constraint.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of result matches.
             scoring: Pinecone EmbedQuery or TextQuery object.
 
@@ -264,6 +295,9 @@ class PineconeRetriever:
                     query,
                     allowed_access_levels,
                     department,
+                    document_type,
+                    date_from,
+                    date_to,
                     limit,
                     scoring,
                 )
@@ -389,6 +423,9 @@ class PineconeRetriever:
         query: str,
         allowed_access_levels: frozenset[str],
         department: str | None,
+        document_type: str | None,
+        date_from: date | None,
+        date_to: date | None,
         limit: int,
         scoring: Any,
     ) -> list[SearchResult]:
@@ -399,6 +436,9 @@ class PineconeRetriever:
             query: Untrusted query string.
             allowed_access_levels: Trusted role-derived access labels.
             department: Optional trusted department constraint.
+            document_type: Optional exact document type constraint.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of matches to convert.
             scoring: Dense or full-text scoring clause.
 
@@ -413,6 +453,9 @@ class PineconeRetriever:
             filter=self._metadata_filter(
                 allowed_access_levels,
                 department,
+                document_type,
+                date_from,
+                date_to,
             ),
             include_fields=list(_SEARCH_FIELDS),
             timeout=float(self.config.timeout_seconds),
@@ -430,7 +473,20 @@ class PineconeRetriever:
                 and values.get("department") != department
             ):
                 continue
+            if (
+                document_type is not None
+                and values.get("document_type") != document_type
+            ):
+                continue
+            created_date = values.get("created_date")
+            if not isinstance(created_date, str):
+                continue
+            if date_from is not None and created_date < date_from.isoformat():
+                continue
+            if date_to is not None and created_date > date_to.isoformat():
+                continue
             content = values.pop(_CONTENT_FIELD, None)
+            values.pop("created_date_ordinal", None)
             if not isinstance(content, str) or not content:
                 continue
             metadata = DocumentMetadata.model_validate(values)
@@ -455,7 +511,12 @@ class PineconeRetriever:
         Returns:
             Document record with `_id`, `chunk_text`, title, and filters.
         """
-        metadata = chunk.metadata.model_dump(mode="json")
+        metadata = chunk.metadata.model_dump(
+            mode="json", exclude_none=True
+        )
+        metadata["created_date_ordinal"] = (
+            chunk.metadata.created_date.toordinal()
+        )
         document = {
             "_id": PineconeRetriever.vector_id(chunk),
             _CONTENT_FIELD: chunk.content,
@@ -483,12 +544,18 @@ class PineconeRetriever:
     def _metadata_filter(
         allowed_access_levels: frozenset[str],
         department: str | None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> dict[str, Any]:
-        """Create provider-side authorization and department filters.
+        """Create provider-side authorization and source metadata filters.
 
         Args:
             allowed_access_levels: Backend-derived allowed labels.
             department: Optional trusted exact department constraint.
+            document_type: Optional trusted exact document type.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
 
         Returns:
             Pinecone filter expression applied before fields are returned.
@@ -498,6 +565,15 @@ class PineconeRetriever:
         }
         if department is not None:
             metadata_filter["department"] = {"$eq": department}
+        if document_type is not None:
+            metadata_filter["document_type"] = {"$eq": document_type}
+        if date_from is not None or date_to is not None:
+            date_filter: dict[str, int] = {}
+            if date_from is not None:
+                date_filter["$gte"] = date_from.toordinal()
+            if date_to is not None:
+                date_filter["$lte"] = date_to.toordinal()
+            metadata_filter["created_date_ordinal"] = date_filter
         return metadata_filter
 
     @staticmethod

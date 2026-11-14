@@ -12,6 +12,23 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 AccessLevel = Literal["viewer", "analyst", "administrator"]
+IncidentCategory = Literal[
+    "duplicate_authorization",
+    "service_outage",
+    "service_degradation",
+    "settlement_delay",
+    "webhook_delay",
+]
+RootCauseCategory = Literal[
+    "connection_pool_reconnect_storm",
+    "dependency_not_ready",
+    "ledger_lock_contention",
+    "missing_idempotency_key",
+    "queue_consumer_saturation",
+    "rate_limit_misconfiguration",
+    "retry_without_jitter",
+]
+IncidentSeverity = Literal["SEV-1", "SEV-2", "SEV-3", "SEV-4"]
 
 
 class DocumentMetadata(BaseModel):
@@ -30,6 +47,11 @@ class DocumentMetadata(BaseModel):
         access_level: Viewer, analyst, or administrator.
         created_date: Validated source date.
         source: Attribution URI or source reference.
+        incident_id: Optional incident identifier from the source record.
+        incident_category: Optional source-classified incident category.
+        root_cause_category: Optional explicitly classified root cause.
+        severity: Optional source severity label.
+        impact_summary: Optional factual impact from the source record.
 
     Security:
         Retrieval filters enforce authorization; this model does not.
@@ -44,6 +66,12 @@ class DocumentMetadata(BaseModel):
     access_level: AccessLevel
     created_date: date
     source: str = Field(min_length=1)
+    incident_id: str | None = Field(default=None, min_length=1, max_length=80)
+    incident_category: IncidentCategory | None = None
+    root_cause_category: RootCauseCategory | None = None
+    severity: IncidentSeverity | None = None
+    impact_summary: str | None = Field(
+        default=None, min_length=1, max_length=500)
 
 
 class DocumentChunk(BaseModel):

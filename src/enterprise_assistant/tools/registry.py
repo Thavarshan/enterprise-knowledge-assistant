@@ -44,9 +44,9 @@ class ToolPolicy:
 class ToolRegistry:
     """Centralize backend role checks for named tool handlers.
 
-    Knowledge search is allowed to all roles. Python analysis and MCP are
-    restricted to analysts and administrators. The graph installs handlers
-    for search and numeric analysis; MCP has no executable handler.
+    Knowledge search is allowed to all roles. Python analysis, incident
+    analysis, and MCP are restricted to analysts and administrators. MCP has
+    no executable handler.
     Prompt instructions are not a substitute for this server-side check.
 
     Notes:
@@ -65,6 +65,7 @@ class ToolRegistry:
         self._policies = {
             "knowledge_search": ToolPolicy("knowledge_search", all_roles),
             "python_analysis": ToolPolicy("python_analysis", analyst_roles),
+            "incident_analysis": ToolPolicy("incident_analysis", analyst_roles),
             "mcp": ToolPolicy("mcp", analyst_roles),
         }
 

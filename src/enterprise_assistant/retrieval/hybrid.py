@@ -8,6 +8,7 @@ without comparing unrelated raw score scales.
 import asyncio
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import date
 
 from enterprise_assistant.domain.models import SearchResult
 from enterprise_assistant.retrieval.interfaces import Retriever
@@ -56,6 +57,9 @@ class HybridRetriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Retrieve and fuse authorized dense and sparse candidate lists.
@@ -64,6 +68,9 @@ class HybridRetriever:
             query: User or research search text.
             allowed_access_levels: Server-derived labels allowed for the user.
             department: Optional trusted department restriction.
+            document_type: Optional trusted document-type restriction.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of fused results returned.
 
         Returns:
@@ -77,12 +84,18 @@ class HybridRetriever:
                 query,
                 allowed_access_levels=allowed_access_levels,
                 department=department,
+                document_type=document_type,
+                date_from=date_from,
+                date_to=date_to,
                 limit=candidate_limit,
             ),
             self.sparse.search_sparse(
                 query,
                 allowed_access_levels=allowed_access_levels,
                 department=department,
+                document_type=document_type,
+                date_from=date_from,
+                date_to=date_to,
                 limit=candidate_limit,
             ),
         )

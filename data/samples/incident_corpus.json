@@ -1,6 +1,6 @@
 [
   {
-    "content": "Synthetic incident INC-2026-057: payment-provider 503 responses delayed webhook callbacks. Retries without jitter repeatedly re-enqueued deliveries and saturated the callback queue. Operators applied exponential backoff with jitter, drained the queue gradually, and added an alert for oldest-message age.",
+    "content": "Synthetic INC-2026-057: payment 503s delayed webhooks; retries without jitter saturated the queue. Operators enabled jittered backoff, drained deliveries, and added an age alert.",
     "metadata": {
       "document_id": "incident-2026-057",
       "chunk_id": "incident-2026-057-001",
@@ -9,11 +9,16 @@
       "document_type": "incident_report",
       "access_level": "viewer",
       "created_date": "2026-03-10",
-      "source": "sample://incidents/INC-2026-057"
+      "source": "sample://incidents/INC-2026-057",
+      "incident_id": "INC-2026-057",
+      "incident_category": "webhook_delay",
+      "root_cause_category": "retry_without_jitter",
+      "severity": "SEV-2",
+      "impact_summary": "Webhook deliveries were delayed by queue saturation."
     }
   },
   {
-    "content": "Synthetic incident INC-2026-041: gateway timeout retries ran without an idempotency key at the first authorization boundary. Customers could receive duplicate payment authorizations. The team disabled automatic retries, added idempotency keys before the gateway call, and reconciled affected authorizations.",
+    "content": "Synthetic INC-2026-041: timeout retries lacked an idempotency key at authorization, causing duplicate holds. The team disabled retries, added gateway keys, and reconciled holds.",
     "metadata": {
       "document_id": "incident-2026-041",
       "chunk_id": "incident-2026-041-001",
@@ -22,11 +27,16 @@
       "document_type": "incident_report",
       "access_level": "viewer",
       "created_date": "2026-02-03",
-      "source": "sample://incidents/INC-2026-041"
+      "source": "sample://incidents/INC-2026-041",
+      "incident_id": "INC-2026-041",
+      "incident_category": "duplicate_authorization",
+      "root_cause_category": "missing_idempotency_key",
+      "severity": "SEV-1",
+      "impact_summary": "Some payment attempts created duplicate authorizations."
     }
   },
   {
-    "content": "Synthetic incident INC-2025-203: checkout retried capture requests after a gateway timeout. The idempotency key was added only by a downstream service, so repeated requests reached the payment processor as new captures. The fix moved key generation to checkout and added duplicate-capture reconciliation.",
+    "content": "Synthetic INC-2025-203: checkout retried captures after timeout; downstream-only idempotency let duplicates reach the processor. Checkout now creates keys before submission.",
     "metadata": {
       "document_id": "incident-2025-203",
       "chunk_id": "incident-2025-203-001",
@@ -35,11 +45,16 @@
       "document_type": "incident_report",
       "access_level": "analyst",
       "created_date": "2025-09-11",
-      "source": "sample://incidents/INC-2025-203"
+      "source": "sample://incidents/INC-2025-203",
+      "incident_id": "INC-2025-203",
+      "incident_category": "duplicate_authorization",
+      "root_cause_category": "missing_idempotency_key",
+      "severity": "SEV-2",
+      "impact_summary": "Repeated captures reached the processor as new payments."
     }
   },
   {
-    "content": "Synthetic incident INC-2026-099: settlement batches slowed during the evening close because concurrent jobs held overlapping ledger-row locks. The team reduced batch concurrency, split work into smaller transactions, and staggered the settlement schedule.",
+    "content": "Synthetic INC-2026-099: settlement slowed as concurrent jobs held overlapping ledger locks. Operators reduced concurrency, shortened transactions, and staggered batches.",
     "metadata": {
       "document_id": "incident-2026-099",
       "chunk_id": "incident-2026-099-001",
@@ -48,11 +63,16 @@
       "document_type": "incident_report",
       "access_level": "analyst",
       "created_date": "2026-06-18",
-      "source": "sample://incidents/INC-2026-099"
+      "source": "sample://incidents/INC-2026-099",
+      "incident_id": "INC-2026-099",
+      "incident_category": "settlement_delay",
+      "root_cause_category": "ledger_lock_contention",
+      "severity": "SEV-2",
+      "impact_summary": "Evening settlement batches completed late."
     }
   },
   {
-    "content": "Synthetic incident INC-2025-118: authorization latency rose after certificate rotation because the connection pool reopened many TLS sessions at once. The service recovered after connection warm-up and a staggered pool refresh. The follow-up added certificate-expiry checks and a gradual rotation runbook.",
+    "content": "Synthetic INC-2025-118: certificate rotation reopened many TLS sessions at once and raised authorization latency. A staggered pool refresh restored service.",
     "metadata": {
       "document_id": "incident-2025-118",
       "chunk_id": "incident-2025-118-001",
@@ -61,11 +81,16 @@
       "document_type": "incident_report",
       "access_level": "administrator",
       "created_date": "2025-05-22",
-      "source": "sample://incidents/INC-2025-118"
+      "source": "sample://incidents/INC-2025-118",
+      "incident_id": "INC-2025-118",
+      "incident_category": "service_degradation",
+      "root_cause_category": "connection_pool_reconnect_storm",
+      "severity": "SEV-2",
+      "impact_summary": "Authorization latency rose during certificate rotation."
     }
   },
   {
-    "content": "Synthetic incident INC-2026-124: payment API 502 responses increased during deployment because readiness probes passed before downstream connections had warmed. Client retries amplified the brief startup load. The team added a dependency-aware readiness check, delayed traffic shifting, and capped retries with jitter.",
+    "content": "Synthetic INC-2026-124: deployment readiness passed before downstream connections warmed, raising payment API errors. Dependency-aware probes and capped retries fixed it.",
     "metadata": {
       "document_id": "incident-2026-124",
       "chunk_id": "incident-2026-124-001",
@@ -74,7 +99,228 @@
       "document_type": "incident_report",
       "access_level": "viewer",
       "created_date": "2026-08-02",
-      "source": "sample://incidents/INC-2026-124"
+      "source": "sample://incidents/INC-2026-124",
+      "incident_id": "INC-2026-124",
+      "incident_category": "service_outage",
+      "root_cause_category": "dependency_not_ready",
+      "severity": "SEV-1",
+      "impact_summary": "Payment API errors increased after a deployment."
+    }
+  },
+  {
+    "content": "Synthetic INC-2025-166: payment retries without jitter amplified a short issuer delay. Backoff jitter and a bounded queue limited repeat delivery.",
+    "metadata": {
+      "document_id": "incident-2025-166",
+      "chunk_id": "incident-2025-166-001",
+      "title": "Incident INC-2025-166: issuer delay and retries",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-11-14",
+      "source": "sample://incidents/INC-2025-166",
+      "incident_id": "INC-2025-166",
+      "incident_category": "service_degradation",
+      "root_cause_category": "retry_without_jitter",
+      "severity": "SEV-3",
+      "impact_summary": "Issuer delays were amplified by synchronized retries."
+    }
+  },
+  {
+    "content": "Synthetic INC-2025-171: a gateway timeout retried authorization before assigning an idempotency key. The team moved key creation to the first boundary.",
+    "metadata": {
+      "document_id": "incident-2025-171",
+      "chunk_id": "incident-2025-171-001",
+      "title": "Incident INC-2025-171: gateway retry duplicates",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-11-15",
+      "source": "sample://incidents/INC-2025-171",
+      "incident_id": "INC-2025-171",
+      "incident_category": "duplicate_authorization",
+      "root_cause_category": "missing_idempotency_key",
+      "severity": "SEV-2",
+      "impact_summary": "A repeated authorization request created duplicate holds."
+    }
+  },
+  {
+    "content": "Synthetic INC-2025-188: consumer restarts left too few webhook workers, delaying payment notifications. Operators restored worker capacity and added queue-age scaling.",
+    "metadata": {
+      "document_id": "incident-2025-188",
+      "chunk_id": "incident-2025-188-001",
+      "title": "Incident INC-2025-188: webhook worker shortage",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2025-12-10",
+      "source": "sample://incidents/INC-2025-188",
+      "incident_id": "INC-2025-188",
+      "incident_category": "webhook_delay",
+      "root_cause_category": "queue_consumer_saturation",
+      "severity": "SEV-2",
+      "impact_summary": "Payment webhook notifications were delayed."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-008: regional failover sent traffic before dependencies were ready, causing a brief payment outage. Readiness now checks downstream health.",
+    "metadata": {
+      "document_id": "incident-2026-008",
+      "chunk_id": "incident-2026-008-001",
+      "title": "Incident INC-2026-008: failover readiness gap",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-01-07",
+      "source": "sample://incidents/INC-2026-008",
+      "incident_id": "INC-2026-008",
+      "incident_category": "service_outage",
+      "root_cause_category": "dependency_not_ready",
+      "severity": "SEV-1",
+      "impact_summary": "Payment traffic briefly reached an unready region."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-073: retries shared identical delays after issuer errors and flooded the payment queue. Randomized backoff restored steady processing.",
+    "metadata": {
+      "document_id": "incident-2026-073",
+      "chunk_id": "incident-2026-073-001",
+      "title": "Incident INC-2026-073: synchronized payment retries",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-04-16",
+      "source": "sample://incidents/INC-2026-073",
+      "incident_id": "INC-2026-073",
+      "incident_category": "service_degradation",
+      "root_cause_category": "retry_without_jitter",
+      "severity": "SEV-2",
+      "impact_summary": "Synchronized retries increased queue delay."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-081: webhook backlog grew after worker concurrency was capped below incoming volume. Capacity was restored and queue alerts were added.",
+    "metadata": {
+      "document_id": "incident-2026-081",
+      "chunk_id": "incident-2026-081-001",
+      "title": "Incident INC-2026-081: webhook backlog",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2026-05-05",
+      "source": "sample://incidents/INC-2026-081",
+      "incident_id": "INC-2026-081",
+      "incident_category": "webhook_delay",
+      "root_cause_category": "queue_consumer_saturation",
+      "severity": "SEV-3",
+      "impact_summary": "Webhook processing fell behind incoming events."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-112: ledger batches contended on shared payment rows during close. Smaller transactions and staggered jobs reduced lock waits.",
+    "metadata": {
+      "document_id": "incident-2026-112",
+      "chunk_id": "incident-2026-112-001",
+      "title": "Incident INC-2026-112: ledger close delay",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-07-22",
+      "source": "sample://incidents/INC-2026-112",
+      "incident_id": "INC-2026-112",
+      "incident_category": "settlement_delay",
+      "root_cause_category": "ledger_lock_contention",
+      "severity": "SEV-2",
+      "impact_summary": "Payment settlement jobs missed their close window."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-148: a deployment began routing payments before connection warm-up completed. Dependency-aware readiness prevented recurrence.",
+    "metadata": {
+      "document_id": "incident-2026-148",
+      "chunk_id": "incident-2026-148-001",
+      "title": "Incident INC-2026-148: cold connection rollout",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-09-15",
+      "source": "sample://incidents/INC-2026-148",
+      "incident_id": "INC-2026-148",
+      "incident_category": "service_outage",
+      "root_cause_category": "dependency_not_ready",
+      "severity": "SEV-1",
+      "impact_summary": "Some payment requests failed during rollout."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-173: gateway throttling was configured below normal issuer bursts, rejecting valid payments. The team corrected limits and added load checks.",
+    "metadata": {
+      "document_id": "incident-2026-173",
+      "chunk_id": "incident-2026-173-001",
+      "title": "Incident INC-2026-173: payment gateway throttling",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2026-10-09",
+      "source": "sample://incidents/INC-2026-173",
+      "incident_id": "INC-2026-173",
+      "incident_category": "service_degradation",
+      "root_cause_category": "rate_limit_misconfiguration",
+      "severity": "SEV-2",
+      "impact_summary": "Valid payment authorizations were throttled."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-184: retrying captures without gateway idempotency caused duplicate submissions. Checkout now assigns a stable key before network calls.",
+    "metadata": {
+      "document_id": "incident-2026-184",
+      "chunk_id": "incident-2026-184-001",
+      "title": "Incident INC-2026-184: capture retry duplicates",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2026-11-02",
+      "source": "sample://incidents/INC-2026-184",
+      "incident_id": "INC-2026-184",
+      "incident_category": "duplicate_authorization",
+      "root_cause_category": "missing_idempotency_key",
+      "severity": "SEV-2",
+      "impact_summary": "Capture retries produced duplicate submissions."
+    }
+  },
+  {
+    "content": "Synthetic INC-2026-190: a short issuer outage caused a payment retry storm because clients used fixed delays. Randomized exponential backoff eased recovery.",
+    "metadata": {
+      "document_id": "incident-2026-190",
+      "chunk_id": "incident-2026-190-001",
+      "title": "Incident INC-2026-190: issuer retry storm",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "administrator",
+      "created_date": "2026-11-14",
+      "source": "sample://incidents/INC-2026-190",
+      "incident_id": "INC-2026-190",
+      "incident_category": "service_degradation",
+      "root_cause_category": "retry_without_jitter",
+      "severity": "SEV-2",
+      "impact_summary": "Fixed-interval retries prolonged issuer recovery."
+    }
+  },
+  {
+    "content": "Synthetic INC-2024-301: a prior payment outage followed premature region failover before dependencies were healthy. It is outside the current rolling-year window.",
+    "metadata": {
+      "document_id": "incident-2024-301",
+      "chunk_id": "incident-2024-301-001",
+      "title": "Incident INC-2024-301: premature region failover",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2024-11-20",
+      "source": "sample://incidents/INC-2024-301",
+      "incident_id": "INC-2024-301",
+      "incident_category": "service_outage",
+      "root_cause_category": "dependency_not_ready",
+      "severity": "SEV-1",
+      "impact_summary": "An unready region briefly received payment traffic."
     }
   }
 ]

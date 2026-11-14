@@ -31,6 +31,9 @@ from enterprise_assistant.tools.analysis import (
     AnalysisInputError,
     parse_analysis_question,
 )
+from enterprise_assistant.tools.incident_analysis import (
+    is_incident_analysis_question,
+)
 
 logger = logging.getLogger(__name__)
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
@@ -84,7 +87,10 @@ class MockModelProvider:
             research_terms = ("investigate", "compare", "analyze")
             route = (
                 "research"
-                if any(term in normalized for term in research_terms)
+                if (
+                    is_incident_analysis_question(question)
+                    or any(term in normalized for term in research_terms)
+                )
                 else "retrieval"
             )
         else:
@@ -419,8 +425,12 @@ def _system_instructions(task: str) -> str:
         "supervisor": (
             "Select small_talk only for a plain greeting, thanks, farewell, "
             "or brief question about your capabilities. Select retrieval "
-            "for a direct knowledge question, research for "
-            "multi-part investigation or comparison, and analysis only for "
+            "for a direct question about one fact, document, or incident. "
+            "Select research only when the user asks for a multi-part "
+            "investigation, comparison, or synthesis across sources. Route "
+            "questions about "
+            "incident counts, trends, date-bounded summaries, or recurring "
+            "root causes to research. Route analysis only for "
             "an explicit calculate/compute count, sum, or average request "
             "over comma-separated numeric literals in the user question. "
             "Route based on the current question; use history only to "
@@ -436,8 +446,11 @@ def _system_instructions(task: str) -> str:
         ),
         "decomposition": (
             "Decompose the investigation into one to four distinct, concise "
-            "search subtasks. Do not include tools, code, permissions, or "
-            "claims about documents not supplied."
+            "search subtasks. For a comparison or multi-incident question, "
+            "provide at least two complementary searches when feasible. "
+            "Keep the tasks focused on different evidence aspects. Do not "
+            "include tools, code, permissions, or claims about documents "
+            "not supplied."
         ),
     }
     instruction = task_instructions.get(task)

@@ -4,6 +4,9 @@ The tests compare viewer and analyst result sets and ensure unsupported
 citation markers fail validation without contacting a provider.
 """
 
+from datetime import date
+from pathlib import Path
+
 import pytest
 
 from enterprise_assistant.agents.graph import validate_citations
@@ -13,6 +16,7 @@ from enterprise_assistant.domain.models import (
     SearchResult,
     SourceCitation,
 )
+from enterprise_assistant.retrieval.filters import filters_for_question
 from enterprise_assistant.retrieval.hybrid import reciprocal_rank_fusion
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 
@@ -97,3 +101,79 @@ def test_reciprocal_rank_fusion_keeps_complete_chunk_identities() -> None:
         result.chunk.metadata.document_id
         for result in fused
     } == {"document-a", "document-b"}
+
+
+def test_last_year_filter_uses_injected_rolling_date_window() -> None:
+    """Interpret last year as a rolling inclusive anniversary window.
+
+    The injected date keeps boundary behavior repeatable in tests.
+    """
+    filters = filters_for_question(
+        "Summarize payment outages during the last year",
+        today=date(2026, 11, 15),
+    )
+
+    assert filters.document_type == "incident_report"
+    assert filters.date_from == date(2025, 11, 15)
+    assert filters.date_to == date(2026, 11, 15)
+
+
+def test_known_department_terms_narrow_filters() -> None:
+    """Resolve department names from user text without changing role scope.
+
+    A department constraint narrows metadata search independently of RBAC.
+    """
+    payments = filters_for_question(
+        "Summarize payment outages during the last year",
+        today=date(2026, 11, 15),
+    )
+    platform = filters_for_question(
+        "Find platform engineering runbooks",
+        today=date(2026, 11, 15),
+    )
+
+    assert payments.department == "payments"
+    assert platform.department == "platform-engineering"
+
+
+def test_last_year_filter_clamps_leap_day_safely() -> None:
+    """Clamp a prior-year leap day to a valid calendar date.
+
+    February 29 maps to February 28 when the previous year is not a leap year.
+    """
+    filters = filters_for_question(
+        "Incidents from the past year",
+        today=date(2024, 2, 29),
+    )
+
+    assert filters.date_from == date(2023, 2, 28)
+    assert filters.date_to == date(2024, 2, 29)
+
+
+@pytest.mark.asyncio
+async def test_in_memory_retrieval_applies_type_and_date_filters() -> None:
+    """Filter older incidents before returning evidence chunks.
+
+    Document type and date constraints are applied alongside access policy.
+    """
+    retriever = InMemoryRetriever.from_json(
+        Path("data/samples/incident_corpus.json")
+    )
+
+    results = await retriever.search(
+        "Synthetic payment incident outage",
+        allowed_access_levels=frozenset({"viewer", "analyst"}),
+        document_type="incident_report",
+        date_from=date(2025, 11, 15),
+        date_to=date(2026, 11, 15),
+        limit=20,
+    )
+
+    assert results
+    assert all(
+        result.chunk.metadata.document_type == "incident_report"
+        and date(2025, 11, 15)
+        <= result.chunk.metadata.created_date
+        <= date(2026, 11, 15)
+        for result in results
+    )

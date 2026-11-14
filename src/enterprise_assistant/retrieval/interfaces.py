@@ -6,6 +6,7 @@ implements an end-to-end retrieval path.
 """
 
 from collections.abc import Sequence
+from datetime import date
 from typing import Protocol
 
 from enterprise_assistant.domain.models import DocumentChunk, SearchResult
@@ -41,6 +42,9 @@ class Retriever(Protocol):
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> Sequence[SearchResult]:
         """Search for ranked chunks within trusted access filters.
@@ -49,6 +53,9 @@ class Retriever(Protocol):
             query: User or planner query string.
             allowed_access_levels: Backend-derived labels the user may read.
             department: Optional exact department filter.
+            document_type: Optional exact document type filter.
+            date_from: Inclusive lower source-date filter.
+            date_to: Inclusive upper source-date filter.
             limit: Maximum result count.
 
         Returns:

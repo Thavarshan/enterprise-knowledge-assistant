@@ -5,6 +5,7 @@ They do not contact Pinecone or disclose restricted chunk content.
 """
 
 import asyncio
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -145,6 +146,40 @@ async def test_pinecone_query_applies_and_rechecks_access_filter() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pinecone_applies_type_and_numeric_date_filters() -> None:
+    """Use numeric metadata for provider ranges and recheck source dates.
+
+    The fake service returns an out-of-range hit to exercise local filtering.
+    """
+    corpus = _corpus()
+    allowed = PineconeRetriever._document(corpus.chunks[0])
+    outside = PineconeRetriever._document(corpus.chunks[6])
+    client, index = _fake_pinecone_client([allowed, outside])
+    retriever = PineconeRetriever(
+        PineconeConfig("synthetic-key", "synthetic-index", "assessment-demo"),
+        client=client,
+    )
+
+    results = await retriever.search(
+        "payment outage",
+        allowed_access_levels=frozenset({"viewer", "analyst"}),
+        document_type="incident_report",
+        date_from=date(2025, 11, 15),
+        date_to=date(2026, 11, 15),
+        limit=5,
+    )
+
+    query_filter = index.documents.search.call_args.kwargs["filter"]
+    assert query_filter["document_type"] == {"$eq": "incident_report"}
+    assert query_filter["created_date_ordinal"] == {
+        "$gte": date(2025, 11, 15).toordinal(),
+        "$lte": date(2026, 11, 15).toordinal(),
+    }
+    assert len(results) == 1
+    assert results[0].chunk.metadata.document_id == "incident-2026-057"
+
+
+@pytest.mark.asyncio
 async def test_pinecone_search_preserves_caller_cancellation() -> None:
     """Verify async cancellation is not converted into a provider failure.
 
@@ -203,6 +238,9 @@ async def test_pinecone_ingestion_uses_stable_ids_and_namespace() -> None:
         "incident-2026-057::incident-2026-057-001"
     )
     assert documents[0]["chunk_text"] == chunk.content
+    assert documents[0]["created_date_ordinal"] == (
+        chunk.metadata.created_date.toordinal()
+    )
     assert (
         index.documents.upsert.call_args.kwargs["namespace"]
         == "assessment-demo"

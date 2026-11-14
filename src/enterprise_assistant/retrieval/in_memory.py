@@ -8,6 +8,7 @@ score.
 
 import json
 import re
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +85,9 @@ class InMemoryRetriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Filter authorized chunks and score token overlap for top results.
@@ -97,6 +101,9 @@ class InMemoryRetriever:
             query: Text tokenized for the lexical demo score.
             allowed_access_levels: Trusted access labels from backend role.
             department: Optional exact department restriction.
+            document_type: Optional exact document type restriction.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of ranked results.
 
         Returns:
@@ -116,6 +123,15 @@ class InMemoryRetriever:
             if metadata.access_level not in allowed_access_levels:
                 continue
             if department is not None and metadata.department != department:
+                continue
+            if (
+                document_type is not None
+                and metadata.document_type != document_type
+            ):
+                continue
+            if date_from is not None and metadata.created_date < date_from:
+                continue
+            if date_to is not None and metadata.created_date > date_to:
                 continue
             searchable = f"{metadata.title} {chunk.content}".casefold()
             overlap = sum(1 for token in _TOKEN_PATTERN.findall(

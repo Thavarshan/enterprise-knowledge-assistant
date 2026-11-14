@@ -9,6 +9,7 @@ import math
 import re
 from collections import Counter
 from collections.abc import Sequence
+from datetime import date
 
 from enterprise_assistant.domain.models import DocumentChunk, SearchResult
 
@@ -88,6 +89,9 @@ class BM25Retriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Return top BM25 matches within trusted metadata filters.
@@ -96,6 +100,9 @@ class BM25Retriever:
             query: User or research subtask terms.
             allowed_access_levels: Backend-derived access labels.
             department: Optional trusted department constraint.
+            document_type: Optional exact document type constraint.
+            date_from: Inclusive lower source-date boundary.
+            date_to: Inclusive upper source-date boundary.
             limit: Maximum number of chunks returned.
 
         Returns:
@@ -112,6 +119,15 @@ class BM25Retriever:
             if metadata.access_level not in allowed_access_levels:
                 continue
             if department is not None and metadata.department != department:
+                continue
+            if (
+                document_type is not None
+                and metadata.document_type != document_type
+            ):
+                continue
+            if date_from is not None and metadata.created_date < date_from:
+                continue
+            if date_to is not None and metadata.created_date > date_to:
                 continue
             score = self._score(index, query_terms)
             if score > 0:

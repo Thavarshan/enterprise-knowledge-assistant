@@ -7,6 +7,7 @@ complete document and chunk identity. Model-generated code is never run.
 """
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
@@ -56,6 +57,7 @@ class InvestigationReport:
     findings: tuple[InvestigationFinding, ...]
     search_calls: int
     decomposition_calls: int
+    subtask_count: int
     max_depth_reached: int
     failure_codes: tuple[str, ...]
 
@@ -97,6 +99,8 @@ class BoundedResearchExecutor:
         self._search_calls = 0
         self._reserved_documents = 0
         self._decomposition_calls = 0
+        self._subtask_count = 0
+        self._expanded_tasks: set[str] = set()
         self._max_depth_reached = 0
         self._failure_codes: list[str] = []
 
@@ -128,6 +132,7 @@ class BoundedResearchExecutor:
             findings=tuple(findings),
             search_calls=self._search_calls,
             decomposition_calls=self._decomposition_calls,
+            subtask_count=self._subtask_count,
             max_depth_reached=self._max_depth_reached,
             failure_codes=tuple(dict.fromkeys(self._failure_codes)),
         )
@@ -148,7 +153,8 @@ class BoundedResearchExecutor:
             Subtask findings retaining their own source attribution.
         """
         self._max_depth_reached = max(self._max_depth_reached, depth)
-        if depth >= self.budget.max_depth:
+        task_key = re.sub(r"[^a-z0-9]+", " ", objective.casefold()).strip()
+        if depth >= self.budget.max_depth or task_key in self._expanded_tasks:
             return [
                 InvestigationFinding(
                     task=objective,
@@ -156,6 +162,7 @@ class BoundedResearchExecutor:
                 )
             ]
 
+        self._expanded_tasks.add(task_key)
         try:
             remaining = self._remaining_seconds()
             if remaining <= 0:
@@ -188,6 +195,7 @@ class BoundedResearchExecutor:
                 )
             ]
 
+        self._subtask_count += len(queries)
         if len(queries) == 1:
             return [
                 InvestigationFinding(

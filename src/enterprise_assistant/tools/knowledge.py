@@ -1,15 +1,19 @@
-"""Apply role-derived access filters before calling a retriever.
+"""Apply role-derived access and validated source filters to retrieval.
 
 The tool converts the authenticated role into allowed access levels and
-forwards query, optional department, and result limit. It is the graph's
-current executable tool and must receive identity from trusted graph state.
+forwards optional source filters parsed from the original question. It is
+the graph's executable search tool and receives identity only from trusted
+graph state.
 """
 
+from collections.abc import Callable
+from datetime import date
 from typing import Any
 
 from langsmith import traceable
 
 from enterprise_assistant.domain.models import SearchResult
+from enterprise_assistant.retrieval.filters import filters_for_question
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.security.authorization import Role
 
@@ -44,13 +48,20 @@ class KnowledgeSearchTool:
         retriever: Adapter receiving the search and trusted filters.
     """
 
-    def __init__(self, retriever: Retriever) -> None:
+    def __init__(
+        self,
+        retriever: Retriever,
+        *,
+        today: Callable[[], date] = date.today,
+    ) -> None:
         """Retain the search adapter used by this tool.
 
         Args:
             retriever: Implementation of the shared retrieval protocol.
+            today: Injectable clock used to resolve relative date phrases.
         """
         self.retriever = retriever
+        self.today = today
 
     @traceable(
         name="knowledge_search",
@@ -79,13 +90,24 @@ class KnowledgeSearchTool:
             Exception: Adapter failures propagate to graph error handling.
         """
         role = Role(arguments["role"])
+        filter_question = str(
+            arguments.get("filter_question", arguments["query"])
+        )
+        filters = filters_for_question(
+            filter_question,
+            today=self.today(),
+            department=arguments.get("department"),
+        )
         # Derive scope from the authenticated role, never from a requested
         # access-level argument, before content crosses into graph state.
         return list(
             await self.retriever.search(
                 str(arguments["query"]),
                 allowed_access_levels=allowed_access_levels(role),
-                department=arguments.get("department"),
+                department=filters.department,
+                document_type=filters.document_type,
+                date_from=filters.date_from,
+                date_to=filters.date_to,
                 limit=int(arguments.get("limit", 5)),
             )
         )
