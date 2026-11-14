@@ -10,6 +10,8 @@ from typing import Annotated, Any, Literal
 
 from typing_extensions import TypedDict
 
+from enterprise_assistant.memory.models import ChatMessage
+
 
 class AgentState(TypedDict, total=False):
     """Represent values shared between LangGraph nodes.
@@ -24,12 +26,14 @@ class AgentState(TypedDict, total=False):
         user_id: Server-resolved user ID for the turn.
         role: Server-resolved role used by tool policy.
         question: Validated user question for the current turn.
+        history: Owner-scoped messages available as model context.
         route: Supervisor choice: retrieval or research.
         search_plan: Serialized bounded query plan if selected.
         results: Serialized ranked evidence chunks.
         response: Answer text after response construction.
         citations: Citation metadata copied from retrieved chunks.
         validation_passed: Result of the citation gate.
+        answer_grounded: Whether model citations map to retrieved evidence.
         events: Event dictionaries appended with operator.add.
 
     Security:
@@ -41,11 +45,13 @@ class AgentState(TypedDict, total=False):
     user_id: str
     role: str
     question: str
+    history: list[ChatMessage]
     route: Literal["retrieval", "research"]
     search_plan: dict[str, Any]
     results: list[dict[str, Any]]
     response: str
     citations: list[dict[str, str]]
     validation_passed: bool
+    answer_grounded: bool
     # The list reducer appends node updates instead of replacing prior events.
     events: Annotated[list[dict[str, Any]], operator.add]

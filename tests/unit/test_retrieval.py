@@ -47,11 +47,15 @@ def test_citations_must_reference_retrieved_chunks() -> None:
         source="sample://payments/runbooks/gateway-timeout",
     )
     marker = f"[{citation.document_id}#{citation.chunk_id}]"
+    identity = (citation.document_id, citation.chunk_id)
     assert validate_citations(
-        f"Grounded answer {marker}", [citation], frozenset({citation.chunk_id})
+        f"Grounded answer {marker}", [citation], frozenset({identity})
     )
     assert not validate_citations(
-        "Unsupported [fake#chunk]", [citation], frozenset({citation.chunk_id})
+        "Unsupported [fake#chunk]", [citation], frozenset({identity})
     )
     assert not validate_citations(
-        f"Grounded answer {marker}", [citation], frozenset())
+        f"Grounded answer {marker}",
+        [citation],
+        frozenset({("another-document", citation.chunk_id)}),
+    )

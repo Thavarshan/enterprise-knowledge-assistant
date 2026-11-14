@@ -1,6 +1,7 @@
 # Assumptions
 
-- The referenced `Lead AI Assignment.pdf` was not present in the workspace or available attachments during implementation. The pasted task is treated as the fallback specification. Numeric evaluator weightings are therefore unavailable and are not invented in the evaluation matrix.
+- `docs/assignment.md` is the authoritative specification. Its evaluation
+  table supplies the weights reproduced in `docs/evaluation-matrix.md`.
 - Python 3.13.9 is selected and verified locally. Project metadata declares Python `>=3.12,<3.15`; CI is configured for 3.13, so other minor versions have not been verified here.
 - All fixture documents are synthetic examples for an invented enterprise and product. They do not contain real banking customer data or claim affiliation with a real bank.
 - Development roles are configured in ignored `.env`. `make setup` generates random local passwords and prints them once to the operator; application logs do not print credentials or bearer tokens.
@@ -10,6 +11,9 @@
   configuration selects the existing assessment agent. Inputs and outputs
   are hidden, metadata is allowlisted, and trace errors are anonymized. Run
   `make verify-langsmith` to check external delivery; CI needs no key.
+- `LLM_PROVIDER=mock` is the default and requires no model credentials.
+  `LLM_PROVIDER=openai` enables the structured OpenAI adapter; live provider
+  behavior remains unverified until a configured key receives a response.
 
 ## Configuration reference
 
@@ -34,6 +38,10 @@ LangSmith, or Pinecone credentials.
 | RATE_LIMIT_CAPACITY | 30 | Initial token capacity per user in this process. |
 | RATE_LIMIT_REFILL_PER_SECOND | 0.5 | Token refill rate per user. |
 | DEV_USERS_JSON | empty | Inline account JSON or file path; setup writes data/users/default.json. |
+| LLM_PROVIDER | mock | Selects deterministic mock or configured OpenAI. |
+| OPENAI_API_KEY | empty | Secret required only when `LLM_PROVIDER=openai`. |
+| OPENAI_MODEL | gpt-4.1-mini | Model used for structured outputs; live suitability is not yet evaluated. |
+| LLM_TIMEOUT_SECONDS | 30 | Per-request model timeout from 1 to 120 seconds. |
 | LANGSMITH_TRACING | false | Opt-in; see `observability.md` for verification. |
 | LANGSMITH_ENDPOINT | api.smith.langchain.com | LangSmith Cloud API endpoint. |
 | LANGSMITH_API_KEY | empty | Secret required with tracing enabled. |

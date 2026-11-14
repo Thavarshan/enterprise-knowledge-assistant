@@ -16,6 +16,8 @@ from langsmith import AgentAddress, Client, trace, traceable
 
 from enterprise_assistant.agents.graph import build_graph
 from enterprise_assistant.agents.state import AgentState
+from enterprise_assistant.llm.contracts import ModelProvider
+from enterprise_assistant.llm.providers import MockModelProvider
 from enterprise_assistant.memory.interfaces import SessionStore
 from enterprise_assistant.observability.events import ActivityEvent
 from enterprise_assistant.retrieval.interfaces import Retriever
@@ -78,6 +80,7 @@ class ChatService:
         tool_registry: ToolRegistry,
         langsmith_client: Client | None = None,
         langsmith_address: AgentAddress | None = None,
+        model_provider: ModelProvider | None = None,
     ) -> None:
         """Build a graph around injected retrieval and tool policy.
 
@@ -87,9 +90,15 @@ class ChatService:
             tool_registry: Role policy applied before tool handler dispatch.
             langsmith_client: Optional redacting client for graph traces.
             langsmith_address: Agent and environment for graph traces.
+            model_provider: Structured model adapter for agent decisions.
         """
         self.memory = memory
-        self.graph: Any = build_graph(retriever, tool_registry)
+        self.model_provider = model_provider or MockModelProvider()
+        self.graph: Any = build_graph(
+            retriever,
+            tool_registry,
+            self.model_provider,
+        )
         self.langsmith_client = langsmith_client
         self.langsmith_address = langsmith_address
 
@@ -127,12 +136,20 @@ class ChatService:
             The graph run uses LangGraph update streaming. The configured
             thread ID is metadata only because no checkpointer is supplied.
         """
+        messages = self.memory.list_messages(session_id, user.user_id) or []
+        if (
+            messages
+            and messages[-1].role == "user"
+            and messages[-1].content == question
+        ):
+            messages = messages[:-1]
         state: AgentState = {
             "request_id": request_id,
             "session_id": session_id,
             "user_id": user.user_id,
             "role": user.role.value,
             "question": question,
+            "history": messages[-12:],
             "events": [],
         }
         response_text = ""

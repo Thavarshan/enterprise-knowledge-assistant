@@ -14,6 +14,7 @@ from enterprise_assistant.chat import service as chat_service_module
 from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.config.settings import Settings
 from enterprise_assistant.memory.interfaces import SessionStore
+from enterprise_assistant.memory.models import ChatMessage
 from enterprise_assistant.observability import langsmith
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.security.authentication import AuthenticatedUser
@@ -337,6 +338,23 @@ async def test_chat_service_propagates_agent_context_across_graph(
             Messages are retained only in this local list.
             """
             self.messages: list[tuple[str, str, str]] = []
+
+        def list_messages(
+            self,
+            session_id: str,
+            owner_id: str,
+        ) -> list[ChatMessage] | None:
+            """Return no prior history for this isolated test session.
+
+            Args:
+                session_id: Synthetic session identifier.
+                owner_id: Synthetic authenticated owner.
+
+            Returns:
+                An empty history without reading external storage.
+            """
+            del session_id, owner_id
+            return []
 
         def append_message(
             self,

@@ -13,6 +13,8 @@ dependencies = [
   "httpx>=0.28,<1.0",
   "langgraph>=1.0,<2.0",
   "langsmith>=0.14.9,<1.0",
+  "openai>=2.11,<3.0",
+  "pinecone>=10.3,<11.0",
   "pydantic-settings>=2.7,<3.0",
   "python-dotenv>=1.0,<2.0",
   "streamlit>=1.45,<2.0",
@@ -36,6 +38,7 @@ packages = ["src/enterprise_assistant", "apps"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = ["integration: calls an external service when credentials exist"]
 
 [tool.ruff]
 line-length = 80

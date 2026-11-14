@@ -7,10 +7,11 @@ processes. The processes share a Python package and dependency lockfile.
 Domain, API, retrieval, memory, security, tools, agents, and observability
 remain internal module boundaries rather than separate services.
 
-The current application is deterministic. It has no model provider, no live
-Pinecone client, no sparse index, and no MCP handler. LangSmith tracing can
-be configured through environment variables, but the application does not
-confirm that an external trace was accepted.
+Mock mode remains deterministic. Setting `LLM_PROVIDER=openai` selects the
+structured OpenAI adapter for supervisor routing and grounded answer claims.
+The provider is wired but has not been verified with a live model because no
+OpenAI API key is configured in this workspace. Pinecone remains a later
+retrieval integration phase.
 
 ## Component and execution map
 
@@ -23,7 +24,7 @@ flowchart TB
   API --> Limit[Per-user token bucket]
   API --> Chat[ChatService]
   Chat --> Graph[Compiled LangGraph]
-  Graph --> Supervisor[Keyword supervisor]
+  Graph --> Supervisor[Structured model supervisor or mock]
   Supervisor -->|direct route| Retrieval[Retrieval node]
   Supervisor -->|investigation route| Research[One-query Research plan]
   Research --> Retrieval
@@ -31,8 +32,8 @@ flowchart TB
   Registry --> Knowledge[KnowledgeSearchTool]
   Knowledge --> Filter[Role-derived metadata filter]
   Filter --> Fixture[In-memory fixture retriever]
-  Filter -. unimplemented adapter .-> Pinecone[Pinecone boundary]
-  Retrieval --> Response[Deterministic response]
+  Filter -. later integration .-> Pinecone[Pinecone boundary]
+  Retrieval --> Response[Grounded model response or mock]
   Response --> Validate[Citation validation]
   Graph -. optional environment tracing .-> LangSmith[LangSmith]
 ```
@@ -44,7 +45,7 @@ flowchart TB
 | Streamlit | Login, session selection, history, chat, activity display | Uses a synchronous httpx client; all backend data comes from FastAPI. |
 | FastAPI | HTTP schemas, identity, ownership, rate checks, SSE transport | Async routes call synchronous SQLite methods directly. |
 | Chat service | Build per-turn state, consume graph updates, persist final answer | Graph and assistant persistence are separate failure boundaries. |
-| LangGraph | Route once, search, build response, validate citations | Deterministic nodes; no LLM, cycles, retries, or checkpointer. |
+| LangGraph | Route, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. |
 | Security | Resolve local users and enforce tool roles | Local-only tokens and in-memory limits; see the security guide. |
 | Retrieval | Filter fixture content and rank lexical overlap | Pinecone, ingestion, embeddings, sparse search, and live fusion are absent. |
 | Memory | Store owner-scoped sessions and messages | SQLite, one synchronous connection per operation. |
@@ -52,9 +53,10 @@ flowchart TB
 
 The API service container is created by the application factory. Tests can
 inject a session store or retriever; ordinary startup selects SQLite and
-uses mock fixture retrieval unless mock mode is disabled. Disabling mock mode
-selects PineconeRetriever, whose current search method raises
-PineconeNotConfigured.
+uses mock fixture retrieval unless mock mode is disabled. Setting
+`LLM_PROVIDER=openai` independently enables the OpenAI model adapter; it
+requires a key and does not change authorization policy. Disabling mock
+retrieval still selects the Pinecone boundary, which is not yet implemented.
 
 ## Request and data boundaries
 
@@ -86,18 +88,20 @@ tool maps the authenticated role to access labels before calling the adapter.
 The fixture adapter applies access and optional department filtering before
 scoring content.
 
-The UI loads persisted message history for rendering, but sends only the
-current question to the graph. Previous turns are not added to AgentState and
-do not provide conversational context to the current deterministic workflow.
-SQLite session history is persistence, not graph memory.
+The UI loads persisted message history for rendering. ChatService also reads
+the latest owner-scoped messages and passes them into graph state for model
+context. Provider prompts receive only the twelve most recent messages, with
+content truncated to 4,000 characters per message.
 
 ## Graph behavior and failure containment
 
-The supervisor selects Research when a question contains one of the fixed
-case-insensitive terms investigate, compare, or analyze. Other questions go
-directly to retrieval. Research currently wraps the original question as one
-validated query. Both routes then execute one authorized search, deterministic
-response construction, and citation validation.
+The configured model returns a validated retrieval or research route. The
+deterministic mock uses the existing investigate, compare, and analyze
+keyword rule. Research currently wraps the original question as one
+validated query. Both routes execute one authorized search, generate
+structured claims from the returned evidence, and validate citation pairs.
+See `docs/model-provider.md` for provider selection and live verification
+status.
 
 Graph events use a reducer that appends each node's event list. The graph has
 no cycles, retries, or model-driven tool loop, and it compiles without a
@@ -108,8 +112,9 @@ The user message is stored before graph execution. A graph failure becomes a
 generic activity event and prevents assistant-answer persistence. The route
 also catches exceptions escaping the service after SSE begins and returns a
 generic stream-failure event. Provider exception messages are not sent to the
-client. An assistant persistence failure may therefore leave a user message
-without a matching assistant message.
+client. A live provider error fails the turn; it does not silently return a
+deterministic answer. An assistant persistence failure may leave a user
+message without a matching assistant message.
 
 ## Retrieval and evidence limits
 

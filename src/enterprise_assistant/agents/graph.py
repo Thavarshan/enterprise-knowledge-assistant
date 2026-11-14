@@ -1,12 +1,8 @@
-"""Build and run the deterministic LangGraph conversation workflow.
+"""Build the model-backed LangGraph workflow with a deterministic mock path.
 
-The graph routes each question to direct retrieval or one bounded Research
-planning step, then retrieves role-filtered evidence, creates a deterministic
-answer, and validates its citation markers before emitting response chunks.
-
-Node updates use a reducer-backed event list for explainability. There is no
-model call, tool loop, retry policy, or checkpointer in this implementation;
-the graph terminates after the validation node.
+The supervisor and response nodes use an injected structured model provider.
+Retrieval authorization remains server-side and citations are checked against
+complete identities before answer chunks can reach the client.
 """
 
 import re
@@ -16,11 +12,11 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from enterprise_assistant.agents.nodes.research import plan_research
-from enterprise_assistant.agents.nodes.response import grounded_response
 from enterprise_assistant.agents.nodes.retrieval import selected_query
-from enterprise_assistant.agents.nodes.supervisor import select_workflow
 from enterprise_assistant.agents.state import AgentState
 from enterprise_assistant.domain.models import SearchResult, SourceCitation
+from enterprise_assistant.llm.contracts import GroundedAnswer, ModelProvider
+from enterprise_assistant.llm.providers import MockModelProvider
 from enterprise_assistant.observability.events import ActivityEvent, EventType
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.rlm.contracts import ExecutionBudget
@@ -73,39 +69,86 @@ def _event(
 def validate_citations(
     response: str,
     citations: list[SourceCitation],
-    retrieved_chunk_ids: frozenset[str],
+    retrieved_identities: frozenset[tuple[str, str]],
 ) -> bool:
-    """Verify response markers against citations and retrieved chunk IDs.
+    """Verify markers against complete retrieved source identities.
 
-    The marker set must equal citations whose chunk IDs occurred in this
-    turn. An answer without markers is valid only when it has no
-    citations.
+    The marker set must equal citations whose document and chunk IDs both
+    occurred in this turn. An answer without markers is valid only when it
+    has no citations.
 
     Args:
         response: Rendered answer containing bracketed source markers.
         citations: Citation objects produced from search results.
-        retrieved_chunk_ids: Chunk IDs returned for this retrieval turn.
+        retrieved_identities: Document/chunk pairs returned this turn.
 
     Returns:
         True when marker and citation sets satisfy the current policy.
 
-    Notes:
-        The check compares chunk IDs, not document/chunk pairs. The
-        graph builds citations from results; compare full pairs before
-        accepting untrusted citation objects.
     """
     markers = set(_CITATION_PATTERN.findall(response))
     allowed_markers = {
         f"{citation.document_id}#{citation.chunk_id}"
         for citation in citations
-        if citation.chunk_id in retrieved_chunk_ids
+        if (citation.document_id, citation.chunk_id) in retrieved_identities
     }
     if not markers:
         return not citations
-    return markers == allowed_markers
+    return (
+        markers == allowed_markers
+        and len(allowed_markers) == len(citations)
+    )
 
 
-def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
+def render_grounded_answer(
+    answer: GroundedAnswer,
+    results: list[SearchResult],
+) -> tuple[str, list[SourceCitation], bool]:
+    """Render claims and canonical citations from authorized search results.
+
+    Every model source identity is matched to a full document/chunk pair.
+    An unknown identity marks the response ungrounded so validation withholds
+    it instead of trusting source fields returned by the model.
+
+    Args:
+        answer: Structured model claims and source identities.
+        results: Evidence already filtered by server-side authorization.
+
+    Returns:
+        Rendered answer, canonical citations, and grounding status.
+    """
+    evidence = {
+        (
+            result.chunk.metadata.document_id,
+            result.chunk.metadata.chunk_id,
+        ): result.chunk
+        for result in results
+    }
+    citations: dict[tuple[str, str], SourceCitation] = {}
+    rendered_claims: list[str] = []
+    grounded = True
+    for claim in answer.claims:
+        markers: list[str] = []
+        for identity in claim.citations:
+            key = (identity.document_id, identity.chunk_id)
+            chunk = evidence.get(key)
+            if chunk is None:
+                grounded = False
+                continue
+            citations[key] = SourceCitation.from_chunk(chunk)
+            markers.append(f"[{key[0]}#{key[1]}]")
+        if markers:
+            rendered_claims.append(f"{claim.text} {' '.join(markers)}")
+        else:
+            rendered_claims.append(claim.text)
+    return "\n\n".join(rendered_claims), list(citations.values()), grounded
+
+
+def build_graph(
+    retriever: Retriever,
+    tool_registry: ToolRegistry,
+    model_provider: ModelProvider | None = None,
+) -> Any:
     """Compile the bounded conversation workflow from injected adapters.
 
     The StateGraph routes supervisor output to retrieval or one Research
@@ -115,21 +158,22 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
     Args:
         retriever: Search adapter used by the knowledge tool.
         tool_registry: Backend policy registry for tool dispatch.
+        model_provider: Structured provider; defaults to deterministic mock.
 
     Returns:
         A compiled LangGraph runnable consumed by ChatService.
 
     Notes:
-        No checkpointer is supplied, so thread IDs do not persist state.
-        The graph has no cycles or model-driven route selection.
+        Conversation history is supplied by the owner-scoped service. The
+        graph itself does not use a checkpointer.
     """
+    language_model = model_provider or MockModelProvider()
 
     async def supervisor(state: AgentState) -> dict[str, Any]:
         """Choose the direct-retrieval or bounded-research route.
 
-        A deterministic keyword policy evaluates the question. The node
-        returns its route and an activity event without asking a model to
-        decide.
+        The provider returns a validated route only. Roles and retrieval
+        policy remain trusted backend state and are not model outputs.
 
         Args:
             state: Shared graph state containing the question and IDs.
@@ -137,7 +181,10 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         Returns:
             A route field and an appended transition event.
         """
-        route = select_workflow(state["question"])
+        decision = await language_model.classify_intent(
+            state["question"], state.get("history", [])
+        )
+        route = decision.route
         event = _event(
             state,
             event_type="agent_transition",
@@ -238,11 +285,10 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         return {"results": serialized, "events": events}
 
     async def response(state: AgentState) -> dict[str, Any]:
-        """Build a deterministic answer from ranked retrieved chunks.
+        """Generate grounded claims from authorized retrieved chunks.
 
-        The node validates serialized results, selects at most two chunks,
-        and derives citations from their metadata. Empty results produce a
-        fixed no-evidence response.
+        Empty results produce a fixed no-evidence response without a model
+        call. Model citations are canonicalized from the retrieved chunks.
 
         Args:
             state: Workflow state containing serialized search results.
@@ -250,9 +296,27 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         Returns:
             Response text, citation records, and a transition event.
         """
-        results = [SearchResult.model_validate(
-            result) for result in state.get("results", [])]
-        answer, citations = grounded_response(results)
+        results = [
+            SearchResult.model_validate(result)
+            for result in state.get("results", [])
+        ]
+        if results:
+            model_answer = await language_model.generate_answer(
+                state["question"],
+                results,
+                state.get("history", []),
+            )
+            answer, citations, grounded = render_grounded_answer(
+                model_answer,
+                results,
+            )
+        else:
+            answer = (
+                "I could not find an accessible document "
+                "that answers this question."
+            )
+            citations = []
+            grounded = True
         events = [
             _event(
                 state,
@@ -260,8 +324,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
                 agent="response",
                 node="response",
                 message=(
-                    "Prepared a response grounded in "
-                    "retrieved fixture evidence."
+                    "Generated a response from authorized evidence."
                 ),
                 metadata={"citation_count": len(citations)},
             )
@@ -269,6 +332,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         return {
             "response": answer,
             "citations": [citation.model_dump() for citation in citations],
+            "answer_grounded": grounded,
             "events": events,
         }
 
@@ -292,12 +356,22 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
             SourceCitation.model_validate(citation)
             for citation in state.get("citations", [])
         ]
-        retrieved_ids = frozenset(
-            SearchResult.model_validate(result).chunk.metadata.chunk_id
+        retrieved_identities = frozenset(
+            (
+                parsed.chunk.metadata.document_id,
+                parsed.chunk.metadata.chunk_id,
+            )
             for result in state.get("results", [])
+            for parsed in [SearchResult.model_validate(result)]
         )
-        valid = validate_citations(
-            state.get("response", ""), citations, retrieved_ids)
+        valid = (
+            state.get("answer_grounded", True)
+            and validate_citations(
+                state.get("response", ""),
+                citations,
+                retrieved_identities,
+            )
+        )
         answer = state.get("response", "")
         if not valid:
             answer = (

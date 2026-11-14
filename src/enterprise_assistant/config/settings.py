@@ -7,6 +7,7 @@ in-memory development authentication unless explicitly configured.
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,6 +40,10 @@ class Settings(BaseSettings):
         langsmith_endpoint: LangSmith Cloud API endpoint.
         langsmith_agent_id: Registered LangSmith agent identifier.
         langsmith_agent_environment: Target environment for agent traces.
+        llm_provider: Mock or live provider used by supervisor and response.
+        openai_api_key: Secret used by the optional OpenAI provider.
+        openai_model: Model ID used for structured chat completions.
+        llm_timeout_seconds: Maximum duration for one model request.
         pinecone_api_key: Secret reserved for the Pinecone adapter.
         pinecone_index_name: Configured index name.
         pinecone_namespace: Optional configured namespace.
@@ -70,6 +75,10 @@ class Settings(BaseSettings):
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     langsmith_agent_id: str = "enterprise-knowledge-assistant"
     langsmith_agent_environment: str = "local"
+    llm_provider: Literal["mock", "openai"] = "mock"
+    openai_api_key: str = Field(default="", repr=False)
+    openai_model: str = "gpt-4.1-mini"
+    llm_timeout_seconds: int = Field(default=30, ge=1, le=120)
     pinecone_api_key: str = Field(default="", repr=False)
     pinecone_index_name: str = ""
     pinecone_namespace: str = ""

@@ -26,6 +26,8 @@ from enterprise_assistant.api.middleware import RequestIdMiddleware
 from enterprise_assistant.api.routes import auth, chat, health
 from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.config.settings import Settings, get_settings
+from enterprise_assistant.llm.contracts import ModelProvider
+from enterprise_assistant.llm.providers import create_model_provider
 from enterprise_assistant.memory.interfaces import SessionStore
 from enterprise_assistant.memory.sqlite import SQLiteSessionStore
 from enterprise_assistant.observability.langsmith import (
@@ -62,6 +64,7 @@ class AppContainer:
         retriever: Search adapter passed to the chat graph.
         tool_registry: Backend role policy for tool invocation.
         rate_limiter: Per-user, process-local request limiter.
+        model_provider: Structured provider used by graph agents.
         chat_service: Graph orchestration and turn persistence service.
     """
     settings: Settings
@@ -70,6 +73,7 @@ class AppContainer:
     retriever: Retriever
     tool_registry: ToolRegistry
     rate_limiter: TokenBucketRateLimiter
+    model_provider: ModelProvider
     chat_service: ChatService
 
 
@@ -102,6 +106,7 @@ def create_app(
     """
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
+    model_provider = create_model_provider(app_settings)
     langsmith_client = create_langsmith_client(app_settings)
     tracing_enabled = langsmith_client is not None
     langsmith_address = (
@@ -133,12 +138,14 @@ def create_app(
             app_settings.rate_limit_capacity,
             app_settings.rate_limit_refill_per_second,
         ),
+        model_provider=model_provider,
         chat_service=ChatService(
             document_retriever,
             session_store,
             registry,
             langsmith_client=langsmith_client,
             langsmith_address=langsmith_address,
+            model_provider=model_provider,
         ),
     )
 
@@ -167,6 +174,7 @@ def create_app(
         finally:
             if langsmith_client is not None:
                 langsmith_client.close(timeout=5)
+            await model_provider.aclose()
 
     application = FastAPI(
         title=app_settings.app_name,
