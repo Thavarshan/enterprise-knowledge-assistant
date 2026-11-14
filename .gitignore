@@ -19,4 +19,8 @@ build/
 *.egg-info/
 .DS_Store
 .vercel
-.env*
+!.env.cloud-sim.example
+**/.dev.vars*
+!infra/cloudflare/d1-gateway/.dev.vars.example
+**/node_modules/
+**/.wrangler/

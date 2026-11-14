@@ -1,0 +1,87 @@
+services:
+  api:
+    build: .
+    command:
+      - uvicorn
+      - apps.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      APP_ENV: development
+      MOCK_MODE: "true"
+      LLM_PROVIDER: mock
+      MEMORY_BACKEND: d1
+      D1_API_URL: http://d1-gateway:8787
+      D1_SERVICE_TOKEN: ${D1_SERVICE_TOKEN:?Set D1_SERVICE_TOKEN}
+      D1_TIMEOUT_SECONDS: "5"
+      AUTH_SIGNING_SECRET: ${AUTH_SIGNING_SECRET:?Set AUTH_SIGNING_SECRET}
+      DEV_USERS_JSON: >-
+        {"analyst":{"password":"local-test-analyst-password",
+        "role":"analyst"},"viewer":{"password":
+        "local-test-viewer-password","role":"viewer"}}
+      CORS_ORIGINS: '["http://localhost:18501"]'
+    ports:
+      - "${API_PORT:-18000}:8000"
+    depends_on:
+      d1-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  ui:
+    build: .
+    command:
+      - streamlit
+      - run
+      - apps/ui/main.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8501"
+      - --server.headless
+      - "true"
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "${UI_PORT:-18501}:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  d1-gateway:
+    build:
+      context: infra/cloudflare/d1-gateway
+    environment:
+      D1_SERVICE_TOKEN: ${D1_SERVICE_TOKEN:?Set D1_SERVICE_TOKEN}
+    ports:
+      - "127.0.0.1:18787:8787"
+    volumes:
+      - cloud-sim-d1:/state
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:8787/internal/ready',
+          {headers:{Authorization:'Bearer '+process.env.D1_SERVICE_TOKEN}})
+          .then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  cloud-sim-d1:

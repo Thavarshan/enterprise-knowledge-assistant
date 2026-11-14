@@ -1,13 +1,14 @@
 .PHONY: setup dev api ui test lint comments-check line-length-check \
 	format format-check build typecheck docs-check syntax-check audit check \
-	docker-up docker-down verify-langsmith verify-live evaluate-retrieval
+	docker-up docker-down cloud-sim cloud-sim-down cloud-sim-test \
+	verify-langsmith verify-live evaluate-retrieval
 
 setup:
-	uv sync --all-groups
+	uv sync --all-groups --extra ui
 	uv run python scripts/bootstrap_dev_env.py
 
 dev:
-	uv sync --all-groups
+	uv sync --all-groups --extra ui
 	uv run python scripts/run_dev.py
 
 api:
@@ -39,6 +40,7 @@ comments-check:
 
 line-length-check:
 	uv run ruff check --select E501 .
+	uv run python scripts/check_line_length.py
 
 format:
 	uv run autopep8 --in-place --recursive src apps tests scripts
@@ -69,3 +71,18 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+cloud-sim:
+	@test -f .env.cloud-sim || cp .env.cloud-sim.example .env.cloud-sim
+	docker compose --env-file .env.cloud-sim \
+		-f compose.cloud-sim.yaml --project-name eka-cloud-sim \
+		up --build --detach --wait --wait-timeout 180
+
+cloud-sim-down:
+	@test -f .env.cloud-sim || cp .env.cloud-sim.example .env.cloud-sim
+	docker compose --env-file .env.cloud-sim \
+		-f compose.cloud-sim.yaml --project-name eka-cloud-sim down
+
+cloud-sim-test:
+	RUN_D1_WORKER_TESTS=true uv run pytest -q \
+		tests/integration/test_cloudflare_local.py

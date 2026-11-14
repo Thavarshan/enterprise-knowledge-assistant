@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+test/
+vitest.config.ts
+tsconfig.json

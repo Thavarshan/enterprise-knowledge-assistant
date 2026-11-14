@@ -36,7 +36,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make lint
 
   format:
@@ -57,7 +57,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make format-check
 
   build:
@@ -117,7 +117,7 @@ jobs:
             pyproject.toml
             uv.lock
       - run: >-
-          uv sync --locked --all-groups --python
+          uv sync --locked --all-groups --extra ui --python
           "${{ matrix.python-version }}"
       - run: make test
 
@@ -139,7 +139,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make docs-check
 
   comments:
@@ -160,7 +160,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make comments-check
 
   line-length:
@@ -181,7 +181,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make line-length-check
 
   syntax:
@@ -202,7 +202,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make syntax-check
 
   typecheck:
@@ -230,7 +230,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make typecheck
 
   dependency-audit:
@@ -258,8 +258,52 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --python 3.13
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
       - run: make audit
+
+  cloudflare-worker:
+    name: "Runtime: Cloudflare Worker and local D1"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/cloudflare/d1-gateway/package-lock.json
+      - name: Install Worker dependencies
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm ci
+      - name: Check Worker types
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm run typecheck
+      - name: Test Worker routes against local D1
+        working-directory: infra/cloudflare/d1-gateway
+        run: npm test
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - name: Test FastAPI through Wrangler and local D1
+        run: make cloud-sim-test
 
   docker-api-ui:
     name: "Runtime: Docker Compose smoke"
@@ -268,6 +312,7 @@ jobs:
       - tests
       - typecheck
       - dependency-audit
+      - cloudflare-worker
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
