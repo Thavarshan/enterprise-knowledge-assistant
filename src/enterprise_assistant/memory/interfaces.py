@@ -1,9 +1,8 @@
 """Define the synchronous contract for session persistence.
 
 Implementations initialize and check storage, create owner-scoped sessions,
-read history, and append messages. The current API calls these methods from
-async routes without threadpool offloading, so this interface is suitable
-for the local SQLite workload rather than high-latency storage.
+read history, and append messages. These methods are synchronous; async
+service boundaries must offload calls to avoid blocking the event loop.
 """
 
 from typing import Protocol
@@ -24,7 +23,8 @@ class SessionStore(Protocol):
     synchronous; callers must account for blocking adapter behavior.
 
     Notes:
-        The current API calls SQLite methods directly from async routes.
+        The API and chat service use worker threads for these synchronous
+        operations. A high-latency database should use a native async adapter.
     """
 
     def initialize(self) -> None:

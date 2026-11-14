@@ -184,6 +184,37 @@ def test_stream_rejects_unauthenticated_and_invalid_body(
     assert invalid.json()["error"]["code"] == "validation_error"
 
 
+def test_oversized_chat_message_is_rejected_before_persistence(
+    client: TestClient,
+    login: Callable,
+) -> None:
+    """Reject a message over the schema limit without storing the turn.
+
+    Args:
+        client: Isolated test API.
+        login: Helper that obtains authenticated headers.
+    """
+    headers = login()
+    session_id = client.post(
+        "/api/v1/chat/sessions",
+        headers=headers,
+        json={},
+    ).json()["session_id"]
+
+    response = client.post(
+        "/api/v1/chat/stream",
+        headers=headers,
+        json={"session_id": session_id, "message": "x" * 4001},
+    )
+    detail = client.get(
+        f"/api/v1/chat/sessions/{session_id}",
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert detail.json()["messages"] == []
+
+
 def test_input_guardrail_rejects_before_persistence(
     client: TestClient,
     login: Callable,

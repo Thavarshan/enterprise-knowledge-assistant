@@ -11,15 +11,18 @@ from dataclasses import dataclass
 from typing import Protocol
 
 _OVERRIDE_PATTERN = re.compile(
-    r"\b(?:ignore|disregard|override|forget)\b"
-    r"[\s\S]{0,80}\b(?:all\s+)?(?:previous|prior|above|system|developer)\b"
+    r"\b(?:ignore|disregard|override|forget|bypass|supersede|"
+    r"set\s+aside|do\s+not\s+follow|don't\s+follow)\b"
+    r"[\s\S]{0,80}\b(?:all\s+)?"
+    r"(?:previous|prior|above|earlier|system|developer)\b"
     r"[\s\S]{0,40}\b(?:instructions?|prompts?|rules?)\b",
     re.IGNORECASE,
 )
 _EXFILTRATION_PATTERN = re.compile(
-    r"\b(?:show|print|dump|reveal|expose|exfiltrate|send|export)\b"
-    r"[\s\S]{0,80}\b(?:api[\s_-]*keys?|secrets?|credentials?|"
-    r"passwords?|access tokens?|system prompts?)\b",
+    r"\b(?:show|print|dump|reveal|expose|exfiltrate|send|export|"
+    r"list|provide|disclose|give|retrieve)\b"
+    r"[\s\S]{0,80}\b(?:api[\s_-]*keys?|private[\s_-]*keys?|"
+    r"secrets?|credentials?|passwords?|access tokens?|system prompts?)\b",
     re.IGNORECASE,
 )
 
@@ -42,7 +45,8 @@ class InputGuardrail(Protocol):
     """Specify an async inspection boundary for user input.
 
     Implementations may report a decision but must not replace backend
-    authorization. No input guardrail implementation is currently invoked.
+    authorization. The API invokes the configured input guardrail before
+    persisting a user message.
     """
 
     async def inspect(self, text: str, *,

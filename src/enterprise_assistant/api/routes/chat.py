@@ -6,6 +6,7 @@ persists the user message. Graph activity is encoded as SSE; failures are
 returned as generic events.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -20,7 +21,6 @@ from enterprise_assistant.api.schemas.chat import (
     SessionDetailResponse,
     SessionResponse,
 )
-from enterprise_assistant.memory.models import ChatSession
 from enterprise_assistant.observability.events import ActivityEvent, encode_sse
 from enterprise_assistant.security.authentication import AuthenticatedUser
 from enterprise_assistant.security.rate_limiting import RateLimitExceeded
@@ -40,8 +40,8 @@ async def create_session(
 ) -> SessionResponse:
     """Create a conversation owned by the authenticated user.
 
-    Session data is written through the configured synchronous store;
-    the resulting record is converted to the public response schema.
+    Session data is written through the configured synchronous store in a
+    worker thread, then converted to the public response schema.
 
     Args:
         payload: Optional title validated by the request schema.
@@ -51,8 +51,11 @@ async def create_session(
     Returns:
         The newly created session identifier, title, and timestamp.
     """
-    session = request.app.state.container.memory.create_session(
-        user.user_id, payload.title)
+    session = await asyncio.to_thread(
+        request.app.state.container.memory.create_session,
+        user.user_id,
+        payload.title,
+    )
     return SessionResponse.from_record(session)
 
 
@@ -81,8 +84,10 @@ async def get_session(
             this user.
     """
     memory = request.app.state.container.memory
-    session: ChatSession | None = memory.get_session(session_id, user.user_id)
-    messages = memory.list_messages(session_id, user.user_id)
+    session, messages = await asyncio.gather(
+        asyncio.to_thread(memory.get_session, session_id, user.user_id),
+        asyncio.to_thread(memory.list_messages, session_id, user.user_id),
+    )
     if session is None or messages is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
@@ -124,7 +129,12 @@ async def stream_chat(
         persistence and graph execution; client roles are not consulted.
     """
     container: Any = request.app.state.container
-    if container.memory.get_session(payload.session_id, user.user_id) is None:
+    session = await asyncio.to_thread(
+        container.memory.get_session,
+        payload.session_id,
+        user.user_id,
+    )
+    if session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
     guardrail_decision = await container.input_guardrail.inspect(
@@ -151,8 +161,13 @@ async def stream_chat(
         ) from exc
 
     request_id = request.state.request_id
-    container.memory.append_message(
-        payload.session_id, user.user_id, "user", payload.message)
+    await asyncio.to_thread(
+        container.memory.append_message,
+        payload.session_id,
+        user.user_id,
+        "user",
+        payload.message,
+    )
 
     async def event_stream() -> AsyncIterator[str]:
         """Relay graph activity and mask unexpected stream failures.

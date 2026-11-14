@@ -10,6 +10,7 @@ The factory supports injected settings, memory, and retrievers so tests can
 exercise request behavior without external providers.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -177,7 +178,7 @@ def create_app(
         Yields:
             Control to the ASGI server after initialization.
         """
-        container.memory.initialize()
+        await asyncio.to_thread(container.memory.initialize)
         logger.info(
             "Application startup complete",
             extra={"tracing_enabled": tracing_enabled,

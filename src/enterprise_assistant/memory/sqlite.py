@@ -3,7 +3,7 @@
 Each operation opens a short-lived connection, uses parameterized SQL, and
 includes `owner_id` in session access queries. Foreign keys cascade message
 deletes. Database calls are synchronous and use a five-second connection
-timeout; they are not offloaded from the FastAPI event loop.
+timeout; async service boundaries offload them to worker threads.
 """
 
 import sqlite3
@@ -31,8 +31,8 @@ class SQLiteSessionStore:
         database_path: SQLite filename or the special in-memory path.
 
     Concurrency:
-        Connections are operation-local, but calls are synchronous and the
-        API does not offload them from its event loop.
+        Connections are operation-local. The store is synchronous; API and
+        chat service callers offload database calls from the event loop.
     """
 
     def __init__(self, database_path: str) -> None:

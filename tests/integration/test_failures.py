@@ -6,6 +6,7 @@ failure.
 """
 
 import json
+from datetime import date
 
 from fastapi.testclient import TestClient
 
@@ -29,6 +30,9 @@ class FailingRetriever:
         *,
         allowed_access_levels: frozenset[str],
         department: str | None = None,
+        document_type: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
         """Raise a deterministic provider error for every query.
@@ -37,12 +41,23 @@ class FailingRetriever:
             query: Search text, unused in this failure adapter.
             allowed_access_levels: Access labels, unused in this adapter.
             department: Optional filter, unused in this adapter.
+            document_type: Optional type filter, unused in this adapter.
+            date_from: Optional lower date, unused in this adapter.
+            date_to: Optional upper date, unused in this adapter.
             limit: Result cap, unused in this adapter.
 
         Raises:
             RuntimeError: Always, to simulate an unavailable provider.
         """
-        del query, allowed_access_levels, department, limit
+        del (
+            query,
+            allowed_access_levels,
+            department,
+            document_type,
+            date_from,
+            date_to,
+            limit,
+        )
         raise RuntimeError("synthetic provider outage")
 
 
