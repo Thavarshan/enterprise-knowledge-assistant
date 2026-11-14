@@ -1,0 +1,67 @@
+[
+  {
+    "content": "Fictional payment incident PI-2026-014: card authorization requests showed elevated timeouts from 09:12 to 09:38 UTC after a regional gateway failover. Operations moved traffic to the healthy region, confirmed authorization success returned to baseline, and opened a follow-up review for retry behavior.",
+    "metadata": {
+      "document_id": "doc-payment-incident-014",
+      "chunk_id": "doc-payment-incident-014-001",
+      "title": "Payment Incident PI-2026-014",
+      "department": "payments-operations",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2026-06-18",
+      "source": "sample://payments/incidents/PI-2026-014"
+    }
+  },
+  {
+    "content": "Runbook: For a payment gateway timeout alert, check regional health and authorization latency first. If one region is unhealthy, shift traffic using the controlled failover procedure, verify recovery against the service dashboard, and record the incident reference. Do not replay a payment unless idempotency status is confirmed.",
+    "metadata": {
+      "document_id": "doc-runbook-gateway-timeout",
+      "chunk_id": "doc-runbook-gateway-timeout-001",
+      "title": "Gateway Timeout Response Runbook",
+      "department": "payments-operations",
+      "document_type": "runbook",
+      "access_level": "viewer",
+      "created_date": "2026-04-02",
+      "source": "sample://payments/runbooks/gateway-timeout"
+    }
+  },
+  {
+    "content": "Architecture note: The fictional AcmePay authorization path uses an API gateway, regional routing layer, and ledger adapter. Requests carry idempotency keys. Regional health checks can drain a failing gateway, while the ledger adapter remains the system of record for payment state.",
+    "metadata": {
+      "document_id": "doc-architecture-auth-path",
+      "chunk_id": "doc-architecture-auth-path-001",
+      "title": "Authorization Path Architecture Note",
+      "department": "platform-engineering",
+      "document_type": "architecture_note",
+      "access_level": "analyst",
+      "created_date": "2026-03-12",
+      "source": "sample://platform/architecture/authorization-path"
+    }
+  },
+  {
+    "content": "Access policy: The fictional Knowledge Workspace classifies documents as viewer, analyst, or administrator. Search filters must enforce a user's access level before document text is added to any model context. Roles are resolved by the backend identity provider; clients cannot grant themselves a role.",
+    "metadata": {
+      "document_id": "doc-access-policy-workspace",
+      "chunk_id": "doc-access-policy-workspace-001",
+      "title": "Knowledge Workspace Access Policy",
+      "department": "security",
+      "document_type": "access_policy",
+      "access_level": "viewer",
+      "created_date": "2026-05-21",
+      "source": "sample://security/policies/knowledge-workspace"
+    }
+  },
+  {
+    "content": "Product specification: The fictional Payment Status API reports accepted, pending, settled, or declined states. A status lookup is read-only and keyed by an internal payment reference. Client retries should use the original idempotency key to avoid duplicate submissions.",
+    "metadata": {
+      "document_id": "doc-product-payment-status-api",
+      "chunk_id": "doc-product-payment-status-api-001",
+      "title": "Payment Status API Specification",
+      "department": "product",
+      "document_type": "product_specification",
+      "access_level": "analyst",
+      "created_date": "2026-07-07",
+      "source": "sample://product/specifications/payment-status-api"
+    }
+  }
+]
