@@ -15,11 +15,22 @@ import httpx
 import streamlit as st
 
 from apps.ui.services.api_client import AssistantApiClient
+from enterprise_assistant.config.settings import get_settings
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
 st.title("Enterprise Knowledge Assistant")
+settings = get_settings()
+model_mode = (
+    f"OpenAI {settings.openai_model}"
+    if settings.llm_provider == "openai"
+    else "Deterministic mock model"
+)
+retrieval_mode = (
+    "Fixture retrieval" if settings.mock_mode else "Pinecone retrieval"
+)
 st.caption(
-    "Deterministic mock mode · synthetic documents · LangGraph activity stream")
+    f"{model_mode} · {retrieval_mode} · LangGraph activity stream"
+)
 
 base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
 if "access_token" not in st.session_state:
