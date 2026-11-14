@@ -44,9 +44,13 @@ class Settings(BaseSettings):
         openai_api_key: Secret used by the optional OpenAI provider.
         openai_model: Model ID used for structured chat completions.
         llm_timeout_seconds: Maximum duration for one model request.
-        pinecone_api_key: Secret reserved for the Pinecone adapter.
+        pinecone_api_key: Secret used by the Pinecone document adapter.
         pinecone_index_name: Configured index name.
         pinecone_namespace: Optional configured namespace.
+        pinecone_embedding_model: Pinecone inference model for dense vectors.
+        pinecone_embedding_dimension: Dense dimension expected by the index.
+        pinecone_timeout_seconds: Per-operation SDK timeout.
+        pinecone_documents_path: Source JSON used for ingestion and BM25.
     """
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -82,6 +86,10 @@ class Settings(BaseSettings):
     pinecone_api_key: str = Field(default="", repr=False)
     pinecone_index_name: str = ""
     pinecone_namespace: str = ""
+    pinecone_embedding_model: str = "llama-text-embed-v2"
+    pinecone_embedding_dimension: int = Field(default=1024, gt=0)
+    pinecone_timeout_seconds: int = Field(default=15, ge=1, le=60)
+    pinecone_documents_path: str = "data/samples/incident_corpus.json"
 
 
 @lru_cache(maxsize=1)

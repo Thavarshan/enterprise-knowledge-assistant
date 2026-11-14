@@ -42,6 +42,15 @@ class InMemoryRetriever:
         """
         self._chunks = tuple(chunks)
 
+    @property
+    def chunks(self) -> tuple[DocumentChunk, ...]:
+        """Expose the validated immutable corpus for alternate rankers.
+
+        Returns:
+            Source chunks in their configured document order.
+        """
+        return self._chunks
+
     @classmethod
     def from_json(cls, path: Path | None = None) -> "InMemoryRetriever":
         """Load fixture chunks from a supplied or repository-default JSON file.

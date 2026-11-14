@@ -1,8 +1,7 @@
-"""Define the future sparse-search contract.
+"""Define the sparse-search contract implemented by the BM25 adapter.
 
-The protocol describes an asynchronous query with trusted access filters
-and a result limit. No BM25 index or sparse provider is connected in the
-current application.
+The protocol accepts only trusted access filters and a result limit.
+`BM25Retriever` implements it over a configured local document corpus.
 """
 
 from collections.abc import Sequence
@@ -12,11 +11,10 @@ from enterprise_assistant.domain.models import SearchResult
 
 
 class SparseRetriever(Protocol):
-    """Define the async sparse-search contract for future adapters.
+    """Define the async sparse-search contract used by hybrid retrieval.
 
-    A concrete implementation should apply access restrictions before
-    exposing chunk content and retain provenance in returned results. No
-    sparse index is connected in the current graph.
+    Implementations apply access restrictions before exposing chunk content
+    and retain provenance in returned results.
     """
 
     async def search_sparse(
@@ -24,13 +22,15 @@ class SparseRetriever(Protocol):
         query: str,
         *,
         allowed_access_levels: frozenset[str],
-        limit: int,
+        department: str | None = None,
+        limit: int = 5,
     ) -> Sequence[SearchResult]:
         """Search an indexed sparse representation of the query.
 
         Args:
             query: Query text for lexical or sparse-vector matching.
             allowed_access_levels: Trusted access labels allowed for results.
+            department: Optional trusted department constraint.
             limit: Maximum number of chunks to return.
 
         Returns:

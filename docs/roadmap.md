@@ -1,28 +1,63 @@
-# Roadmap
+# Assessment implementation roadmap
 
-## Phase 0: Foundation
+This roadmap follows the ordered execution phases in the assessment task.
+External behavior is marked verified only when an opt-in integration check
+has received and validated a real service response.
 
-- One-repository Python modular monolith with FastAPI and Streamlit processes.
-- Deterministic LangGraph and retrieval flow, typed contracts, SSE activity events, SQLite sessions, development RBAC, and rate limiting.
-- Docker/Compose, CI, smoke tests, architecture, and assessment evidence.
+## Phase 1: Real LLM-powered workflow
 
-## Phase 1: Retrieval evidence slice
+**Status: implemented locally; live verification blocked.**
 
-- Implement synthetic-document ingestion, chunking, dense embeddings, Pinecone metadata schema, and namespace handling.
-- Add server-side access metadata filters and test them before retrieved text reaches graph state.
-- Add a sparse/BM25 provider and RRF integration, then citation lineage and retrieval evaluation.
-- Validate a real LangSmith trace against an approved test corpus.
+- OpenAI Responses adapter parses structured supervisor routes and grounded
+  answer claims.
+- Mock mode remains deterministic and is covered by offline tests.
+- The live integration test skips because this workspace has no
+  `OPENAI_API_KEY`. Do not call the phase complete until the live test passes.
 
-## Phase 2: Model-backed assistant
+## Phase 2: Pinecone hybrid retrieval
 
-- Add provider configuration, prompt/version governance, response grounding, bounded retries, and output guardrails.
-- Add streamed graph custom events for incremental model tokens and structured tool outcomes.
-- Move authentication and distributed rate limits to shared production services.
+**Status: implemented and live verified for the synthetic corpus.**
 
-## Phase 3: Controlled research and operations
+- The existing document-schema index was inspected before integration. Its
+  `chunk_text` field uses a 1024-dimensional cosine embedding and full-text
+  BM25 search.
+- The Documents API ingests stable synthetic document/chunk identities in
+  the configured namespace.
+- Dense `EmbedQuery` and BM25 `TextQuery` calls apply access and department
+  filters before RRF fusion.
+- The opt-in live test verifies a semantic incident query, exact incident ID,
+  and viewer access filtering. The small corpus is not a relevance benchmark.
 
-- Add bounded recursive investigation and batch analysis with cost, time, depth, document, and call budgets.
-- Implement approval-gated MCP integrations and human interruption/resume.
-- Add production persistence, deployment hardening, security review, quality evaluation, and operational dashboards.
+## Phase 3: Simplified recursive investigation
 
-The next high-value milestone is the Phase 1 retrieval evidence slice. It tests the assessment's core enterprise requirement—permission-safe, attributable hybrid knowledge retrieval—before investing in more autonomous agent behavior.
+**Status: pending.**
+
+- Decompose compound questions into several subtasks.
+- Execute bounded, authorized retrieval for each subtask.
+- Aggregate findings with source attribution and enforce depth, call,
+  document, and time budgets.
+- Use trusted analysis operations; never execute model-generated Python.
+
+## Phase 4: Tools and security
+
+**Status: pending.**
+
+- Implement strict analysis inputs and backend tool dispatch.
+- Add practical injection and exfiltration controls around enabled tools.
+- Add timeout, cancellation, failure, and security tests.
+- Preserve server-side role policy and complete citation identity checks.
+
+## Phase 5: Demonstration readiness
+
+**Status: pending.**
+
+- Verify a live model-backed LangSmith trace and parent-child spans.
+- Load owner-scoped session history into graph context.
+- Emit execution-accurate SSE activity for nodes, tools, and failures.
+- Update architecture, security, assumptions, and evaluation evidence.
+- Provide exact reproducible startup and demonstration instructions.
+
+The modular monolith, API, UI, SQLite persistence, RBAC, CI, Compose smoke
+test, and redacted LangSmith tracing foundation are already present. Their
+remaining limits are documented in the relevant architecture and security
+guides.

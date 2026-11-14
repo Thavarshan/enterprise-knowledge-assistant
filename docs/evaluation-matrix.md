@@ -7,7 +7,7 @@ copies those weights, which total 100%.
 | Evaluation area | Weight | Phase 0 status | Evidence and remaining work |
 |---|---:|---|---|
 | Agent Architecture | 20% | In progress | Structured model routing and grounded response generation are wired; live provider verification and recursive research remain. |
-| RAG Design | 15% | Scaffolded | Fixture retrieval and an RRF utility exist. Pinecone ingestion, dense embeddings, BM25, and connected hybrid search remain. |
+| RAG Design | 15% | Implemented for the synthetic corpus | Pinecone Documents API ingestion, integrated dense search, BM25 full-text search, role filters, and RRF pass the live synthetic test. Broader labeled evaluation remains. |
 | LangGraph Usage | 15% | In progress | A compiled graph executes and emits node updates. OpenAI structured routing and response calls are wired; mock mode remains deterministic and live calls are unverified. |
 | RLM Implementation | 10% | Scaffolded | Structured plan and budget contracts exist. Recursive execution, batching, aggregation, and timeout enforcement remain. |
 | Security & Guardrails | 10% | In progress | Development authentication, backend role checks, request validation, and full document/chunk citation matching work. Model-facing defenses need additional coverage. |
@@ -31,8 +31,9 @@ copies those weights, which total 100%.
 | In-memory per-user token bucket | Implemented | `security/rate_limiting.py`; state is not shared between processes or instances. |
 | Fictional banking sample documents and citation checks | Implemented | `data/samples/documents.json`, `agents/graph.py`, unit and integration tests. |
 | Retrieval interfaces and local deterministic adapter | Implemented | `retrieval/interfaces.py`, `retrieval/in_memory.py`; search uses lexical matching only. |
-| Pinecone-backed dense retrieval and ingestion | Scaffolded | `retrieval/pinecone.py` and settings define the boundary; no SDK client, indexing, embeddings, or provider query exists. |
-| Sparse/BM25 and hybrid retrieval | Scaffolded | `retrieval/sparse.py`, `retrieval/hybrid.py`; RRF is implemented but no dense or sparse source is connected. |
+| Pinecone-backed dense retrieval and ingestion | Implemented | `retrieval/pinecone.py`, `scripts/ingest_pinecone.py`; the configured existing document schema accepts stable synthetic source IDs. |
+| Sparse/BM25 and hybrid retrieval | Implemented | Pinecone `TextQuery` runs BM25 full-text ranking; `EmbedQuery` returns dense ranking; `HybridRetriever` fuses both through RRF. |
+| Pinecone metadata authorization and retrieval quality | Verified | Opt-in live integration test checks provider filters, viewer restrictions, semantic paraphrase, and exact incident-ID ranking in `assessment-demo`. |
 | RLM planning, batching, depth and execution budgets | Scaffolded | `rlm/contracts.py`; one query and result limit are used. Timeout is not enforced; decomposition and batching are unused. |
 | LangSmith conversations, graph, tool, retrieval, and failure traces | In progress | `observability/langsmith.py` and a redacted external trace verify the existing path; model-backed parent-child trace evidence remains. |
 | Prompt injection, exfiltration, unsafe tools, output policies | In progress | Fixed model instructions treat user/history/document content as untrusted; complete citation pairs are checked. Tool validation and automated injection tests remain. |

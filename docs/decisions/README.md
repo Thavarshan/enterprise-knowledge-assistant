@@ -16,7 +16,7 @@ verified.
 |---|---|---|
 | 0001 | Modular monolith with separate API and UI processes | Accepted |
 | 0002 | Deterministic LangGraph workflow and structured events | Accepted |
-| 0003 | Pinecone boundary and hybrid ranking strategy | Proposed |
+| 0003 | Pinecone dense and BM25 hybrid retrieval | Accepted |
 | 0004 | Owner-scoped SQLite session persistence | Accepted |
 | 0005 | Local identity and backend role policy | Accepted |
 | 0006 | Logs, graph events, and optional LangSmith tracing | Accepted |

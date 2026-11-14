@@ -7,7 +7,13 @@ citation markers fail validation without contacting a provider.
 import pytest
 
 from enterprise_assistant.agents.graph import validate_citations
-from enterprise_assistant.domain.models import SourceCitation
+from enterprise_assistant.domain.models import (
+    DocumentChunk,
+    DocumentMetadata,
+    SearchResult,
+    SourceCitation,
+)
+from enterprise_assistant.retrieval.hybrid import reciprocal_rank_fusion
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 
 
@@ -59,3 +65,35 @@ def test_citations_must_reference_retrieved_chunks() -> None:
         [citation],
         frozenset({("another-document", citation.chunk_id)}),
     )
+
+
+def test_reciprocal_rank_fusion_keeps_complete_chunk_identities() -> None:
+    """Keep equal chunk IDs separate when their parent documents differ.
+
+    Document/chunk pairs, not chunk IDs alone, are stable retrieval and
+    citation identities.
+    """
+    results = []
+    for document_id in ("document-a", "document-b"):
+        chunk = DocumentChunk(
+            content=f"Synthetic content from {document_id}.",
+            metadata=DocumentMetadata(
+                document_id=document_id,
+                chunk_id="shared-chunk",
+                title=f"Synthetic {document_id}",
+                department="payments",
+                document_type="incident",
+                access_level="viewer",
+                created_date="2026-01-01",
+                source=f"sample://{document_id}",
+            ),
+        )
+        results.append(SearchResult(chunk=chunk, score=1.0, rank=1))
+
+    fused = reciprocal_rank_fusion([results, list(reversed(results))])
+
+    assert len(fused) == 2
+    assert {
+        result.chunk.metadata.document_id
+        for result in fused
+    } == {"document-a", "document-b"}

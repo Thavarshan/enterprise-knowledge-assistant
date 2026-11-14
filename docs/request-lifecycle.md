@@ -95,8 +95,8 @@ graph execution fails, the user message remains in session history.
 ### 4. Graph inputs and node updates
 
 `ChatService` creates `AgentState` with request ID, session ID, server user
-ID, server role, current question, and an empty event list. Prior conversation
-messages are not added to graph state. The graph runs with
+ID, server role, current question, recent owner-scoped history, and an empty
+event list. The graph runs with
 `stream_mode="updates"` and request/session metadata. Its `thread_id` is not
 backed by a checkpointer.
 
@@ -107,24 +107,27 @@ count, then yields events to the route.
 
 ### 5. Retrieval, response, and validation
 
-The Supervisor checks for the literal case-insensitive substrings
-`investigate`, `compare`, and `analyze`. It routes matching questions through
-one Research planning step; other requests go straight to retrieval.
-Research currently retains one query and sets one search call, depth one,
-and a five-result limit.
+With `LLM_PROVIDER=openai`, the Supervisor requests a structured retrieval or
+research route. It cannot provide or modify authorization fields. Mock mode
+uses the existing case-insensitive keyword rule for `investigate`, `compare`,
+and `analyze`. Research currently retains one query and sets one search call,
+depth one, and a five-result limit.
 
 The retrieval node uses the server role with `ToolRegistry`, then calls
 `KnowledgeSearchTool`. The tool maps the role to allowed access levels
 before retrieval. Mock mode searches local fixture JSON. With mock mode off,
-the selected Pinecone adapter raises `PineconeNotConfigured`; it does not
-perform a network request.
+`HybridRetriever` concurrently requests Pinecone dense semantic and BM25
+full-text rankings with provider-side access and department filters. The
+adapter checks returned metadata again before exposing chunk content, and
+RRF merges results by complete document/chunk identity.
 
-The Response node selects at most two ranked chunks, copies citation metadata
-from those chunks, and constructs a deterministic answer. With no results,
-it returns a fixed no-evidence message. The Validate node checks citation
-markers and emits response chunks only after validation. Chunks are
-80-character slices of the completed deterministic response, not live model
-tokens.
+With configured OpenAI, the Response node generates structured claims from
+authorized evidence and supplies complete source identities. Mock mode
+returns extractive claims from the first two results. The graph resolves
+citations to retrieved chunks and withholds answers containing unknown
+identities. With no results, it returns a fixed no-evidence message. Current
+`response_chunk` events slice the completed answer; they are not streamed
+model tokens.
 
 ### 6. Persistence and completion
 

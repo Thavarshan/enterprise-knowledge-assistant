@@ -10,8 +10,9 @@ remain internal module boundaries rather than separate services.
 Mock mode remains deterministic. Setting `LLM_PROVIDER=openai` selects the
 structured OpenAI adapter for supervisor routing and grounded answer claims.
 The provider is wired but has not been verified with a live model because no
-OpenAI API key is configured in this workspace. Pinecone remains a later
-retrieval integration phase.
+OpenAI API key is configured in this workspace. Pinecone dense search,
+full-text BM25 search, metadata filtering, and RRF are implemented and have
+passed an opt-in live test against the existing schema-based index.
 
 ## Component and execution map
 
@@ -32,8 +33,10 @@ flowchart TB
   Registry --> Knowledge[KnowledgeSearchTool]
   Knowledge --> Filter[Role-derived metadata filter]
   Filter --> Fixture[In-memory fixture retriever]
-  Filter -. later integration .-> Pinecone[Pinecone boundary]
-  Retrieval --> Response[Grounded model response or mock]
+  Filter --> Pinecone[Filtered Pinecone dense and BM25 searches]
+  Pinecone --> RRF[Reciprocal rank fusion]
+  Fixture --> Response[Grounded model response or mock]
+  RRF --> Response
   Response --> Validate[Citation validation]
   Graph -. optional environment tracing .-> LangSmith[LangSmith]
 ```
@@ -47,16 +50,17 @@ flowchart TB
 | Chat service | Build per-turn state, consume graph updates, persist final answer | Graph and assistant persistence are separate failure boundaries. |
 | LangGraph | Route, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. |
 | Security | Resolve local users and enforce tool roles | Local-only tokens and in-memory limits; see the security guide. |
-| Retrieval | Filter fixture content and rank lexical overlap | Pinecone, ingestion, embeddings, sparse search, and live fusion are absent. |
+| Retrieval | Apply role filters; search fixtures or Pinecone; fuse dense and BM25 | Pinecone uses its existing document schema and configured namespace. |
 | Memory | Store owner-scoped sessions and messages | SQLite, one synchronous connection per operation. |
-| Observability | Request logs, graph activity events, optional tracing | No trace redaction or external delivery verification. |
+| Observability | Request logs, graph activity events, optional tracing | Redacted LangSmith delivery is verified for deterministic runs; model traces await a live model call. |
 
 The API service container is created by the application factory. Tests can
 inject a session store or retriever; ordinary startup selects SQLite and
 uses mock fixture retrieval unless mock mode is disabled. Setting
 `LLM_PROVIDER=openai` independently enables the OpenAI model adapter; it
 requires a key and does not change authorization policy. Disabling mock
-retrieval still selects the Pinecone boundary, which is not yet implemented.
+retrieval loads `HybridRetriever` with two filtered Pinecone query modes and
+RRF. The API does not create the configured index or namespace.
 
 ## Request and data boundaries
 
@@ -86,7 +90,9 @@ The API creates graph identity fields from the bearer token. A submitted role,
 owner ID, or access-level list is not an authorization source. The retrieval
 tool maps the authenticated role to access labels before calling the adapter.
 The fixture adapter applies access and optional department filtering before
-scoring content.
+scoring content. Pinecone applies the same trusted filters in its provider
+query and rechecks returned metadata before converting content into graph
+state.
 
 The UI loads persisted message history for rendering. ChatService also reads
 the latest owner-scoped messages and passes them into graph state for model
@@ -119,17 +125,14 @@ message without a matching assistant message.
 ## Retrieval and evidence limits
 
 The local retriever tokenizes query terms and document title/content, applies
-role and department filters first, and ranks by lexical overlap. This is a
-deterministic demo score, not BM25 or dense semantic similarity. A separate
-reciprocal-rank-fusion utility combines ranked lists, but the graph does not
-call it. Detailed contracts, metadata, scoring, and citation checks are in
-`docs/retrieval-design.md`.
-
-No ingestion, chunking, embedding, or Pinecone query code is active.
-`PineconeConfig` contains a key, index, and namespace, but no SDK
-client consumes those fields. The adapter does not apply a provider-side
-filter. Do not treat configured namespace or metadata values as an
-authorization boundary until a real adapter enforces them.
+role and department filters first, and ranks by lexical overlap. It remains a
+deterministic mock score. In Pinecone mode, the configured document schema
+provides an embedding query and BM25 full-text query. Both rankings are
+filtered and merged by reciprocal rank fusion. `scripts/ingest_pinecone.py`
+upserts the six synthetic incident chunks under stable document/chunk IDs.
+The opt-in live integration test verifies semantic paraphrase retrieval,
+exact incident-ID lookup, and viewer filtering. Detailed schema, filters,
+ranking, failure behavior, and limitations are in `docs/retrieval-design.md`.
 
 ## Process, configuration, and operations
 
@@ -209,16 +212,19 @@ commit SHAs and repository permissions are read-only.
 Pytest uses automatic asyncio mode and a function-scoped event loop. The
 shared client fixture creates a temporary SQLite database, synthetic local
 accounts, fixture retrieval, and disabled tracing. Unit tests protect graph,
-retrieval, security, and documentation-validator behavior. Integration tests
-exercise FastAPI routes, SSE, persistence, failure mapping, and UI package
-imports without connecting to model, LangSmith, or Pinecone services.
+retrieval, security, and documentation-validator behavior. Standard
+integration tests exercise FastAPI routes, SSE, persistence, failure mapping,
+and UI package imports without external service calls. The Pinecone live test
+is opt-in and writes synthetic records; the OpenAI test is opt-in and skips
+without a configured key.
 
 ## Async and scaling constraints
 
 FastAPI endpoints and graph node functions are declared async, but that does
 not make every dependency non-blocking. SQLite calls are synchronous. The
-fixture retriever's async search performs a synchronous in-memory scan. The
-Streamlit API client uses blocking httpx while the UI consumes SSE. These
+fixture retriever's async search performs a synchronous in-memory scan.
+Pinecone's synchronous SDK runs in worker threads with operation timeouts.
+The Streamlit API client uses blocking httpx while the UI consumes SSE. These
 choices suit the local deterministic demo; they require measurement and
 offloading or async-native replacements before high-concurrency deployment.
 

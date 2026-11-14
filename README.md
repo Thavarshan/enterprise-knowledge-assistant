@@ -16,7 +16,8 @@ flowchart LR
     SUP -->|investigation| RES[Research plan]
     RES --> RET
     RET --> MOCK[Fixture-backed retrieval]
-    RET -. planned adapter .-> PINE[Pinecone dense + sparse]
+    RET --> HYBRID[Pinecone dense + BM25]
+    HYBRID --> RRF[Reciprocal rank fusion]
     RET --> RESP[Grounded model response or mock]
     RESP --> VAL[Citation validation]
     GRAPH -. optional tracing .-> LS[LangSmith]
@@ -80,8 +81,9 @@ model-provider keys. LangSmith uses the existing agent ID and environment
 from `.env.example`; keep the API key in `.env`. Agent addressing does not
 use a tracing project name, and a workspace ID is omitted unless the API
 key's scope requires one. `LLM_PROVIDER=mock` remains deterministic;
-`LLM_PROVIDER=openai` requires `OPENAI_API_KEY` and `OPENAI_MODEL`. Pinecone
-settings are reserved for the next retrieval implementation phase.
+`LLM_PROVIDER=openai` requires `OPENAI_API_KEY` and `OPENAI_MODEL`. With
+`MOCK_MODE=false`, Pinecone settings select the existing document-schema
+index and namespace; the app never creates an index.
 
 Run `make verify-langsmith` to execute a nested, fictional trace and check
 for SDK submission errors. The equivalent direct command is
@@ -102,6 +104,7 @@ provider credentials.
 - SQLite session ownership and turn history.
 - A compiled LangGraph graph that streams actual node updates from Supervisor, optional Research planning, Retrieval, Response, and citation validation nodes.
 - An asynchronous OpenAI Responses adapter that parses structured supervisor decisions and answer claims; it has not received a live credential-backed verification in this workspace.
+- Pinecone Documents API ingestion with stable source IDs, server-side role and department filters, dense and BM25 queries, and RRF. The opt-in test verifies six synthetic incidents in the configured namespace.
 - Deterministic fixture retrieval with access filtering before evidence enters graph state. Citations resolve to actual synthetic chunks.
 - Streamlit login/session controls, chat history, response streaming, and graph activity display.
 - Agent-addressed LangSmith tracing for chat, LangGraph nodes, tool calls,
@@ -111,7 +114,7 @@ provider credentials.
 
 ## Boundaries and limitations
 
-Pinecone indexing, embedding, sparse ranking, and live hybrid retrieval are not yet implemented. The mock adapter uses deterministic lexical matching. The planned merge strategy is reciprocal-rank fusion so dense and sparse scores are not treated as directly comparable.
+The mock adapter uses deterministic lexical matching. Pinecone mode uses the existing document schema's integrated dense embedding and BM25 full-text fields, then fuses ranks. The live check covers only six synthetic incidents, so broader relevance evaluation remains necessary.
 
 Research currently produces a restricted structured plan and permits one bounded retrieval pass. It does not execute generated code or recurse. The live model adapter is implemented but awaits a credential-backed response check. There is no MCP server, production identity provider, distributed rate limiter, semantic memory, or human approval flow. The token registry and event schema are extension points, not evidence that those integrations are complete. In-memory rate limits and login tokens do not coordinate across API processes.
 
@@ -143,4 +146,7 @@ See [the evaluation matrix](docs/evaluation-matrix.md) for requirement weights, 
 
 ## Next milestone
 
-Implement a real Pinecone ingestion and hybrid retrieval slice with role-filtered metadata, citation checks, and LangSmith traces. This validates the highest-risk retrieval and observability assumptions before adding model-driven recursive research.
+Complete the live OpenAI verification, then implement bounded recursive
+research, validated Python analysis, and safe tool/event flows. The Pinecone
+integration and synthetic retrieval smoke test are documented in
+`docs/retrieval-design.md`.

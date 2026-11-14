@@ -35,6 +35,7 @@ from enterprise_assistant.observability.langsmith import (
     create_langsmith_client,
 )
 from enterprise_assistant.observability.logging import configure_logging
+from enterprise_assistant.retrieval.hybrid import HybridRetriever
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.retrieval.pinecone import (
@@ -120,12 +121,21 @@ def create_app(
     elif app_settings.mock_mode:
         document_retriever = InMemoryRetriever.from_json()
     else:
-        document_retriever = PineconeRetriever(
+        dense_retriever = PineconeRetriever(
             PineconeConfig(
                 api_key=app_settings.pinecone_api_key,
                 index_name=app_settings.pinecone_index_name,
                 namespace=app_settings.pinecone_namespace,
+                embedding_model=app_settings.pinecone_embedding_model,
+                embedding_dimension=(
+                    app_settings.pinecone_embedding_dimension
+                ),
+                timeout_seconds=app_settings.pinecone_timeout_seconds,
             )
+        )
+        document_retriever = HybridRetriever(
+            dense_retriever,
+            dense_retriever,
         )
     registry = ToolRegistry()
     container = AppContainer(

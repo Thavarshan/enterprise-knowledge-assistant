@@ -5,7 +5,9 @@
 - Python 3.13.9 is selected and verified locally. Project metadata declares Python `>=3.12,<3.15`; CI is configured for 3.13, so other minor versions have not been verified here.
 - All fixture documents are synthetic examples for an invented enterprise and product. They do not contain real banking customer data or claim affiliation with a real bank.
 - Development roles are configured in ignored `.env`. `make setup` generates random local passwords and prints them once to the operator; application logs do not print credentials or bearer tokens.
-- Local mode uses a fixture-backed retriever. `MOCK_MODE=false` selects the explicit Pinecone boundary, which currently returns an actionable not-configured failure rather than silently choosing another production database.
+- `MOCK_MODE=true` uses fixture retrieval. `MOCK_MODE=false` uses dense and
+  full-text BM25 queries against the configured Pinecone document schema and
+  fuses their rankings. It does not create or change indexes.
 - The backend is intended to run as one API process while using local in-memory tokens and rate buckets. Production multi-instance deployment needs shared identity and rate-limit state.
 - `LANGSMITH_TRACING` controls agent-addressed LangSmith tracing. The example
   configuration selects the existing assessment agent. Inputs and outputs
@@ -47,9 +49,13 @@ LangSmith, or Pinecone credentials.
 | LANGSMITH_API_KEY | empty | Secret required with tracing enabled. |
 | LANGSMITH_AGENT_ID | enterprise-knowledge-assistant | Existing agent identifier. |
 | LANGSMITH_AGENT_ENVIRONMENT | local | Destination environment for agent traces. |
-| PINECONE_API_KEY | empty | Secret retained in settings; no client consumes it yet. |
-| PINECONE_INDEX_NAME | empty | Reserved for the future Pinecone adapter. |
-| PINECONE_NAMESPACE | empty | Reserved for the future Pinecone adapter. |
+| PINECONE_API_KEY | empty | Secret used by the Documents API adapter. |
+| PINECONE_INDEX_NAME | empty | Existing document-schema index; the app never creates it. |
+| PINECONE_NAMESPACE | empty | Explicit namespace selected by server configuration. |
+| PINECONE_EMBEDDING_MODEL | llama-text-embed-v2 | Must match the model declared on the existing `chunk_text` field. |
+| PINECONE_EMBEDDING_DIMENSION | 1024 | Must match the existing dense schema dimension. |
+| PINECONE_TIMEOUT_SECONDS | 15 | Per-operation timeout for Pinecone SDK calls. |
+| PINECONE_DOCUMENTS_PATH | data/samples/incident_corpus.json | Pre-chunked JSON source used by the ingestion command. |
 
 The UI reads API_BASE_URL directly from its process environment and falls
 back to localhost:8000. The API_HOST and Settings.api_port fields do not

@@ -1,0 +1,80 @@
+[
+  {
+    "content": "Synthetic incident INC-2026-057: payment-provider 503 responses delayed webhook callbacks. Retries without jitter repeatedly re-enqueued deliveries and saturated the callback queue. Operators applied exponential backoff with jitter, drained the queue gradually, and added an alert for oldest-message age.",
+    "metadata": {
+      "document_id": "incident-2026-057",
+      "chunk_id": "incident-2026-057-001",
+      "title": "Incident INC-2026-057: callback queue saturation",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-03-10",
+      "source": "sample://incidents/INC-2026-057"
+    }
+  },
+  {
+    "content": "Synthetic incident INC-2026-041: gateway timeout retries ran without an idempotency key at the first authorization boundary. Customers could receive duplicate payment authorizations. The team disabled automatic retries, added idempotency keys before the gateway call, and reconciled affected authorizations.",
+    "metadata": {
+      "document_id": "incident-2026-041",
+      "chunk_id": "incident-2026-041-001",
+      "title": "Incident INC-2026-041: duplicate authorizations",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-02-03",
+      "source": "sample://incidents/INC-2026-041"
+    }
+  },
+  {
+    "content": "Synthetic incident INC-2025-203: checkout retried capture requests after a gateway timeout. The idempotency key was added only by a downstream service, so repeated requests reached the payment processor as new captures. The fix moved key generation to checkout and added duplicate-capture reconciliation.",
+    "metadata": {
+      "document_id": "incident-2025-203",
+      "chunk_id": "incident-2025-203-001",
+      "title": "Incident INC-2025-203: repeated capture requests",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2025-09-11",
+      "source": "sample://incidents/INC-2025-203"
+    }
+  },
+  {
+    "content": "Synthetic incident INC-2026-099: settlement batches slowed during the evening close because concurrent jobs held overlapping ledger-row locks. The team reduced batch concurrency, split work into smaller transactions, and staggered the settlement schedule.",
+    "metadata": {
+      "document_id": "incident-2026-099",
+      "chunk_id": "incident-2026-099-001",
+      "title": "Incident INC-2026-099: settlement lock contention",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "analyst",
+      "created_date": "2026-06-18",
+      "source": "sample://incidents/INC-2026-099"
+    }
+  },
+  {
+    "content": "Synthetic incident INC-2025-118: authorization latency rose after certificate rotation because the connection pool reopened many TLS sessions at once. The service recovered after connection warm-up and a staggered pool refresh. The follow-up added certificate-expiry checks and a gradual rotation runbook.",
+    "metadata": {
+      "document_id": "incident-2025-118",
+      "chunk_id": "incident-2025-118-001",
+      "title": "Incident INC-2025-118: authorization latency after rotation",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "administrator",
+      "created_date": "2025-05-22",
+      "source": "sample://incidents/INC-2025-118"
+    }
+  },
+  {
+    "content": "Synthetic incident INC-2026-124: payment API 502 responses increased during deployment because readiness probes passed before downstream connections had warmed. Client retries amplified the brief startup load. The team added a dependency-aware readiness check, delayed traffic shifting, and capped retries with jitter.",
+    "metadata": {
+      "document_id": "incident-2026-124",
+      "chunk_id": "incident-2026-124-001",
+      "title": "Incident INC-2026-124: deployment readiness failures",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-08-02",
+      "source": "sample://incidents/INC-2026-124"
+    }
+  }
+]
