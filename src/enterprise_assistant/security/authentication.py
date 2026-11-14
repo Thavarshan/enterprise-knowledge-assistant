@@ -1,54 +1,46 @@
-"""Load development users and manage process-local bearer tokens.
+"""Authenticate configured demo users and issue signed bearer tokens.
 
-Credentials come from inline JSON or a configured JSON file and are validated
-with Pydantic. Successful login creates an opaque token mapped to a
-server-owned user and role. Tokens exist only in this process and disappear
-on restart; this service is for local development, not production identity.
+Passwords are loaded from an ignored local file or server-only inline JSON.
+Signed tokens carry the configured account's identity and role, allowing
+independent API instances with the same secret to authenticate a request.
 """
 
 import hmac
 import json
 import secrets
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import jwt
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from enterprise_assistant.security.authorization import Role
 
 
 class AuthenticationConfigurationError(RuntimeError):
-    """Report missing or invalid development-user configuration.
+    """Report missing or invalid configured account information.
 
-    This exception is converted to HTTP 503 by the login route. It should
-    not include serialized credentials or secret values.
+    This error prevents the service from starting with unsafe credentials.
     """
 
 
 class InvalidCredentialsError(PermissionError):
-    """Report an unsuccessful local development login.
+    """Report an unsuccessful login without revealing account existence.
 
-    The same message is used for unknown usernames and wrong passwords so
-    the route does not reveal which account names exist.
+    Callers use one error for unknown users and incorrect passwords.
     """
 
 
 class DevUserConfig(BaseModel):
-    """Validate one local development account record.
-
-    Extra JSON keys are rejected. Passwords are plaintext in the local
-    development file, so that file must be excluded from version control and
-    protected with restrictive filesystem permissions.
+    """Validate a configured development account record.
 
     Attributes:
-        password: Development-only password compared during login.
-        role: Server-assigned role returned after successful login.
-
-    Security:
-        Pydantic's default representation includes the password. Do not log
-        or format this model instance.
+        password: Password checked at login and never included in logs.
+        role: Server-assigned role included in the signed token.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     password: str
@@ -57,62 +49,76 @@ class DevUserConfig(BaseModel):
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
-    """Carry identity and role resolved by the API process.
-
-    This value is created from configured accounts after login and is the
-    trusted source for route ownership and tool policy decisions.
+    """Carry identity claims verified by the backend.
 
     Attributes:
-        user_id: Configured account identifier.
-        role: Server-assigned authorization role.
+        user_id: Configured account identifier from the signed subject.
+        role: Server-assigned authorization role from the signed token.
     """
+
     user_id: str
     role: Role
 
 
 @dataclass(frozen=True)
 class IssuedToken:
-    """Represent an opaque token returned by development login.
+    """Represent the bearer token returned after successful login.
 
     Attributes:
-        access_token: Random bearer secret retained in process memory.
-        token_type: Authorization scheme returned to the client.
-
-    Security:
-        The dataclass representation includes the token; do not log it.
+        access_token: Signed bearer credential; do not log this value.
+        token_type: Authorization scheme, normally ``bearer``.
+        expires_in: Token lifetime in seconds.
     """
+
     access_token: str
     token_type: str = "bearer"
+    expires_in: int = 900
 
 
 class AuthService:
-    """Authenticate local accounts and resolve process-local tokens.
+    """Verify demo passwords and sign short-lived stateless tokens.
 
-    User JSON is loaded from an inline value or file at construction.
-    Successful login maps a random token to the configured username and
-    role. Tokens have no expiry, are not persisted, and disappear on process
-    restart, so this is not a production identity provider.
+    Production deployments must supply a high-entropy signing key. Local
+    development creates an ephemeral key only when none is configured;
+    tokens then intentionally stop working after that process restarts.
 
-    Security:
-        Passwords are stored as plaintext in the local development file.
-        The file is expected to be ignored by Git and created with restricted
-        permissions by the bootstrap script.
+    Attributes:
+        issuer: Required token issuer claim.
+        audience: Required token audience claim.
+        token_ttl_seconds: Maximum signed-token lifetime.
     """
 
-    def __init__(self, configured_users_json: str) -> None:
-        """Load account records and initialize the token map.
-
-        Inline JSON is selected when the setting begins with an object
-        delimiter; otherwise the value is read as an expanded file path.
+    def __init__(
+        self,
+        configured_users_json: str,
+        *,
+        signing_secret: str | None = None,
+        issuer: str = "enterprise-knowledge-assistant",
+        audience: str = "enterprise-knowledge-assistant-api",
+        token_ttl_seconds: int = 900,
+    ) -> None:
+        """Load account configuration and token verification settings.
 
         Args:
-            configured_users_json: Inline account JSON or path to its file.
+            configured_users_json: Inline JSON or path to a local JSON file.
+            signing_secret: Shared HMAC key; a random process-local key is
+                generated only outside production when omitted.
+            issuer: Expected issuer claim.
+            audience: Expected audience claim.
+            token_ttl_seconds: Signed-token lifetime in seconds.
 
         Raises:
-            AuthenticationConfigurationError: JSON, schema, or file access
-                is invalid.
+            AuthenticationConfigurationError: Account JSON is invalid.
+            ValueError: The key is too short or token lifetime is invalid.
         """
-        self._tokens: dict[str, AuthenticatedUser] = {}
+        if token_ttl_seconds < 60 or token_ttl_seconds > 86_400:
+            raise ValueError("Token lifetime must be between 60 and 86400.")
+        if signing_secret and len(signing_secret) < 32:
+            raise ValueError("Signing secret must contain 32 characters.")
+        self._signing_secret = signing_secret or secrets.token_urlsafe(48)
+        self.issuer = issuer
+        self.audience = audience
+        self.token_ttl_seconds = token_ttl_seconds
         configured_value = configured_users_json.strip()
         if not configured_value:
             self._users: dict[str, DevUserConfig] = {}
@@ -141,18 +147,14 @@ class AuthService:
             ) from exc
 
     def issue_token(self, username: str, password: str) -> IssuedToken:
-        """Validate a password and issue an opaque bearer token.
-
-        Unknown usernames use a random comparison value so they follow the
-        password comparison path. The resulting token is kept only in this
-        process.
+        """Verify a configured password and sign a short-lived JWT.
 
         Args:
             username: Configured account name.
             password: Candidate password.
 
         Returns:
-            Random bearer token and its type.
+            Signed bearer token and its token type.
 
         Raises:
             AuthenticationConfigurationError: No accounts are configured.
@@ -161,7 +163,7 @@ class AuthService:
         if not self._users:
             raise AuthenticationConfigurationError(
                 "No development accounts configured. "
-                "Run `make setup` to create .env."
+                "Run `make setup` to create local accounts."
             )
         account = self._users.get(username)
         expected_password = (
@@ -173,18 +175,64 @@ class AuthService:
             password, expected_password
         ):
             raise InvalidCredentialsError("Invalid username or password.")
-        token = secrets.token_urlsafe(32)
-        self._tokens[token] = AuthenticatedUser(
-            user_id=username, role=account.role)
-        return IssuedToken(access_token=token)
+        now = int(time.time())
+        token = jwt.encode(
+            {
+                "sub": username,
+                "role": account.role.value,
+                "iss": self.issuer,
+                "aud": self.audience,
+                "iat": now,
+                "nbf": now,
+                "exp": now + self.token_ttl_seconds,
+                "jti": secrets.token_urlsafe(18),
+            },
+            self._signing_secret,
+            algorithm="HS256",
+        )
+        return IssuedToken(
+            access_token=token,
+            expires_in=self.token_ttl_seconds,
+        )
 
     def resolve_token(self, token: str) -> AuthenticatedUser | None:
-        """Resolve a bearer token from the in-memory map.
+        """Verify token signature and claims before returning its identity.
 
         Args:
-            token: Opaque token presented by the client.
+            token: Bearer token supplied by the HTTP client.
 
         Returns:
-            Authenticated identity or None when the token is unknown.
+            Verified user identity, or None for invalid or expired tokens.
         """
-        return self._tokens.get(token)
+        try:
+            claims = jwt.decode(
+                token,
+                self._signing_secret,
+                algorithms=["HS256"],
+                issuer=self.issuer,
+                audience=self.audience,
+                options={
+                    "require": [
+                        "sub",
+                        "role",
+                        "iss",
+                        "aud",
+                        "iat",
+                        "nbf",
+                        "exp",
+                        "jti",
+                    ]
+                },
+            )
+            subject = claims.get("sub")
+            if not isinstance(subject, str) or not subject:
+                return None
+            role_claim = claims.get("role")
+            if not isinstance(role_claim, str):
+                return None
+            return AuthenticatedUser(
+                user_id=subject,
+                role=Role(role_claim),
+            )
+        except (jwt.InvalidTokenError, ValueError, TypeError):
+            return None

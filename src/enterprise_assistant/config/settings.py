@@ -8,8 +8,9 @@ in-memory development authentication unless explicitly configured.
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,7 +30,15 @@ class Settings(BaseSettings):
         api_port: Stored field; the launcher reads API_PORT from the process.
         ui_port: Stored field; the launcher reads UI_PORT from the process.
         api_base_url: Default API URL; Streamlit reads its process environment.
+        memory_backend: Local SQLite or remote D1 gateway.
         sqlite_path: Local session database path.
+        d1_api_url: HTTPS origin for the dedicated D1 Worker.
+        d1_service_token: Backend-only credential for the D1 Worker.
+        d1_timeout_seconds: Request timeout for the D1 Worker.
+        auth_signing_secret: HMAC key for stateless access tokens.
+        auth_issuer: Expected issuer in signed access tokens.
+        auth_audience: Expected audience in signed access tokens.
+        auth_token_ttl_seconds: Maximum bearer token lifetime.
         cors_origins: Browser origins allowed by FastAPI.
         log_level: Root structured-log level.
         rate_limit_capacity: Initial token-bucket capacity per user.
@@ -67,7 +76,15 @@ class Settings(BaseSettings):
     api_port: int = 8000
     ui_port: int = 8501
     api_base_url: str = "http://localhost:8000"
+    memory_backend: Literal["sqlite", "d1"] = "sqlite"
     sqlite_path: str = "data/sessions.sqlite3"
+    d1_api_url: str = Field(default="", repr=False)
+    d1_service_token: str = Field(default="", repr=False)
+    d1_timeout_seconds: int = Field(default=5, ge=1, le=30)
+    auth_signing_secret: str = Field(default="", repr=False)
+    auth_issuer: str = "enterprise-knowledge-assistant"
+    auth_audience: str = "enterprise-knowledge-assistant-api"
+    auth_token_ttl_seconds: int = Field(default=900, ge=60, le=86400)
     cors_origins: list[str] = Field(default_factory=lambda: [
                                     "http://localhost:8501"])
     log_level: str = "INFO"
@@ -90,6 +107,156 @@ class Settings(BaseSettings):
     pinecone_embedding_dimension: int = Field(default=1024, gt=0)
     pinecone_timeout_seconds: int = Field(default=15, ge=1, le=60)
     pinecone_documents_path: str = "data/samples/incident_corpus.json"
+
+    @field_validator("d1_api_url")
+    @classmethod
+    def validate_d1_api_url(cls, value: str) -> str:
+        """Require D1 to use an absolute HTTP(S) origin without credentials.
+
+        Args:
+            value: Configured base URL for the authenticated Worker.
+
+        Returns:
+            The normalized origin without its trailing slash.
+
+        Raises:
+            ValueError: The value is not a plain HTTP(S) origin.
+        """
+        cleaned = value.strip()
+        if not cleaned:
+            return cleaned
+        try:
+            parsed = urlsplit(cleaned)
+            valid = (
+                parsed.scheme in {"http", "https"}
+                and bool(parsed.hostname)
+                and parsed.username is None
+                and parsed.password is None
+                and (
+                    parsed.port is None
+                    or 1 <= parsed.port <= 65535
+                )
+                and parsed.path in {"", "/"}
+                and not parsed.query
+                and not parsed.fragment
+            )
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValueError(
+                "D1_API_URL must be an absolute HTTP(S) origin."
+            )
+        return cleaned.rstrip("/")
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, values: list[str]) -> list[str]:
+        """Require every configured CORS entry to be an HTTP(S) origin.
+
+        Args:
+            values: Browser origins allowed by FastAPI middleware.
+
+        Returns:
+            Validated origins with trailing slashes removed.
+
+        Raises:
+            ValueError: An entry is malformed or contains a URL path.
+        """
+        origins: list[str] = []
+        for value in values:
+            cleaned = value.strip()
+            parsed = urlsplit(cleaned)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or (
+                    parsed.port is not None
+                    and not 1 <= parsed.port <= 65535
+                )
+                or parsed.path not in {"", "/"}
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "CORS_ORIGINS must contain absolute HTTP(S) origins."
+                )
+            origins.append(cleaned.rstrip("/"))
+        return origins
+
+    @model_validator(mode="after")
+    def validate_deployment_profile(self) -> "Settings":
+        """Reject incomplete or unsafe cloud deployment configuration.
+
+        Cloud deployments require an explicitly selected D1 gateway,
+        stateless signing key, live AI provider, and server-side credentials.
+        Local and test profiles keep their existing SQLite and mock defaults.
+
+        Returns:
+            This settings instance after profile validation.
+
+        Raises:
+            ValueError: A selected backend or production profile is missing
+                mandatory configuration.
+        """
+        if self.memory_backend == "d1":
+            if not self.d1_api_url or not self.d1_service_token:
+                raise ValueError(
+                    "MEMORY_BACKEND=d1 requires D1_API_URL and "
+                    "D1_SERVICE_TOKEN."
+                )
+            if len(self.d1_service_token) < 32:
+                raise ValueError(
+                    "D1_SERVICE_TOKEN must contain at least 32 characters."
+                )
+            if self.app_env == "production" and not self.d1_api_url.startswith(
+                "https://"
+            ):
+                raise ValueError("Production D1_API_URL must use HTTPS.")
+
+        if self.app_env != "production":
+            return self
+
+        required_values = {
+            "AUTH_SIGNING_SECRET": self.auth_signing_secret,
+            "DEV_USERS_JSON": self.dev_users_json,
+            "OPENAI_API_KEY": self.openai_api_key,
+            "PINECONE_API_KEY": self.pinecone_api_key,
+            "PINECONE_INDEX_NAME": self.pinecone_index_name,
+            "LANGSMITH_API_KEY": self.langsmith_api_key,
+        }
+        missing = [name for name, value in required_values.items() if not value]
+        if missing:
+            raise ValueError(
+                "Production configuration is missing: " + ", ".join(missing)
+            )
+        if len(self.auth_signing_secret) < 32:
+            raise ValueError(
+                "AUTH_SIGNING_SECRET must contain at least 32 characters."
+            )
+        if not self.dev_users_json.lstrip().startswith("{"):
+            raise ValueError(
+                "Production DEV_USERS_JSON must be inline JSON; "
+                "filesystem user files are not available."
+            )
+        if self.memory_backend != "d1":
+            raise ValueError("Production requires MEMORY_BACKEND=d1.")
+        if self.mock_mode or self.llm_provider != "openai":
+            raise ValueError(
+                "Production requires MOCK_MODE=false and "
+                "LLM_PROVIDER=openai."
+            )
+        if not self.langsmith_tracing:
+            raise ValueError("Production requires LANGSMITH_TRACING=true.")
+        if not self.cors_origins or "*" in self.cors_origins:
+            raise ValueError(
+                "Production CORS_ORIGINS must contain explicit origins."
+            )
+        if any(not origin.startswith("https://")
+               for origin in self.cors_origins):
+            raise ValueError("Production CORS origins must use HTTPS.")
+        return self
 
 
 @lru_cache(maxsize=1)

@@ -7,6 +7,7 @@ serving async tasks and preserves cancellation at its coroutine boundary.
 import asyncio
 from pathlib import Path
 from threading import Event
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -14,6 +15,9 @@ import pytest
 from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.memory.models import ChatMessage
 from enterprise_assistant.memory.sqlite import SQLiteSessionStore
+from enterprise_assistant.memory.sqlite_async import (
+    AsyncSQLiteSessionStore,
+)
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.security.authentication import AuthenticatedUser
 from enterprise_assistant.security.authorization import Role
@@ -78,9 +82,12 @@ async def test_blocking_session_read_does_not_stall_the_event_loop() -> None:
     The memory adapter simulates a slow SQLite operation in ``to_thread``.
     """
     memory = BlockingSessionStore()
+    async_memory = AsyncSQLiteSessionStore(
+        cast(SQLiteSessionStore, memory)
+    )
     service = ChatService(
         InMemoryRetriever([]),
-        memory,  # type: ignore[arg-type]
+        async_memory,
         ToolRegistry(),
     )
     user = AuthenticatedUser(user_id="viewer", role=Role.VIEWER)
@@ -121,9 +128,12 @@ async def test_chat_cancellation_propagates_during_session_read() -> None:
     background thread behind.
     """
     memory = BlockingSessionStore()
+    async_memory = AsyncSQLiteSessionStore(
+        cast(SQLiteSessionStore, memory)
+    )
     service = ChatService(
         InMemoryRetriever([]),
-        memory,  # type: ignore[arg-type]
+        async_memory,
         ToolRegistry(),
     )
     user = AuthenticatedUser(user_id="viewer", role=Role.VIEWER)

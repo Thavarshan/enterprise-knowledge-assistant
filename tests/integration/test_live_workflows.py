@@ -26,6 +26,9 @@ from enterprise_assistant.llm.providers import (
 )
 from enterprise_assistant.memory.models import ChatSession
 from enterprise_assistant.memory.sqlite import SQLiteSessionStore
+from enterprise_assistant.memory.sqlite_async import (
+    AsyncSQLiteSessionStore,
+)
 from enterprise_assistant.observability.events import ActivityEvent
 from enterprise_assistant.observability.langsmith import (
     create_langsmith_address,
@@ -143,13 +146,14 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
     retriever: Retriever = HybridRetriever(dense, dense)
     memory = SQLiteSessionStore(str(tmp_path / "live-chat.sqlite3"))
     memory.initialize()
+    async_memory = AsyncSQLiteSessionStore(memory)
     analyst_id = "live-analyst"
     viewer_id = "live-viewer"
     analyst_session = memory.create_session(analyst_id)
     viewer_session = memory.create_session(viewer_id)
     live_service = ChatService(
         retriever,
-        memory,
+        async_memory,
         ToolRegistry(),
         langsmith_client=client,
         langsmith_address=address,
@@ -583,7 +587,7 @@ async def _verify_retrieval_failure_trace(
     session = memory.create_session(user_id)
     failing_service = ChatService(
         FailingRetriever(),
-        memory,
+        AsyncSQLiteSessionStore(memory),
         ToolRegistry(),
         langsmith_client=client,
         langsmith_address=address,
@@ -639,7 +643,7 @@ async def _verify_openai_failure_trace(
         InMemoryRetriever.from_json(
             Path(settings.pinecone_documents_path)
         ),
-        memory,
+        AsyncSQLiteSessionStore(memory),
         ToolRegistry(),
         langsmith_client=client,
         langsmith_address=address,

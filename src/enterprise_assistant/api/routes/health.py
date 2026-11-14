@@ -5,7 +5,6 @@ configured session store and returns HTTP 503 when that dependency is
 unhealthy.
 """
 
-import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -27,8 +26,8 @@ async def health() -> dict[str, str]:
 async def ready(request: Request) -> dict[str, str]:
     """Report whether the configured session store is reachable.
 
-    The readiness probe checks SQLite in a worker thread. It does not verify
-    Pinecone or LangSmith.
+    The readiness probe checks only the configured session store. It does
+    not verify Pinecone or LangSmith.
 
     Args:
         request: Request containing the configured session store.
@@ -40,7 +39,7 @@ async def ready(request: Request) -> dict[str, str]:
         HTTPException: 503 when the session store is unavailable.
     """
     container: Any = request.app.state.container
-    healthy = await asyncio.to_thread(container.memory.healthcheck)
+    healthy = await container.memory.healthcheck()
     if not healthy:
         raise HTTPException(
             status_code=503, detail="Session store is not ready.")

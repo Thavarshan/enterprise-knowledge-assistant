@@ -1,16 +1,14 @@
 """Assemble the FastAPI application and process-scoped service container.
 
-The factory selects fixture or Pinecone retrieval, creates authentication,
-SQLite memory, tool authorization, rate limiting, and the graph-backed chat
-service, then registers routes and error handlers. SQLite initialization is
-performed in the ASGI lifespan; other adapters are constructed at factory
-time. Provider and credential values come from `Settings`.
+The factory selects fixture or Pinecone retrieval, configured SQLite or D1
+memory, authentication, authorization, rate limiting, and graph-backed chat.
+Storage initialization and adapter shutdown run in the ASGI lifespan.
+Provider and credential values come from validated application settings.
 
 The factory supports injected settings, memory, and retrievers so tests can
 exercise request behavior without external providers.
 """
 
-import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,8 +27,9 @@ from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.config.settings import Settings, get_settings
 from enterprise_assistant.llm.contracts import ModelProvider
 from enterprise_assistant.llm.providers import create_model_provider
+from enterprise_assistant.memory.d1 import SessionStoreUnavailable
+from enterprise_assistant.memory.factory import create_session_store
 from enterprise_assistant.memory.interfaces import SessionStore
-from enterprise_assistant.memory.sqlite import SQLiteSessionStore
 from enterprise_assistant.observability.langsmith import (
     create_langsmith_address,
     create_langsmith_client,
@@ -62,7 +61,7 @@ class AppContainer:
 
     Attributes:
         settings: Validated configuration used to build the process.
-        auth: Process-local development identity and token service.
+        auth: Password verifier and signed-token issuer and verifier.
         memory: Session persistence adapter shared by routes.
         retriever: Search adapter passed to the chat graph.
         tool_registry: Backend role policy for tool invocation.
@@ -119,7 +118,7 @@ def create_app(
         if tracing_enabled
         else None
     )
-    session_store = memory or SQLiteSessionStore(app_settings.sqlite_path)
+    session_store = memory or create_session_store(app_settings)
     if retriever is not None:
         document_retriever = retriever
     elif app_settings.mock_mode:
@@ -144,7 +143,13 @@ def create_app(
     registry = ToolRegistry()
     container = AppContainer(
         settings=app_settings,
-        auth=AuthService(app_settings.dev_users_json),
+        auth=AuthService(
+            app_settings.dev_users_json,
+            signing_secret=app_settings.auth_signing_secret or None,
+            issuer=app_settings.auth_issuer,
+            audience=app_settings.auth_audience,
+            token_ttl_seconds=app_settings.auth_token_ttl_seconds,
+        ),
         memory=session_store,
         retriever=document_retriever,
         tool_registry=registry,
@@ -168,9 +173,9 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         """Initialize process resources for the ASGI lifetime.
 
-        The synchronous store initializer creates SQLite tables before the
-        application serves requests. There is no async database pool or
-        explicit shutdown hook.
+        The configured store initializes once before serving requests.
+        SQLite work is thread-offloaded by its adapter; D1 checks Worker
+        readiness asynchronously. Reusable HTTP clients close on shutdown.
 
         Args:
             application: FastAPI instance entering its lifespan.
@@ -178,15 +183,19 @@ def create_app(
         Yields:
             Control to the ASGI server after initialization.
         """
-        await asyncio.to_thread(container.memory.initialize)
-        logger.info(
-            "Application startup complete",
-            extra={"tracing_enabled": tracing_enabled,
-                   "mock_mode": app_settings.mock_mode},
-        )
         try:
+            await container.memory.initialize()
+            logger.info(
+                "Application startup complete",
+                extra={"tracing_enabled": tracing_enabled,
+                       "mock_mode": app_settings.mock_mode,
+                       "memory_backend": app_settings.memory_backend},
+            )
             yield
         finally:
+            close_store = getattr(container.memory, "aclose", None)
+            if close_store is not None:
+                await close_store()
             if langsmith_client is not None:
                 langsmith_client.close(timeout=5)
             await model_provider.aclose()
@@ -202,7 +211,7 @@ def create_app(
     application.add_middleware(
         CORSMiddleware,
         allow_origins=app_settings.cors_origins,
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
         expose_headers=["X-Request-ID"],
@@ -232,6 +241,32 @@ def create_app(
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": exc.code, "message": exc.message}},
+        )
+
+    @application.exception_handler(SessionStoreUnavailable)
+    async def handle_storage_error(
+        _request: Request, _exc: SessionStoreUnavailable
+    ) -> JSONResponse:
+        """Return a stable response when the selected store is unavailable.
+
+        The provider exception is deliberately excluded from the response so
+        URLs, service credentials, and remote error bodies cannot leak.
+
+        Args:
+            _request: Request associated with the storage failure.
+            _exc: Internal safe-storage exception; details are not exposed.
+
+        Returns:
+            A caller-safe HTTP 503 response.
+        """
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "code": "session_store_unavailable",
+                    "message": "Conversation storage is unavailable.",
+                }
+            },
         )
 
     @application.exception_handler(RequestValidationError)

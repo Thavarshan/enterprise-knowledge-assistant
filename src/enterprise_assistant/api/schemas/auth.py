@@ -27,17 +27,16 @@ class TokenRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Represent an issued opaque bearer token.
-
-    The token is held by the client and resolved by the API process; it has
-    no expiry or persistence in the current development implementation.
+    """Represent a signed bearer token and its expiration interval.
 
     Attributes:
-        access_token: Random bearer credential returned after login.
+        access_token: Signed bearer credential returned after login.
         token_type: HTTP authorization scheme, normally bearer.
+        expires_in: Token lifetime in seconds.
     """
     access_token: str
     token_type: str = "bearer"
+    expires_in: int
 
 
 class UserResponse(BaseModel):

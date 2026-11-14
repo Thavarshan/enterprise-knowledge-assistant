@@ -51,8 +51,7 @@ async def create_session(
     Returns:
         The newly created session identifier, title, and timestamp.
     """
-    session = await asyncio.to_thread(
-        request.app.state.container.memory.create_session,
+    session = await request.app.state.container.memory.create_session(
         user.user_id,
         payload.title,
     )
@@ -85,8 +84,8 @@ async def get_session(
     """
     memory = request.app.state.container.memory
     session, messages = await asyncio.gather(
-        asyncio.to_thread(memory.get_session, session_id, user.user_id),
-        asyncio.to_thread(memory.list_messages, session_id, user.user_id),
+        memory.get_session(session_id, user.user_id),
+        memory.list_messages(session_id, user.user_id),
     )
     if session is None or messages is None:
         raise HTTPException(
@@ -129,8 +128,7 @@ async def stream_chat(
         persistence and graph execution; client roles are not consulted.
     """
     container: Any = request.app.state.container
-    session = await asyncio.to_thread(
-        container.memory.get_session,
+    session = await container.memory.get_session(
         payload.session_id,
         user.user_id,
     )
@@ -161,8 +159,7 @@ async def stream_chat(
         ) from exc
 
     request_id = request.state.request_id
-    await asyncio.to_thread(
-        container.memory.append_message,
+    await container.memory.append_message(
         payload.session_id,
         user.user_id,
         "user",
@@ -206,5 +203,8 @@ async def stream_chat(
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )

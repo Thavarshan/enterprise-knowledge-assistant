@@ -1,8 +1,8 @@
-"""Define the synchronous contract for session persistence.
+"""Define the asynchronous session persistence contract.
 
-Implementations initialize and check storage, create owner-scoped sessions,
-read history, and append messages. These methods are synchronous; async
-service boundaries must offload calls to avoid blocking the event loop.
+All application services depend on this async protocol. Local SQLite uses
+thread offloading behind the same interface, while network-backed adapters
+perform native asynchronous I/O.
 """
 
 from typing import Protocol
@@ -15,94 +15,62 @@ from enterprise_assistant.memory.models import (
 
 
 class SessionStore(Protocol):
-    """Specify the synchronous session persistence contract.
+    """Specify the owner-scoped asynchronous persistence operations.
 
-    Implementations must scope session reads and message writes by owner,
-    return None for inaccessible sessions, and raise LookupError when an
-    append targets a missing or foreign-owned session. Methods are
-    synchronous; callers must account for blocking adapter behavior.
-
-    Notes:
-        The API and chat service use worker threads for these synchronous
-        operations. A high-latency database should use a native async adapter.
+    Stores return None for missing or foreign-owned sessions and raise
+    LookupError when an append targets a missing or foreign session.
     """
 
-    def initialize(self) -> None:
-        """Prepare storage structures before serving requests.
+    async def initialize(self) -> None:
+        """Prepare the store or verify remote schema readiness.
 
-        Implementations create required tables or verify existing schema.
+        Application startup calls this before serving requests.
         """
         ...
 
-    def healthcheck(self) -> bool:
-        """Check whether the backing store can answer a basic health query.
+    async def healthcheck(self) -> bool:
+        """Return whether the backing store can answer a health query.
 
-        Returns:
-            True when the store is ready; otherwise False.
+        A false result indicates that persistence is currently unavailable.
         """
         ...
 
-    def create_session(
+    async def create_session(
         self, owner_id: str, title: str | None = None
     ) -> ChatSession:
-        """Create a session owned by the supplied user.
+        """Create a conversation owned by an authenticated user.
 
-        Args:
-            owner_id: Trusted authenticated user ID.
-            title: Optional display title.
-
-        Returns:
-            Newly persisted session record.
+        The returned record includes its generated session identifier.
         """
         ...
 
-    def get_session(
+    async def get_session(
         self, session_id: str, owner_id: str
     ) -> ChatSession | None:
-        """Fetch one session only when its owner matches.
+        """Fetch a session only when the owner matches.
 
-        Args:
-            session_id: Session identifier to locate.
-            owner_id: Authenticated owner allowed to access it.
-
-        Returns:
-            The session record or None for missing and foreign-owned IDs.
+        Missing and foreign-owned sessions both return None.
         """
         ...
 
-    def list_messages(
+    async def list_messages(
         self, session_id: str, owner_id: str
     ) -> list[ChatMessage] | None:
-        """List a session's messages after verifying ownership.
+        """Return ordered messages for an owned session.
 
-        Args:
-            session_id: Session whose history is requested.
-            owner_id: Authenticated owner allowed to access it.
-
-        Returns:
-            Messages in store order, or None when inaccessible.
+        Missing and foreign-owned sessions both return None.
         """
         ...
 
-    def append_message(
+    async def append_message(
         self,
         session_id: str,
         owner_id: str,
         role: MessageRole,
         content: str,
     ) -> ChatMessage:
-        """Append a message only to an owned session.
+        """Append a message to an owned session.
 
-        Args:
-            session_id: Destination session identifier.
-            owner_id: Authenticated owner.
-            role: User or assistant message role.
-            content: Message text to persist.
-
-        Returns:
-            The persisted message record.
-
-        Raises:
-            LookupError: The session does not exist for this owner.
+        Stores reject writes when the session is missing or foreign-owned.
         """
         ...

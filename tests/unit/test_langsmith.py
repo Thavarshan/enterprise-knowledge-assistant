@@ -339,7 +339,7 @@ async def test_chat_service_propagates_agent_context_across_graph(
             """
             self.messages: list[tuple[str, str, str]] = []
 
-        def list_messages(
+        async def list_messages(
             self,
             session_id: str,
             owner_id: str,
@@ -356,7 +356,7 @@ async def test_chat_service_propagates_agent_context_across_graph(
             del session_id, owner_id
             return []
 
-        def append_message(
+        async def append_message(
             self,
             session_id: str,
             user_id: str,

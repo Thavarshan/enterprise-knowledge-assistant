@@ -54,6 +54,7 @@ async def issue_token(payload: TokenRequest, request: Request) -> TokenResponse:
     return TokenResponse(
         access_token=token.access_token,
         token_type=token.token_type,
+        expires_in=token.expires_in,
     )
 
 

@@ -6,7 +6,6 @@ it only after graph completion. Graph and persistence failures become safe
 activity events; exception details are limited to structured logs.
 """
 
-import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import nullcontext
@@ -33,7 +32,7 @@ logger = logging.getLogger(__name__)
     run_type="tool",
     metadata={"tool_name": "session_memory_append"},
 )
-def _append_assistant_message(
+async def _append_assistant_message(
     memory: SessionStore,
     session_id: str,
     user_id: str,
@@ -50,7 +49,7 @@ def _append_assistant_message(
         user_id: Authenticated account identifier.
         response_text: Completed assistant answer to persist.
     """
-    memory.append_message(
+    await memory.append_message(
         session_id,
         user_id,
         "assistant",
@@ -67,7 +66,7 @@ class ChatService:
     generic events.
 
     Attributes:
-        memory: Synchronous store offloaded for async persistence calls.
+        memory: Asynchronous owner-scoped session persistence adapter.
         graph: Compiled LangGraph workflow built from injected adapters.
 
     Notes:
@@ -139,8 +138,7 @@ class ChatService:
             The graph run uses LangGraph update streaming. The configured
             thread ID is metadata only because no checkpointer is supplied.
         """
-        messages = await asyncio.to_thread(
-            self.memory.list_messages,
+        messages = await self.memory.list_messages(
             session_id,
             user.user_id,
         ) or []
@@ -230,8 +228,7 @@ class ChatService:
                             if "citations" in node_update:
                                 citation_count = len(node_update["citations"])
                     phase = "persistence"
-                    await asyncio.to_thread(
-                        _append_assistant_message,
+                    await _append_assistant_message(
                         self.memory,
                         session_id,
                         user.user_id,

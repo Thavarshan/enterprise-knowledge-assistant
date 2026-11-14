@@ -1,8 +1,8 @@
-"""Resolve a bearer token to the API process's authenticated user.
+"""Resolve a signed bearer token to its backend-assigned identity.
 
-FastAPI routes depend on this function before reading sessions or starting
-chat. The token store returns the user and role established at login; missing
-or unknown tokens are rejected with an HTTP 401 challenge.
+FastAPI routes verify issuer, audience, expiration, signature, user ID, and
+role before reading sessions or starting chat. Invalid tokens receive an
+HTTP 401 challenge independent of which API instance handles the request.
 """
 
 from typing import cast
@@ -25,8 +25,8 @@ def get_current_user(
     """Resolve the bearer credentials to server-owned identity.
 
     FastAPI uses this dependency on protected routes. It looks up the token
-    in the process-local AuthService, so a client cannot choose its role by
-    submitting a role field.
+    with AuthService's signed-token verifier, so a client cannot choose its
+    role by submitting a role field.
 
     Args:
         request: Current request with the application service container.
