@@ -1,171 +1,407 @@
-"""Test LangSmith configuration and mandatory payload redaction.
+"""Test agent addressing, privacy controls, and async trace integration.
 
-These tests avoid external API calls and use only synthetic configuration.
+All unit tests use synthetic data and stub the LangSmith network client.
 """
 
-import uuid
-from typing import Any
+from contextlib import AbstractContextManager, nullcontext
+from typing import Any, cast
+from uuid import uuid4
 
-from scripts.check_langsmith import _trace_is_redacted
+from langsmith import AgentAddress, Client, agent_address
+from scripts.verify_langsmith import _http_status, _run_verification
 
+from enterprise_assistant.chat import service as chat_service_module
+from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.config.settings import Settings
+from enterprise_assistant.memory.interfaces import SessionStore
 from enterprise_assistant.observability import langsmith
+from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
+from enterprise_assistant.security.authentication import AuthenticatedUser
+from enterprise_assistant.security.authorization import Role
+from enterprise_assistant.tools.registry import ToolRegistry
 
 
-def test_configure_langsmith_always_hides_payload_fields(monkeypatch) -> None:
-    """Keep redaction flags enabled even when tracing itself is disabled.
+def _settings(**overrides: Any) -> Settings:
+    """Build isolated LangSmith settings for one test.
 
-    This prevents environment-based tracing from sending raw graph payloads.
+    Args:
+        overrides: Settings fields that differ from safe defaults.
+
+    Returns:
+        Settings instance that does not read the developer's `.env` file.
+    """
+    values: dict[str, Any] = {
+        "_env_file": None,
+        "langsmith_tracing": True,
+        "langsmith_api_key": "synthetic-test-key",
+        "langsmith_endpoint": "https://api.smith.langchain.com",
+        "langsmith_agent_id": "enterprise-knowledge-assistant",
+        "langsmith_agent_environment": "local",
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
+def test_settings_load_agent_configuration_from_environment(
+    monkeypatch,
+) -> None:
+    """Load agent routing fields without including the secret in repr.
+
+    Environment values take precedence over the application defaults.
+    """
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "synthetic-test-key")
+    monkeypatch.setenv(
+        "LANGSMITH_ENDPOINT",
+        "https://api.smith.langchain.com",
+    )
+    monkeypatch.setenv(
+        "LANGSMITH_AGENT_ID",
+        "enterprise-knowledge-assistant",
+    )
+    monkeypatch.setenv("LANGSMITH_AGENT_ENVIRONMENT", "local")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.langsmith_tracing
+    assert settings.langsmith_endpoint == "https://api.smith.langchain.com"
+    assert settings.langsmith_agent_id == "enterprise-knowledge-assistant"
+    assert settings.langsmith_agent_environment == "local"
+    assert "synthetic-test-key" not in repr(settings)
+
+
+def test_disabled_tracing_clears_credential_and_legacy_destinations(
+    monkeypatch,
+) -> None:
+    """Disable export and remove conflicting project-based destinations.
+
+    The SDK must not inherit stale project selectors from the shell.
     """
     for name in (
-        "LANGSMITH_TRACING",
         "LANGSMITH_API_KEY",
-        "LANGSMITH_WORKSPACE_ID",
-        "LANGSMITH_HIDE_INPUTS",
-        "LANGSMITH_HIDE_OUTPUTS",
-        "LANGSMITH_HIDE_METADATA",
+        "LANGSMITH_PROJECT",
+        "LANGCHAIN_PROJECT",
+        "LANGCHAIN_SESSION",
     ):
-        monkeypatch.delenv(name, raising=False)
-    settings = Settings(_env_file=None, langsmith_tracing=False)
+        monkeypatch.setenv(name, "synthetic-test-value")
 
-    assert not langsmith.configure_langsmith(settings)
+    assert not langsmith.configure_langsmith(
+        Settings(_env_file=None, langsmith_tracing=False)
+    )
 
     assert langsmith.os.environ["LANGSMITH_TRACING"] == "false"
+    assert "LANGSMITH_API_KEY" not in langsmith.os.environ
+    for name in (
+        "LANGSMITH_PROJECT",
+        "LANGCHAIN_PROJECT",
+        "LANGCHAIN_SESSION",
+    ):
+        assert name not in langsmith.os.environ
     assert langsmith.os.environ["LANGSMITH_HIDE_INPUTS"] == "true"
     assert langsmith.os.environ["LANGSMITH_HIDE_OUTPUTS"] == "true"
     assert langsmith.os.environ["LANGSMITH_HIDE_METADATA"] == "true"
-    assert "LANGSMITH_API_KEY" not in langsmith.os.environ
 
 
-def test_invalid_workspace_id_disables_tracing(monkeypatch) -> None:
-    """Reject workspace display names instead of passing them as IDs.
+def test_client_uses_agent_address_and_safe_payload_processing(
+    monkeypatch,
+) -> None:
+    """Configure the endpoint, agent, privacy filters, and error callback.
 
-    Invalid selectors turn off both explicit and native tracing.
+    A stub captures the settings without making a network connection.
     """
-    for name in (
-        "LANGSMITH_TRACING",
-        "LANGSMITH_API_KEY",
-        "LANGSMITH_WORKSPACE_ID",
-    ):
-        monkeypatch.delenv(name, raising=False)
-    settings = Settings(
-        _env_file=None,
-        langsmith_tracing=True,
-        langsmith_api_key="test-key",
-        langsmith_workspace_id="Workspace 1",
-    )
-
-    assert langsmith.create_langsmith_client(settings) is None
-
-    assert langsmith.os.environ["LANGSMITH_TRACING"] == "false"
-    assert "LANGSMITH_API_KEY" not in langsmith.os.environ
-    assert "LANGSMITH_WORKSPACE_ID" not in langsmith.os.environ
-
-
-def test_langsmith_client_enforces_full_payload_redaction(monkeypatch) -> None:
-    """Construct the SDK client with redaction enabled for every payload.
-
-    A stub captures options without contacting LangSmith.
-    """
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
 
     class ClientStub:
-        """Capture client settings without opening a network connection.
+        """Capture client options without making a network connection.
 
-        The test inspects the redaction options after construction.
+        The test checks the production factory's privacy configuration.
         """
 
-        def __init__(self, **kwargs: object) -> None:
-            """Save arguments for policy assertions.
+        def __init__(self, **kwargs: Any) -> None:
+            """Store constructor fields for assertions.
 
             Args:
-                kwargs: Client options supplied by the production factory.
+                kwargs: LangSmith SDK client settings.
             """
             captured.update(kwargs)
 
-    for name in (
-        "LANGSMITH_TRACING",
-        "LANGSMITH_API_KEY",
-        "LANGSMITH_WORKSPACE_ID",
-        "LANGSMITH_HIDE_INPUTS",
-        "LANGSMITH_HIDE_OUTPUTS",
-        "LANGSMITH_HIDE_METADATA",
-    ):
-        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(langsmith, "Client", ClientStub)
-    settings = Settings(
-        _env_file=None,
-        langsmith_tracing=True,
-        langsmith_api_key="test-key",
-        langsmith_workspace_id=str(uuid.uuid4()),
-    )
+    settings = _settings()
 
     client = langsmith.create_langsmith_client(settings)
 
     assert isinstance(client, ClientStub)
-    assert langsmith.os.environ["LANGSMITH_TRACING"] == "false"
+    assert captured["api_url"] == settings.langsmith_endpoint
+    assert captured["api_key"] == settings.langsmith_api_key
     assert captured["hide_inputs"] is True
     assert captured["hide_outputs"] is True
-    assert captured["hide_metadata"] is True
+    assert captured["hide_metadata"] is langsmith.sanitize_trace_metadata
+    assert captured["anonymizer"] is langsmith.sanitize_trace_payload
     assert captured["omit_traced_runtime_info"] is True
-    anonymizer = captured["anonymizer"]
-    assert callable(anonymizer)
-    assert anonymizer({"error": "sensitive", "body": "private"}) == {
-        "error": "[REDACTED]",
-        "body": "[REDACTED]",
-    }
+    assert langsmith.os.environ["LANGSMITH_AGENT_ID"] == (
+        settings.langsmith_agent_id
+    )
+    assert langsmith.os.environ["LANGSMITH_AGENT_ENVIRONMENT"] == "local"
+    assert langsmith.os.environ["LANGSMITH_TRACING"] == "true"
 
 
-def test_trace_check_rejects_any_exported_payload() -> None:
-    """Require matching trace runs to contain no input or output data.
+def test_sdk_client_hides_content_and_sanitizes_metadata_and_errors() -> None:
+    """Exercise LangSmith's installed privacy transformation methods.
 
-    The sentinel check also catches payloads hidden in serialized metadata.
+    This confirms the SDK applies the combined anonymizer to metadata and
+    errors while input and output hiding stay unconditional.
     """
-    trace_id = uuid.uuid4()
-    sentinel = "SYNTHETIC_REDACTION_SENTINEL"
+    client = Client(
+        api_key="synthetic-test-key",
+        hide_inputs=True,
+        hide_outputs=True,
+        hide_metadata=langsmith.sanitize_trace_metadata,
+        anonymizer=langsmith.sanitize_trace_payload,
+    )
+    try:
+        assert client._hide_run_inputs(
+            {"question": "private prompt"}
+        ) == {}
+        assert client._hide_run_outputs(
+            {"response": "private answer"}
+        ) == {}
+        assert client._hide_run_metadata(
+            {
+                "agent_id": "enterprise-knowledge-assistant",
+                "question": "private prompt",
+            }
+        ) == {"agent_id": "enterprise-knowledge-assistant"}
+        assert client._hide_run_error("private provider response") == (
+            "[REDACTED]"
+        )
+    finally:
+        client.close(timeout=1)
 
-    class RunStub:
-        """Provide the run fields read by the smoke check.
 
-        The serialized payload mirrors the SDK fields relevant to redaction.
+def test_missing_api_key_is_reported_and_keeps_app_tracing_off(
+    monkeypatch,
+    caplog,
+) -> None:
+    """Report opt-in with a missing key without logging secrets.
+
+    An unavailable optional integration leaves API request handling usable.
+    """
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    settings = _settings(langsmith_api_key="")
+
+    assert langsmith.create_langsmith_client(settings) is None
+
+    assert caplog.records[-1].missing_settings == "LANGSMITH_API_KEY"
+    assert langsmith.os.environ["LANGSMITH_TRACING"] == "false"
+    assert "synthetic-test-key" not in caplog.text
+
+
+def test_metadata_allowlist_and_error_redaction() -> None:
+    """Keep short diagnostic values and erase error contents.
+
+    Unknown fields, multiline strings, and prompt content are discarded.
+    """
+    request_id = str(uuid4())
+    session_id = str(uuid4())
+    safe = langsmith.sanitize_trace_metadata(
+        {
+            "request_id": request_id,
+            "session_id": session_id,
+            "agent_id": "enterprise-knowledge-assistant",
+            "agent_environment": "local",
+            "langgraph_node": "retrieval",
+            "tool_name": "knowledge_search",
+            "question": "synthetic private prompt",
+            "api_key": "synthetic-test-key",
+            "unsafe": "line one\nline two",
+        }
+    )
+
+    assert safe == {
+        "request_id": request_id,
+        "session_id": session_id,
+        "agent_id": "enterprise-knowledge-assistant",
+        "agent_environment": "local",
+        "langgraph_node": "retrieval",
+        "tool_name": "knowledge_search",
+    }
+    assert langsmith.sanitize_trace_metadata(
+        {"request_id": "synthetic-private-token"}
+    ) == {}
+    assert langsmith.redact_trace_error(
+        {"error": "contains private response text"}
+    ) == {"error": "[REDACTED]"}
+    assert langsmith.sanitize_trace_payload(
+        {
+            "agent_id": "enterprise-knowledge-assistant",
+            "question": "private prompt",
+        }
+    ) == {"agent_id": "enterprise-knowledge-assistant"}
+    assert langsmith.sanitize_trace_payload(
+        {"error": "private provider response"}
+    ) == {"error": "[REDACTED]"}
+
+
+def test_client_initialization_error_is_safe_and_nonfatal(
+    monkeypatch,
+    caplog,
+) -> None:
+    """Log setup failure by exception type and disable environment tracing.
+
+    A credential-like exception message must not reach the logs.
+    """
+    class FailingClient:
+        """Raise a credential-like message to check it is never logged.
+
+        The client constructor failure simulates a rejected SDK setup.
         """
 
-        def __init__(
-            self,
-            inputs: dict[str, Any],
-            outputs: dict[str, Any],
-        ) -> None:
-            """Store synthetic trace payload fields.
+        def __init__(self, **_kwargs: Any) -> None:
+            """Simulate SDK construction failure.
 
             Args:
-                inputs: Run input mapping.
-                outputs: Run output mapping.
+                _kwargs: Client arguments, not used in the failure case.
             """
-            self.id = trace_id
-            self.error = None
-            self.inputs = inputs
-            self.outputs = outputs
+            raise RuntimeError("synthetic-test-key must stay private")
 
-        def model_dump(self, *, mode: str) -> dict[str, Any]:
-            """Serialize the fields the verifier scans for the sentinel.
+    monkeypatch.setattr(langsmith, "Client", FailingClient)
 
-            Args:
-                mode: Pydantic serialization mode supplied by the verifier.
+    assert langsmith.create_langsmith_client(_settings()) is None
 
-            Returns:
-                A serialized representation of this stub trace run.
-            """
-            assert mode == "json"
-            return {
-                "id": str(self.id),
-                "inputs": self.inputs,
-                "outputs": self.outputs,
-            }
+    assert "LangSmith client initialization failed" in caplog.text
+    assert "synthetic-test-key" not in caplog.text
+    assert langsmith.os.environ["LANGSMITH_TRACING"] == "false"
 
-    redacted = RunStub(inputs={}, outputs={})
-    leaked = RunStub(inputs={"question": sentinel}, outputs={})
 
-    assert _trace_is_redacted(
-        [redacted], root_id=trace_id, sentinel=sentinel
+def test_nested_probe_operations_execute_without_external_credentials(
+    monkeypatch,
+) -> None:
+    """Run the synthetic parent and child functions without export.
+
+    This exercises the exact decorated operations used by the CLI check.
+    """
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+
+    result = _run_verification(
+        "Why did payment incident PAY-504 occur?",
+        "PAY-504",
     )
-    assert not _trace_is_redacted([leaked], root_id=trace_id, sentinel=sentinel)
+
+    assert result.startswith("PAY-504:")
+    assert "fictional gateway retry policy" in result
+
+
+def test_verifier_retries_langsmith_not_found_responses() -> None:
+    """Recognize LangSmith's custom 404 exception for eventual readback.
+
+    The client uses a named exception without exposing an HTTP response.
+    """
+    error_type = type("LangSmithNotFoundError", (Exception,), {})
+
+    assert _http_status(error_type()) == 404
+
+
+async def test_chat_service_propagates_agent_context_across_graph(
+    monkeypatch,
+) -> None:
+    """Run an async graph under a stubbed parent agent trace context.
+
+    The stub captures the agent address passed by the real ChatService.
+    """
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    captured: dict[str, Any] = {}
+
+    class TraceRunStub:
+        """Record mutable parent metadata for this local integration test.
+
+        The test asserts that the service marks the run successful.
+        """
+
+        def __init__(self) -> None:
+            """Initialize safe synthetic trace metadata.
+
+            No SDK objects or network connections are required.
+            """
+            self.metadata: dict[str, str] = {}
+
+    class MemoryStub:
+        """Store assistant output without opening SQLite.
+
+        No persistent developer data is touched by this test.
+        """
+
+        def __init__(self) -> None:
+            """Start with no persisted assistant messages.
+
+            Messages are retained only in this local list.
+            """
+            self.messages: list[tuple[str, str, str]] = []
+
+        def append_message(
+            self,
+            session_id: str,
+            user_id: str,
+            role: str,
+            content: str,
+        ) -> None:
+            """Record the assistant turn for assertions.
+
+            Args:
+                session_id: Synthetic conversation identifier.
+                user_id: Synthetic authenticated account identifier.
+                role: Message role selected by ChatService.
+                content: Deterministic assistant response.
+            """
+            self.messages.append((session_id, role, content))
+
+    trace_run = TraceRunStub()
+
+    def fake_trace(
+        **kwargs: Any,
+    ) -> AbstractContextManager[TraceRunStub]:
+        """Capture trace settings and yield a local parent-run stub.
+
+        Args:
+            kwargs: Values passed to LangSmith's trace context manager.
+
+        Returns:
+            Context manager yielding the synthetic trace run.
+        """
+        captured.update(kwargs)
+        return nullcontext(trace_run)
+
+    monkeypatch.setattr(chat_service_module, "trace", fake_trace)
+    address: AgentAddress = agent_address(
+        "enterprise-knowledge-assistant",
+        "local",
+    )
+    memory = MemoryStub()
+    service = ChatService(
+        InMemoryRetriever([]),
+        cast(SessionStore, memory),
+        ToolRegistry(),
+        langsmith_client=cast(Client, object()),
+        langsmith_address=address,
+    )
+    request_id = str(uuid4())
+    session_id = str(uuid4())
+    user = AuthenticatedUser(user_id="viewer", role=Role.VIEWER)
+
+    events = [
+        event
+        async for event in service.stream_turn(
+            request_id=request_id,
+            session_id=session_id,
+            question="Synthetic local graph question",
+            user=user,
+        )
+    ]
+
+    assert any(event.event_type == "completed" for event in events)
+    assert memory.messages
+    assert captured["name"] == "chat_request"
+    assert captured["address"] == address
+    assert captured["client"] is not None
+    assert captured["metadata"]["request_id"] == request_id
+    assert trace_run.metadata["status"] == "success"

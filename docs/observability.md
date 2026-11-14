@@ -1,100 +1,207 @@
 # Observability
 
-## Four distinct signals
+## Signals
 
-- **Application logs:** Python logging and request middleware emit allowlisted
-  operational fields and request IDs for API and graph diagnosis.
-- **LangSmith traces:** The redacting client exposes run names and graph
-  structure while hiding inputs, outputs, metadata, runtime details, and
-  errors. Inspect graph execution when tracing is enabled and accepted.
+- **Application logs:** Python logging emits allowlisted operational fields
+  and request IDs for API and graph diagnosis.
+- **LangSmith traces:** The explicit client records run names and graph
+  structure. Inputs and outputs are hidden; metadata is allowlisted.
 - **Graph state:** LangGraph holds identity, questions, routes, plans,
-  results, responses, citations, and events during one run.
-- **Activity events:** Graph nodes, ChatService, and the API emit coarse
-  transitions, evidence references, validation, and failures for the UI.
+  evidence, responses, citations, and events while one run executes.
+- **Activity events:** Graph nodes, ChatService, and the API send coarse
+  transitions, retrieval details, validation, and failures to the UI.
 
-Activity events are not an application log, LangSmith trace, or full state
-dump. They describe selected behavior and evidence; they do not expose hidden
-model chain-of-thought. There is no model in the current graph.
+Activity events are not LangSmith traces or a graph-state dump. They show
+selected operations and evidence references. There is no model in the
+current graph, and hidden model chain-of-thought is never an explainability
+feature.
 
-## Request and log correlation
+## LangSmith architecture
 
-RequestIdMiddleware accepts an incoming X-Request-ID only when it matches
-the bounded safe-character expression. Otherwise it creates a UUID. It
-stores the value on request state, sets a context variable for logs, attaches
-the value to the response header, and resets the context variable in a
-finally block.
+The API creates one process-scoped LangSmith client when tracing is enabled
+and valid configuration is present. ChatService creates a `chat_request`
+parent span around graph execution and assistant-message persistence.
+LangGraph automatically traces its graph and node execution inside that
+parent. The `KnowledgeSearchTool.run` wrapper adds a child tool span. The
+graph node names identify supervisor, research, retrieval, response, and
+validation operations.
 
-JsonFormatter emits timestamp, level, logger name, message, request ID,
-and a small allowlist of fields such as method, path, status, duration,
-error type, tracing-enabled state, and mock mode. It does not serialize
-arbitrary log-record attributes. Chat and request bodies, access tokens,
-passwords, and document contents are not part of the configured log schema.
-Unexpected API and graph failures log exception type, not exception text.
+The expected trace shape is:
 
-The activity schema carries both request ID and session ID. The request ID
-also appears in the HTTP response header. An evaluator can compare the
-header, SSE event IDs, and structured API logs for one request. The graph
-adds request and session IDs to local run metadata, but the LangSmith client
-removes metadata before export; those IDs are not available in remote traces.
+```text
+chat_request
+├── LangGraph execution
+│   ├── supervisor
+│   ├── research (investigation questions only)
+│   ├── retrieval
+│   │   └── knowledge_search
+│   ├── response
+│   └── citation validation
+└── assistant_memory_append
+```
 
-## Graph events and UI activity
+The user message is persisted by the API route before the stream starts; that
+write is outside the current `chat_request` trace. Assistant persistence is
+inside the trace. Failures from graph execution or assistant persistence
+mark the parent run as failed while the API returns a generic activity event.
+Trace export errors are logged by exception type, without exception text,
+and do not prevent normal chat requests from running.
 
-Nodes add typed event dictionaries to AgentState.events. The operator.add
-reducer appends them across node updates. ChatService consumes the graph
-using update streaming, validates event payloads with ActivityEvent, and the
-API encodes each as an SSE event whose name is the event type and whose data
-is JSON.
+Only implemented operations are traced. The current workflow uses synthetic
+in-memory retrieval and deterministic response construction. It has no live
+LLM call, Pinecone dense retrieval, sparse/BM25 ranking, hybrid ranking, MCP
+tool, or recursive RLM operation to trace.
 
-Current event categories include agent transition, tool execution,
-retrieval, validation, response chunk, memory update, completion, and
-failure. Retrieval metadata includes source IDs, chunk IDs, titles, and
-scores. Response chunks are emitted after citation validation in
-80-character slices of the completed deterministic answer; they are not
-model tokens. Node events arrive after node execution completes.
+## Agent-based destination
 
-The Streamlit sidebar renders the latest agent and node, retrieval/tool
-activity, validation, and errors. The conversation area assembles response
-chunks. The UI does not display raw graph state or LangSmith internals.
+This workspace uses LangSmith Cloud's agent-based observability. The app
+routes traces to the already registered agent by pairing its identifier with
+an environment:
 
-## LangSmith configuration and limitations
+- Agent display name: `Enterprise Knowledge Assistant`
+- Agent ID: `enterprise-knowledge-assistant`
+- Environment: `local`
+- API endpoint: `https://api.smith.langchain.com`
 
-LangSmith tracing requires the explicit opt-in and an API key. The optional
-LANGSMITH_WORKSPACE_ID must be a UUID, not the workspace display name. The
-application leaves implicit SDK tracing disabled and passes a dedicated
-client into LangGraph's tracing context for each graph run.
+The **Agent ID** is the registered identifier, not the display name. Agent
+addressing is `agent ID + environment`. It is neither a tracing project ID
+nor a workspace ID. Do not create a replacement agent or tracing project.
+`LANGSMITH_WORKSPACE_ID` is omitted unless a credential's scope requires an
+explicit workspace selector.
 
-Before export, the client removes all run inputs, outputs, and metadata,
-omits runtime details, and replaces error strings with a fixed redaction
-marker. The SDK's environment flags also hide graph inputs, outputs, and
-metadata. Run names and graph structure remain visible for inspection.
-Remote trace correlation metadata is intentionally unavailable.
+The Python SDK requirement is `langsmith>=0.14.9`; `uv.lock` fixes the
+resolved version used by this repository. The SDK's agent-addressing API
+receives the explicit agent address for each trace. The environment
+variables are also set before the client and compiled graph are created so
+SDK integrations in the API process share the same destination.
 
-Configuration alone does not confirm delivery. Run `make langsmith-check`
-to submit a graph invocation containing only synthetic content, locate the
-exact root run, and verify that inputs, outputs, and the synthetic marker
-were not exported. This command requires valid credentials and network
-access; it is not run in CI.
+## Configuration and local setup
 
-## Failure behavior
+Copy `.env.example` to the ignored local `.env`, then set the LangSmith key.
+The required values are:
 
-If tracing is absent or disabled, the application continues without trace
-export. Graph execution and activity events do not depend on LangSmith.
-Provider or graph errors are represented by generic failure events and
-correlated logs; the client does not receive provider exception details.
-There is no trace-delivery health check, retry policy, or persisted activity
-event store.
+```dotenv
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=<your-secret-key>
+LANGSMITH_AGENT_ID=enterprise-knowledge-assistant
+LANGSMITH_AGENT_ENVIRONMENT=local
+```
 
-## Verification checklist
+Keep the API key in local `.env` or the deployment secret store. It is
+loaded by `Settings`, passed only to the backend SDK client, and never sent
+to the Streamlit process. The API loads settings and configures LangSmith
+before it constructs the client or LangGraph workflow. Test settings disable
+tracing and need no key.
 
-Before reporting LangSmith as connected:
+Agent-based addressing replaces the older project destination. The setup
+removes `LANGSMITH_PROJECT`, `LANGCHAIN_PROJECT`, and `LANGCHAIN_SESSION`
+from the process environment to prevent mixed routing. Do not configure a
+project name for this agent-based workspace. A workspace ID is not the
+agent ID and is not required unless the API key's scope requires it.
 
-1. Use a dedicated test project and synthetic request content.
-2. Confirm tracing is enabled, the API key is set, and the optional
-   workspace selector is a UUID.
-3. Run `make langsmith-check` and require a successful exit.
-4. Inspect the matching run ID and expected graph node spans in the workspace.
-5. Confirm run inputs, outputs, and metadata are empty in the remote trace.
-6. Record the observed result and any rejected credentials or permissions.
+## Privacy and metadata
 
-Until these steps succeed, treat LangSmith as an optional configured
-integration boundary rather than a verified observability backend.
+The SDK client applies these protections before export:
+
+- All run inputs and outputs are hidden, including questions, retrieved
+  evidence, graph state, assistant responses, and persisted message text.
+- Runtime details are omitted.
+- Metadata is restricted to safe values such as request ID, session ID,
+  agent ID, environment, graph node, tool name, workflow, and status.
+- Trace error text is replaced with `[REDACTED]`; logs include only the
+  exception type.
+
+The metadata filter accepts only known keys with short, safe string values;
+request, session, and verification identifiers must also be UUIDs. It
+discards arbitrary metadata, content, credentials, and future fields by
+default. These identifiers are correlation labels, not authorization tokens.
+The app does not record passwords, bearer tokens, private document text, or
+confidential personal information in traces.
+
+The LangSmith spans describe observable operations and outcomes. They do not
+expose hidden model reasoning. The deterministic graph currently has no
+model reasoning to record.
+
+## Verification
+
+Run the standalone connectivity check with the existing local environment:
+
+```bash
+make verify-langsmith
+```
+
+The equivalent direct command is:
+
+```bash
+uv run --env-file .env python scripts/verify_langsmith.py
+```
+
+The script executes a traceable parent operation and three nested,
+deterministic operations using fictional PAY-504 data. It flushes the SDK's
+background trace queue and checks SDK export callbacks. If read permissions
+allow it, the script reads the exact run back and checks the agent,
+environment, hierarchy, and payload redaction.
+
+Results have distinct meanings:
+
+- **VERIFIED:** Remote readback confirmed the run, destination metadata,
+  expected nested spans, and hidden inputs and outputs.
+- **SUBMITTED:** The SDK flush completed without reporting export errors,
+  but remote readback was unavailable or incomplete. This may be normal for
+  a tracing-only API key.
+- **FAILED:** Trace execution, submission, or a remote redaction check failed.
+- **BLOCKED:** Required configuration is missing or invalid.
+
+The command never prints the API key, question payload, evidence, or answer.
+It prints a unique verification ID. In LangSmith Cloud, open the
+`Enterprise Knowledge Assistant` agent, select the `Local` environment, and
+find the trace with that ID. If the result is `SUBMITTED`, use this UI check
+to confirm receipt when the API key cannot read traces.
+
+## Application verification
+
+The standalone script validates agent addressing and nested SDK tracing. To
+exercise the actual API with the local fixture graph, start the normal
+development server and use the existing Streamlit UI:
+
+```bash
+make api
+make ui
+```
+
+Sign in with a configured demo user and submit a synthetic question. The
+backend sends the chat trace to the same agent and environment. The sidebar
+continues to display application activity events; those events are a UI
+progress feed, not LangSmith spans. For automated repository checks, ordinary
+tests use mock settings and never require LangSmith credentials.
+
+### Live verification record
+
+On 2026-11-14, a synthetic chat was sent through the local FastAPI service
+and the fixture-backed graph. LangSmith readback found trace
+`7dea0ced-4176-47c5-b153-4f3456adb31c` under the existing agent's `local`
+environment. The trace contained nine runs. Every run had empty inputs and
+outputs, and the synthetic chat text was absent from the serialized trace.
+
+## Troubleshooting and limitations
+
+- **Configuration reports missing settings:** Check the five values in the
+  local `.env`; never paste the API key into a terminal command or report.
+- **Authentication or submission fails:** Confirm the key is active and
+  scoped to the target workspace, the endpoint matches the LangSmith region,
+  and network access to the endpoint is available.
+- **No agent destination:** Confirm the Agent ID from the agent's Overview
+  page and use an existing environment such as `local`. The display name is
+  not a substitute for the ID.
+- **Agent not found or archived:** Confirm the exact ID and that the
+  registered agent is active in the selected workspace.
+- **Result is SUBMITTED:** The key may have trace-write permission without
+  run-read permission. Confirm the verification ID in the LangSmith UI.
+- **No model spans:** The current graph is deterministic and does not call
+  an LLM. No model spans are expected.
+
+LangSmith availability is optional. A missing key, rejected request, or
+network failure is reported without stopping ordinary chat execution.
+Pinecone, live LLM calls, sparse search, and recursive research are not
+implemented and are outside the current trace hierarchy.

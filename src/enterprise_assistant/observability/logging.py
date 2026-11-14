@@ -48,6 +48,7 @@ class JsonFormatter(logging.Formatter):
             "status_code",
             "duration_ms",
             "error_type",
+            "missing_settings",
             "tracing_enabled",
             "mock_mode",
         ):

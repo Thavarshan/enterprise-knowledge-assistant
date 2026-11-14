@@ -7,6 +7,8 @@ current executable tool and must receive identity from trusted graph state.
 
 from typing import Any
 
+from langsmith import traceable
+
 from enterprise_assistant.domain.models import SearchResult
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.security.authorization import Role
@@ -50,11 +52,19 @@ class KnowledgeSearchTool:
         """
         self.retriever = retriever
 
+    @traceable(
+        name="knowledge_search",
+        run_type="tool",
+        metadata={"tool_name": "knowledge_search"},
+    )
     async def run(self, arguments: dict[str, Any]) -> list[SearchResult]:
         """Search for chunks after deriving access labels from the role.
 
         The handler expects role and query fields from trusted graph state.
         It does not accept arbitrary access levels from callers.
+
+        LangSmith context propagation makes this tool a child of the retrieval
+        node. The configured client hides arguments and retrieved content.
 
         Args:
             arguments: Tool input containing query, role, and optional

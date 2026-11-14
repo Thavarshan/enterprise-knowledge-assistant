@@ -6,10 +6,10 @@
 - Development roles are configured in ignored `.env`. `make setup` generates random local passwords and prints them once to the operator; application logs do not print credentials or bearer tokens.
 - Local mode uses a fixture-backed retriever. `MOCK_MODE=false` selects the explicit Pinecone boundary, which currently returns an actionable not-configured failure rather than silently choosing another production database.
 - The backend is intended to run as one API process while using local in-memory tokens and rate buckets. Production multi-instance deployment needs shared identity and rate-limit state.
-- LangSmith tracing is disabled by default. When enabled, the application
-  client removes inputs, outputs, metadata, and runtime details before export
-  and anonymizes trace errors. Run `make langsmith-check` to confirm external
-  delivery; CI does not require LangSmith credentials.
+- `LANGSMITH_TRACING` controls agent-addressed LangSmith tracing. The example
+  configuration selects the existing assessment agent. Inputs and outputs
+  are hidden, metadata is allowlisted, and trace errors are anonymized. Run
+  `make verify-langsmith` to check external delivery; CI needs no key.
 
 ## Configuration reference
 
@@ -35,9 +35,10 @@ LangSmith, or Pinecone credentials.
 | RATE_LIMIT_REFILL_PER_SECOND | 0.5 | Token refill rate per user. |
 | DEV_USERS_JSON | empty | Inline account JSON or file path; setup writes data/users/default.json. |
 | LANGSMITH_TRACING | false | Opt-in; see `observability.md` for verification. |
-| LANGSMITH_API_KEY | empty | Secret required with tracing opt-in. |
-| LANGSMITH_PROJECT | enterprise-knowledge-assistant | LangSmith project label. |
-| LANGSMITH_WORKSPACE_ID | empty | Optional UUID for the workspace. |
+| LANGSMITH_ENDPOINT | api.smith.langchain.com | LangSmith Cloud API endpoint. |
+| LANGSMITH_API_KEY | empty | Secret required with tracing enabled. |
+| LANGSMITH_AGENT_ID | enterprise-knowledge-assistant | Existing agent identifier. |
+| LANGSMITH_AGENT_ENVIRONMENT | local | Destination environment for agent traces. |
 | PINECONE_API_KEY | empty | Secret retained in settings; no client consumes it yet. |
 | PINECONE_INDEX_NAME | empty | Reserved for the future Pinecone adapter. |
 | PINECONE_NAMESPACE | empty | Reserved for the future Pinecone adapter. |

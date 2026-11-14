@@ -29,6 +29,7 @@ from enterprise_assistant.config.settings import Settings, get_settings
 from enterprise_assistant.memory.interfaces import SessionStore
 from enterprise_assistant.memory.sqlite import SQLiteSessionStore
 from enterprise_assistant.observability.langsmith import (
+    create_langsmith_address,
     create_langsmith_client,
 )
 from enterprise_assistant.observability.logging import configure_logging
@@ -95,14 +96,19 @@ def create_app(
         A configured FastAPI application with its service container attached.
 
     Notes:
-        LangSmith tracing uses a client that removes inputs, outputs, and
-        metadata before trace export. A successful send remains unverified
-        until the synthetic smoke check succeeds.
+        LangSmith setup uses the configured agent and environment address.
+        Trace inputs and outputs are hidden, and only allowlisted metadata
+        is exported. Service errors do not prevent API startup.
     """
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
     langsmith_client = create_langsmith_client(app_settings)
     tracing_enabled = langsmith_client is not None
+    langsmith_address = (
+        create_langsmith_address(app_settings)
+        if tracing_enabled
+        else None
+    )
     session_store = memory or SQLiteSessionStore(app_settings.sqlite_path)
     if retriever is not None:
         document_retriever = retriever
@@ -132,7 +138,7 @@ def create_app(
             session_store,
             registry,
             langsmith_client=langsmith_client,
-            langsmith_project=app_settings.langsmith_project,
+            langsmith_address=langsmith_address,
         ),
     )
 

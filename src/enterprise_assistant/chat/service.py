@@ -10,8 +10,9 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import nullcontext
 from typing import Any
+from uuid import UUID, uuid4
 
-from langsmith import Client, tracing_context
+from langsmith import AgentAddress, Client, trace, traceable
 
 from enterprise_assistant.agents.graph import build_graph
 from enterprise_assistant.agents.state import AgentState
@@ -22,6 +23,36 @@ from enterprise_assistant.security.authentication import AuthenticatedUser
 from enterprise_assistant.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+@traceable(
+    name="assistant_memory_append",
+    run_type="tool",
+    metadata={"tool_name": "session_memory_append"},
+)
+def _append_assistant_message(
+    memory: SessionStore,
+    session_id: str,
+    user_id: str,
+    response_text: str,
+) -> None:
+    """Persist the assistant answer as a child operation in the chat trace.
+
+    The LangSmith client hides inputs and outputs, so the message text and
+    memory adapter details are not exported.
+
+    Args:
+        memory: Session store configured by the application.
+        session_id: Owner-scoped conversation identifier.
+        user_id: Authenticated account identifier.
+        response_text: Completed assistant answer to persist.
+    """
+    memory.append_message(
+        session_id,
+        user_id,
+        "assistant",
+        response_text,
+    )
 
 
 class ChatService:
@@ -46,7 +77,7 @@ class ChatService:
         memory: SessionStore,
         tool_registry: ToolRegistry,
         langsmith_client: Client | None = None,
-        langsmith_project: str | None = None,
+        langsmith_address: AgentAddress | None = None,
     ) -> None:
         """Build a graph around injected retrieval and tool policy.
 
@@ -55,12 +86,12 @@ class ChatService:
             memory: Session store used after a successful graph run.
             tool_registry: Role policy applied before tool handler dispatch.
             langsmith_client: Optional redacting client for graph traces.
-            langsmith_project: Project receiving enabled traces.
+            langsmith_address: Agent and environment for graph traces.
         """
         self.memory = memory
         self.graph: Any = build_graph(retriever, tool_registry)
         self.langsmith_client = langsmith_client
-        self.langsmith_project = langsmith_project
+        self.langsmith_address = langsmith_address
 
     async def stream_turn(
         self,
@@ -106,37 +137,98 @@ class ChatService:
         }
         response_text = ""
         citation_count = 0
+        phase = "graph"
         try:
-            trace_context = (
-                tracing_context(
-                    client=self.langsmith_client,
-                    project_name=self.langsmith_project,
-                    enabled=True,
-                )
-                if self.langsmith_client is not None
-                else nullcontext()
+            trace_id = UUID(request_id)
+        except ValueError:
+            trace_id = uuid4()
+
+        trace_context = (
+            trace(
+                name="chat_request",
+                run_type="chain",
+                inputs={
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "question": question,
+                },
+                address=self.langsmith_address,
+                client=self.langsmith_client,
+                run_id=trace_id,
+                metadata={
+                    "agent_id": (
+                        self.langsmith_address["id"]
+                        if self.langsmith_address
+                        else ""
+                    ),
+                    "agent_environment": (
+                        self.langsmith_address["environment"]
+                        if self.langsmith_address
+                        else ""
+                    ),
+                    "agent_name": "Enterprise Knowledge Assistant",
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "status": "running",
+                    "workflow": "chat",
+                },
             )
-            with trace_context:
-                async for update in self.graph.astream(
-                    state,
-                    stream_mode="updates",
-                    config={
-                        "configurable": {"thread_id": session_id},
-                        "metadata": {
-                            "request_id": request_id,
-                            "session_id": session_id,
+            if self.langsmith_client is not None
+            and self.langsmith_address is not None
+            else nullcontext(None)
+        )
+        try:
+            with trace_context as trace_run:
+                try:
+                    async for update in self.graph.astream(
+                        state,
+                        stream_mode="updates",
+                        config={
+                            "configurable": {"thread_id": session_id},
+                            "metadata": {
+                                "request_id": request_id,
+                                "session_id": session_id,
+                            },
                         },
-                    },
-                ):
-                    for node_update in update.values():
-                        for raw_event in node_update.get("events", []):
-                            event = ActivityEvent.model_validate(raw_event)
-                            yield event
-                        if "response" in node_update:
-                            response_text = str(node_update["response"])
-                        if "citations" in node_update:
-                            citation_count = len(node_update["citations"])
+                    ):
+                        for node_update in update.values():
+                            for raw_event in node_update.get("events", []):
+                                event = ActivityEvent.model_validate(raw_event)
+                                yield event
+                            if "response" in node_update:
+                                response_text = str(node_update["response"])
+                            if "citations" in node_update:
+                                citation_count = len(node_update["citations"])
+                    phase = "persistence"
+                    _append_assistant_message(
+                        self.memory,
+                        session_id,
+                        user.user_id,
+                        response_text,
+                    )
+                    if trace_run is not None:
+                        trace_run.metadata["status"] = "success"
+                except Exception:
+                    if trace_run is not None:
+                        trace_run.metadata["status"] = "failure"
+                    raise
         except Exception as exc:
+            if phase == "persistence":
+                logger.error(
+                    "Assistant turn persistence failed",
+                    extra={"request_id": request_id,
+                           "error_type": type(exc).__name__},
+                )
+                yield ActivityEvent(
+                    event_type="failure",
+                    request_id=request_id,
+                    session_id=session_id,
+                    agent="memory",
+                    node="persist",
+                    message="The response could not be saved to this session.",
+                    metadata={"error_code": "session_persistence_failed"},
+                )
+                return
             logger.error(
                 "Agent graph failed",
                 extra={"request_id": request_id,
@@ -153,23 +245,6 @@ class ChatService:
                     "Please try again."
                 ),
                 metadata={"error_code": "agent_execution_failed"},
-            )
-            return
-
-        try:
-            self.memory.append_message(
-                session_id, user.user_id, "assistant", response_text)
-        except LookupError:
-            logger.error("Assistant turn persistence failed",
-                         extra={"request_id": request_id})
-            yield ActivityEvent(
-                event_type="failure",
-                request_id=request_id,
-                session_id=session_id,
-                agent="memory",
-                node="persist",
-                message="The response could not be saved to this session.",
-                metadata={"error_code": "session_persistence_failed"},
             )
             return
 

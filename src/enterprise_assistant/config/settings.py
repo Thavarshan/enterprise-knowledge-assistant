@@ -36,8 +36,9 @@ class Settings(BaseSettings):
         dev_users_json: Inline JSON or path to local development users.
         langsmith_tracing: Explicit opt-in for LangSmith tracing.
         langsmith_api_key: Secret used only when tracing is enabled.
-        langsmith_project: Trace project name.
-        langsmith_workspace_id: Optional LangSmith workspace identifier.
+        langsmith_endpoint: LangSmith Cloud API endpoint.
+        langsmith_agent_id: Registered LangSmith agent identifier.
+        langsmith_agent_environment: Target environment for agent traces.
         pinecone_api_key: Secret reserved for the Pinecone adapter.
         pinecone_index_name: Configured index name.
         pinecone_namespace: Optional configured namespace.
@@ -66,8 +67,9 @@ class Settings(BaseSettings):
     dev_users_json: str = Field(default="", repr=False)
     langsmith_tracing: bool = False
     langsmith_api_key: str = Field(default="", repr=False)
-    langsmith_project: str = "enterprise-knowledge-assistant"
-    langsmith_workspace_id: str = Field(default="", repr=False)
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_agent_id: str = "enterprise-knowledge-assistant"
+    langsmith_agent_environment: str = "local"
     pinecone_api_key: str = Field(default="", repr=False)
     pinecone_index_name: str = ""
     pinecone_namespace: str = ""

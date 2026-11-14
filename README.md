@@ -66,6 +66,7 @@ make format-check
 make typecheck
 make docs-check
 make audit
+make verify-langsmith
 make check
 ```
 
@@ -75,10 +76,18 @@ make check
 
 Copy `.env.example` to `.env`, or let `make setup` generate local-only
 credentials. `.env` is ignored by Git. The mock system works without
-model-provider keys. `LANGSMITH_TRACING` is off by default and can be enabled
-with a valid `LANGSMITH_API_KEY` and project name. Set
-`LANGSMITH_WORKSPACE_ID` when your LangSmith credentials require an explicit
-workspace. Pinecone settings are reserved for the future production adapter.
+model-provider keys. LangSmith uses the existing agent ID and environment
+from `.env.example`; keep the API key in `.env`. Agent addressing does not
+use a tracing project name, and a workspace ID is omitted unless the API
+key's scope requires one. Pinecone settings are reserved for the future
+production adapter.
+
+Run `make verify-langsmith` to execute a nested, fictional trace and check
+for SDK submission errors. The equivalent direct command is
+`uv run --env-file .env python scripts/verify_langsmith.py`. The command
+reports `VERIFIED` when remote readback confirms the exact agent, environment,
+and span tree; it reports `SUBMITTED` when sending succeeds but read access is
+unavailable. It never prints the API key or trace payloads.
 
 Important settings include `MOCK_MODE`, `API_BASE_URL`, `SQLITE_PATH`, CORS origins, rate-limit capacity/refill, LangSmith tracing, and Pinecone index/namespace configuration. Never commit `.env` or real provider credentials.
 
@@ -90,7 +99,10 @@ Important settings include `MOCK_MODE`, `API_BASE_URL`, `SQLITE_PATH`, CORS orig
 - A compiled LangGraph graph that streams actual node updates from Supervisor, optional Research planning, Retrieval, Response, and citation validation nodes.
 - Deterministic fixture retrieval with access filtering before evidence enters graph state. Citations resolve to actual synthetic chunks.
 - Streamlit login/session controls, chat history, response streaming, and graph activity display.
-- LangSmith tracing hook through the supported LangChain/LangGraph environment integration; no live trace has been claimed or verified.
+- Agent-addressed LangSmith tracing for chat, LangGraph nodes, tool calls,
+  and assistant persistence, with input/output hiding and safe metadata.
+- A standalone LangSmith connectivity command that reports submission and
+  remote verification as separate outcomes.
 
 ## Boundaries and limitations
 
@@ -98,7 +110,10 @@ Pinecone indexing, embedding, sparse ranking, and live hybrid retrieval are inte
 
 Research currently produces a restricted structured plan and permits one bounded retrieval pass. It does not execute generated code or recurse. There is no live LLM, MCP server, production identity provider, distributed rate limiter, semantic memory, or human approval flow. The token registry and event schema are extension points, not evidence that those integrations are complete. In-memory rate limits and login tokens do not coordinate across API processes.
 
-LangSmith auto-tracing is configured when enabled and credentials are present; validation against the external service remains outstanding. The Streamlit UI makes a synchronous HTTP call while consuming the streamed response, which is suitable for local demonstration.
+LangSmith tracing remains optional for normal requests. The UI continues to
+show application activity events; LangSmith spans are a separate diagnostic
+view. The Streamlit UI makes a synchronous HTTP call while consuming the
+streamed response, which is suitable for local demonstration.
 
 ## Assessment status
 

@@ -189,7 +189,7 @@ exits or the operator interrupts the command.
 | syntax-check | Compile Python files without executing them. |
 | audit | Check installed dependencies with pip-audit. |
 | check | Run all local checks except dependency audit and Docker. |
-| langsmith-check | Send a synthetic trace and verify delivery and redaction. |
+| verify-langsmith | Send a synthetic trace and verify delivery and redaction. |
 | docker-up / docker-down | Start or stop the Compose services. |
 
 Runtime and development dependencies are declared in pyproject.toml and
