@@ -92,7 +92,7 @@ def _start_worker(
             "d1",
             "migrations",
             "apply",
-            "eka-assessment-d1",
+            "eka-sessions",
             "--local",
             "--persist-to",
             str(persist_path),

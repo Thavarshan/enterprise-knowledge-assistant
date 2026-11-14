@@ -9,7 +9,7 @@
     "dev": "wrangler dev --local",
     "deployment:config": "node ../../../scripts/deployment/w.mjs config",
     "validate-config": "wrangler deploy --dry-run",
-    "migrate:local": "wrangler d1 migrations apply eka-assessment-d1 --local",
+    "migrate:local": "wrangler d1 migrations apply eka-sessions --local",
     "migrations:remote:list": "node ../../../scripts/deployment/w.mjs list",
     "migrate:remote": "node ../../../scripts/deployment/w.mjs migrate",
     "deploy": "node ../../../scripts/deployment/w.mjs deploy",

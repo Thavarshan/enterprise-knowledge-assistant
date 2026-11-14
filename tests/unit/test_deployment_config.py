@@ -308,19 +308,19 @@ def test_cloudflare_identity_must_match_name_and_complete_id() -> None:
     payload = {
         "success": True,
         "result": [{
-            "name": "eka-assessment-d1",
+            "name": "eka-sessions",
             "uuid": "12345678-1234-1234-1234-123456789abc",
         }],
     }
 
     assert database_matches(
         payload,
-        "eka-assessment-d1",
+        "eka-sessions",
         "12345678-1234-1234-1234-123456789abc",
     )
     assert not database_matches(
         payload,
-        "eka-assessment-d1",
+        "eka-sessions",
         "12345678-1234-1234-1234-123456789abd",
     )
     assert not database_matches(

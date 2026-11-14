@@ -62,7 +62,7 @@ jobs:
       - run: make format-check
 
   build:
-    name: "Verify: Package build"
+    name: "Build: Python package"
     needs:
       - lint
       - format
@@ -89,7 +89,7 @@ jobs:
       - run: make build
 
   tests:
-    name: "Verify: Tests (Python ${{ matrix.python-version }})"
+    name: "Tests: Python ${{ matrix.python-version }}"
     needs:
       - lint
       - format
@@ -235,7 +235,7 @@ jobs:
       - run: make typecheck
 
   dependency-audit:
-    name: "Verify: Dependency audit"
+    name: "Security: Python dependency audit"
     needs:
       - lint
       - format
@@ -263,7 +263,7 @@ jobs:
       - run: make audit
 
   npm-audit:
-    name: "Verify: Worker dependency audit"
+    name: "Security: Worker dependency audit"
     needs:
       - lint
       - format

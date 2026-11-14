@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 WORKER_NAME = "eka-d1-gateway"
-DATABASE_NAME = "eka-assessment-d1"
+DATABASE_NAME = "eka-sessions"
 PLACEHOLDER_DATABASE_ID = "00000000-0000-0000-0000-000000000001"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKER_ROOT = REPOSITORY_ROOT / "infra/cloudflare/d1-gateway"

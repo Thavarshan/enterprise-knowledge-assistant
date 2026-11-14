@@ -10,7 +10,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "eka-assessment-d1",
+      "database_name": "eka-sessions",
       "database_id": "00000000-0000-0000-0000-000000000001",
       "migrations_dir": "migrations"
     }

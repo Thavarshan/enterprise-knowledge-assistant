@@ -16,7 +16,9 @@ flowchart LR
   Worker --> D1[(Dedicated Cloudflare D1)]
 ```
 
-No cloud project, Worker, or D1 database was created for this preparation.
+The repository has an existing Vercel project and a dedicated Cloudflare D1
+database named `eka-sessions`. The `eka-d1-gateway` Worker must still be
+deployed, and Vercel production needs its runtime environment configured.
 The local Worker tests use Wrangler's isolated local runtime and a temporary
 D1 database. See the official [Vercel FastAPI guide][vercel-fastapi],
 [Python runtime][vercel-python], [Streamlit dependency guide][streamlit-deps],
@@ -207,8 +209,8 @@ For a future live setup:
 
 1. Install Node.js 22 or later and the locked Worker dependencies with
    `npm ci` in `infra/cloudflare/d1-gateway`.
-2. Create the dedicated D1 database `eka-assessment-d1` and Worker
-   `eka-d1-gateway` in the Cloudflare dashboard. Use the Worker URL on
+2. Use the dedicated D1 database `eka-sessions` and create the Worker
+   `eka-d1-gateway` in the Cloudflare account. Use the Worker URL on
    `workers.dev`; do not attach unrelated routes or domains.
 3. Create a scoped Cloudflare token and configure the GitHub `production`
    environment. The deployment workflow renders its ignored Wrangler config

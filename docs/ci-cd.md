@@ -95,7 +95,7 @@ Set these repository variables before attempting a release:
 | `DEPLOY_ENABLED` | Keep `false` until setup and approvals are complete. |
 | `RUN_LIVE_E2E_SMOKE` | Keep `false` until one model call is approved. |
 | `CLOUDFLARE_ACCOUNT_ID` | Account containing the dedicated Worker and D1. |
-| `CLOUDFLARE_D1_DATABASE_ID` | ID of `eka-assessment-d1` only. |
+| `CLOUDFLARE_D1_DATABASE_ID` | ID for `eka-sessions` only. |
 | `CLOUDFLARE_WORKER_URL` | HTTPS `workers.dev` URL for `eka-d1-gateway`. |
 | `VERCEL_ORG_ID` | Vercel team or account ID used by the CLI. |
 | `VERCEL_PROJECT_ID` | ID of the FastAPI Vercel project. |
@@ -123,11 +123,11 @@ the automation bypass secret there. The stable production API origin must be
 reachable by Streamlit Community Cloud without that bypass header; Streamlit
 does not receive the Vercel bypass secret. Keep API authentication enabled.
 
-Before enabling releases, create a dedicated D1 database named
-`eka-assessment-d1` and the `eka-d1-gateway` Worker in the Cloudflare
-dashboard. This keeps the deployment token from needing resource-creation or
-deletion permissions. Scope `CLOUDFLARE_API_TOKEN` to the existing Worker
-with Workers Scripts Edit, and grant D1 Read and D1 Write for the database.
+Use the existing dedicated D1 database named `eka-sessions`; create the
+`eka-d1-gateway` Worker before enabling releases. This keeps the deployment
+token from needing database deletion permissions. Scope
+`CLOUDFLARE_API_TOKEN` to the existing Worker with Workers Scripts Edit, and
+grant D1 Read and D1 Write for the database.
 Do not grant route or custom-domain write access. The workflow checks the
 returned D1 name and ID before any migration. Use an HTTPS `workers.dev`
 hostname; custom route setup is outside this pipeline.
