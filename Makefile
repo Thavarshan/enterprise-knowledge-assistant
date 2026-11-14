@@ -1,6 +1,6 @@
 .PHONY: setup dev api ui test lint comments-check line-length-check \
 	format format-check build typecheck docs-check syntax-check audit check \
-	docker-up docker-down
+	docker-up docker-down langsmith-check
 
 setup:
 	uv sync --all-groups
@@ -18,6 +18,9 @@ ui:
 
 test:
 	uv run pytest -q
+
+langsmith-check:
+	uv run python scripts/check_langsmith.py
 
 lint:
 	uv run ruff check .

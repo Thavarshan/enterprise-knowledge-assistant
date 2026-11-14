@@ -8,7 +8,10 @@ activity events; exception details are limited to structured logs.
 
 import logging
 from collections.abc import AsyncIterator
+from contextlib import nullcontext
 from typing import Any
+
+from langsmith import Client, tracing_context
 
 from enterprise_assistant.agents.graph import build_graph
 from enterprise_assistant.agents.state import AgentState
@@ -42,6 +45,8 @@ class ChatService:
         retriever: Retriever,
         memory: SessionStore,
         tool_registry: ToolRegistry,
+        langsmith_client: Client | None = None,
+        langsmith_project: str | None = None,
     ) -> None:
         """Build a graph around injected retrieval and tool policy.
 
@@ -49,9 +54,13 @@ class ChatService:
             retriever: Adapter used by the knowledge-search tool.
             memory: Session store used after a successful graph run.
             tool_registry: Role policy applied before tool handler dispatch.
+            langsmith_client: Optional redacting client for graph traces.
+            langsmith_project: Project receiving enabled traces.
         """
         self.memory = memory
         self.graph: Any = build_graph(retriever, tool_registry)
+        self.langsmith_client = langsmith_client
+        self.langsmith_project = langsmith_project
 
     async def stream_turn(
         self,
@@ -98,25 +107,35 @@ class ChatService:
         response_text = ""
         citation_count = 0
         try:
-            async for update in self.graph.astream(
-                state,
-                stream_mode="updates",
-                config={
-                    "configurable": {"thread_id": session_id},
-                    "metadata": {
-                        "request_id": request_id,
-                        "session_id": session_id,
+            trace_context = (
+                tracing_context(
+                    client=self.langsmith_client,
+                    project_name=self.langsmith_project,
+                    enabled=True,
+                )
+                if self.langsmith_client is not None
+                else nullcontext()
+            )
+            with trace_context:
+                async for update in self.graph.astream(
+                    state,
+                    stream_mode="updates",
+                    config={
+                        "configurable": {"thread_id": session_id},
+                        "metadata": {
+                            "request_id": request_id,
+                            "session_id": session_id,
+                        },
                     },
-                },
-            ):
-                for node_update in update.values():
-                    for raw_event in node_update.get("events", []):
-                        event = ActivityEvent.model_validate(raw_event)
-                        yield event
-                    if "response" in node_update:
-                        response_text = str(node_update["response"])
-                    if "citations" in node_update:
-                        citation_count = len(node_update["citations"])
+                ):
+                    for node_update in update.values():
+                        for raw_event in node_update.get("events", []):
+                            event = ActivityEvent.model_validate(raw_event)
+                            yield event
+                        if "response" in node_update:
+                            response_text = str(node_update["response"])
+                        if "citations" in node_update:
+                            citation_count = len(node_update["citations"])
         except Exception as exc:
             logger.error(
                 "Agent graph failed",

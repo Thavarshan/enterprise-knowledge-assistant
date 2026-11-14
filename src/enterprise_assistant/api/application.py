@@ -28,7 +28,9 @@ from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.config.settings import Settings, get_settings
 from enterprise_assistant.memory.interfaces import SessionStore
 from enterprise_assistant.memory.sqlite import SQLiteSessionStore
-from enterprise_assistant.observability.langsmith import configure_langsmith
+from enterprise_assistant.observability.langsmith import (
+    create_langsmith_client,
+)
 from enterprise_assistant.observability.logging import configure_logging
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.retrieval.interfaces import Retriever
@@ -93,12 +95,14 @@ def create_app(
         A configured FastAPI application with its service container attached.
 
     Notes:
-        LangSmith setup only configures environment variables. It does not
-        establish that the external workspace accepts traces.
+        LangSmith tracing uses a client that removes inputs, outputs, and
+        metadata before trace export. A successful send remains unverified
+        until the synthetic smoke check succeeds.
     """
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
-    tracing_enabled = configure_langsmith(app_settings)
+    langsmith_client = create_langsmith_client(app_settings)
+    tracing_enabled = langsmith_client is not None
     session_store = memory or SQLiteSessionStore(app_settings.sqlite_path)
     if retriever is not None:
         document_retriever = retriever
@@ -123,7 +127,13 @@ def create_app(
             app_settings.rate_limit_capacity,
             app_settings.rate_limit_refill_per_second,
         ),
-        chat_service=ChatService(document_retriever, session_store, registry),
+        chat_service=ChatService(
+            document_retriever,
+            session_store,
+            registry,
+            langsmith_client=langsmith_client,
+            langsmith_project=app_settings.langsmith_project,
+        ),
     )
 
     @asynccontextmanager
@@ -146,7 +156,11 @@ def create_app(
             extra={"tracing_enabled": tracing_enabled,
                    "mock_mode": app_settings.mock_mode},
         )
-        yield
+        try:
+            yield
+        finally:
+            if langsmith_client is not None:
+                langsmith_client.close(timeout=5)
 
     application = FastAPI(
         title=app_settings.app_name,

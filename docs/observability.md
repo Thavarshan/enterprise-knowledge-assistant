@@ -2,12 +2,15 @@
 
 ## Four distinct signals
 
-| Signal | Produced by | Contains | Purpose |
-|---|---|---|---|
-| Application logs | Python logging and request middleware | Allowlisted operational fields and request ID | Diagnose API and graph failures. |
-| LangSmith traces | LangGraph environment integration | Potentially graph inputs and outputs | Inspect traced graph execution when enabled and accepted. |
-| Graph state | LangGraph during one run | Identity, question, route, plan, results, response, citations, events | Carry data and partial updates between nodes. |
-| Activity events | Graph nodes, ChatService, and API | Coarse transitions, evidence references, validation, failures | Show execution progress and outcomes to the UI. |
+- **Application logs:** Python logging and request middleware emit allowlisted
+  operational fields and request IDs for API and graph diagnosis.
+- **LangSmith traces:** The redacting client exposes run names and graph
+  structure while hiding inputs, outputs, metadata, runtime details, and
+  errors. Inspect graph execution when tracing is enabled and accepted.
+- **Graph state:** LangGraph holds identity, questions, routes, plans,
+  results, responses, citations, and events during one run.
+- **Activity events:** Graph nodes, ChatService, and the API emit coarse
+  transitions, evidence references, validation, and failures for the UI.
 
 Activity events are not an application log, LangSmith trace, or full state
 dump. They describe selected behavior and evidence; they do not expose hidden
@@ -30,9 +33,9 @@ Unexpected API and graph failures log exception type, not exception text.
 
 The activity schema carries both request ID and session ID. The request ID
 also appears in the HTTP response header. An evaluator can compare the
-header, SSE event IDs, and structured API logs for one request. LangSmith
-trace metadata includes the request and session IDs when native tracing
-works.
+header, SSE event IDs, and structured API logs for one request. The graph
+adds request and session IDs to local run metadata, but the LangSmith client
+removes metadata before export; those IDs are not available in remote traces.
 
 ## Graph events and UI activity
 
@@ -55,23 +58,22 @@ chunks. The UI does not display raw graph state or LangSmith internals.
 
 ## LangSmith configuration and limitations
 
-configure_langsmith enables environment-based native tracing only when
-LANGSMITH_TRACING is true in settings and an API key is present. It sets
-the project name and optional workspace ID. When tracing is disabled, it
-removes the API key and workspace ID from the process environment.
+LangSmith tracing requires the explicit opt-in and an API key. The optional
+LANGSMITH_WORKSPACE_ID must be a UUID, not the workspace display name. The
+application leaves implicit SDK tracing disabled and passes a dedicated
+client into LangGraph's tracing context for each graph run.
 
-This is configuration, not a connection test. The factory reports whether
-tracing is configured, but it does not submit a probe trace or confirm that
-credentials, workspace selection, network access, or project permissions
-work. The project documentation does not claim a successful external trace.
-The application defines no custom trace root or span instrumentation.
-LangGraph's native integration may create graph and child spans when the
-configured SDK sends a trace, but span completeness is not verified here.
+Before export, the client removes all run inputs, outputs, and metadata,
+omits runtime details, and replaces error strings with a fixed redaction
+marker. The SDK's environment flags also hide graph inputs, outputs, and
+metadata. Run names and graph structure remain visible for inspection.
+Remote trace correlation metadata is intentionally unavailable.
 
-The application does not redact LangSmith payloads. Native graph tracing may
-include questions, retrieved evidence, state values, and responses. Keep it
-disabled for sensitive data until an explicit data policy and redaction
-strategy are in place. Use synthetic test content for a connection check.
+Configuration alone does not confirm delivery. Run `make langsmith-check`
+to submit a graph invocation containing only synthetic content, locate the
+exact root run, and verify that inputs, outputs, and the synthetic marker
+were not exported. This command requires valid credentials and network
+access; it is not run in CI.
 
 ## Failure behavior
 
@@ -87,10 +89,12 @@ event store.
 Before reporting LangSmith as connected:
 
 1. Use a dedicated test project and synthetic request content.
-2. Confirm configured tracing, API key, and optional workspace ID.
-3. Run one graph request and inspect the matching trace in the workspace.
-4. Verify request/session correlation metadata and expected node spans.
-5. Record the observed result and any rejected credentials or permissions.
+2. Confirm tracing is enabled, the API key is set, and the optional
+   workspace selector is a UUID.
+3. Run `make langsmith-check` and require a successful exit.
+4. Inspect the matching run ID and expected graph node spans in the workspace.
+5. Confirm run inputs, outputs, and metadata are empty in the remote trace.
+6. Record the observed result and any rejected credentials or permissions.
 
 Until these steps succeed, treat LangSmith as an optional configured
 integration boundary rather than a verified observability backend.
