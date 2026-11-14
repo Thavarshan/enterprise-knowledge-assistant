@@ -46,12 +46,17 @@ has received and validated a real service response.
 
 ## Phase 4: Tools and security
 
-**Status: pending.**
+**Status: implemented for the active tool surface; broader adversarial
+evaluation remains.**
 
-- Implement strict analysis inputs and backend tool dispatch.
-- Add practical injection and exfiltration controls around enabled tools.
-- Add timeout, cancellation, failure, and security tests.
-- Preserve server-side role policy and complete citation identity checks.
+- Python analysis supports count, sum, and average over explicit bounded
+  numeric literals; the registry allows analysts and administrators only.
+- A deterministic input guard blocks clear instruction-override and
+  credential-exfiltration requests before message persistence.
+- OpenAI and Pinecone boundaries have timeout/cancellation tests; security
+  tests cover validation, role denial, prompt patterns, and citation identity.
+- The guard is intentionally a small pattern-based control, not a complete
+  injection classifier. Expand tests if tools or data sources expand.
 
 ## Phase 5: Demonstration readiness
 

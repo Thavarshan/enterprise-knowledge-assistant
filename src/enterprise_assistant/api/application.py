@@ -43,6 +43,7 @@ from enterprise_assistant.retrieval.pinecone import (
     PineconeRetriever,
 )
 from enterprise_assistant.security.authentication import AuthService
+from enterprise_assistant.security.guardrails import PromptInjectionGuardrail
 from enterprise_assistant.security.rate_limiting import TokenBucketRateLimiter
 from enterprise_assistant.tools.registry import ToolRegistry
 
@@ -64,6 +65,7 @@ class AppContainer:
         memory: Session persistence adapter shared by routes.
         retriever: Search adapter passed to the chat graph.
         tool_registry: Backend role policy for tool invocation.
+        input_guardrail: Input filter called before user message persistence.
         rate_limiter: Per-user, process-local request limiter.
         model_provider: Structured provider used by graph agents.
         chat_service: Graph orchestration and turn persistence service.
@@ -73,6 +75,7 @@ class AppContainer:
     memory: SessionStore
     retriever: Retriever
     tool_registry: ToolRegistry
+    input_guardrail: PromptInjectionGuardrail
     rate_limiter: TokenBucketRateLimiter
     model_provider: ModelProvider
     chat_service: ChatService
@@ -144,6 +147,7 @@ def create_app(
         memory=session_store,
         retriever=document_retriever,
         tool_registry=registry,
+        input_guardrail=PromptInjectionGuardrail(),
         rate_limiter=TokenBucketRateLimiter(
             app_settings.rate_limit_capacity,
             app_settings.rate_limit_refill_per_second,

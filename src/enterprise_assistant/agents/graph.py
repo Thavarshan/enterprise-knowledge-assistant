@@ -20,8 +20,17 @@ from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.rlm.contracts import ExecutionBudget
 from enterprise_assistant.rlm.executor import BoundedResearchExecutor
 from enterprise_assistant.security.authorization import Role
+from enterprise_assistant.tools.analysis import (
+    AnalysisInputError,
+    AnalysisResult,
+    PythonAnalysisTool,
+    parse_analysis_question,
+)
 from enterprise_assistant.tools.knowledge import KnowledgeSearchTool
-from enterprise_assistant.tools.registry import ToolRegistry
+from enterprise_assistant.tools.registry import (
+    ToolAuthorizationError,
+    ToolRegistry,
+)
 
 _CITATION_PATTERN = re.compile(r"\[([a-zA-Z0-9_-]+#[a-zA-Z0-9_-]+)\]")
 
@@ -150,8 +159,8 @@ def build_graph(
 ) -> Any:
     """Compile the bounded conversation workflow from injected adapters.
 
-    The StateGraph routes supervisor output to direct retrieval or a
-    recursive research executor, then runs response and citation validation.
+    The StateGraph routes supervisor output to direct retrieval, recursive
+    research, or validated arithmetic, then validates the final response.
     Node events append through the reducer declared on AgentState.
 
     Args:
@@ -168,9 +177,10 @@ def build_graph(
     """
     language_model = model_provider or MockModelProvider()
     knowledge_search = KnowledgeSearchTool(retriever)
+    python_analysis = PythonAnalysisTool()
 
     async def supervisor(state: AgentState) -> dict[str, Any]:
-        """Choose the direct-retrieval or bounded-research route.
+        """Choose direct retrieval, bounded research, or arithmetic analysis.
 
         The provider returns a validated route only. Roles and retrieval
         policy remain trusted backend state and are not model outputs.
@@ -341,14 +351,14 @@ def build_graph(
         }
 
     async def retrieval(state: AgentState) -> dict[str, Any]:
-        """Run the authorized knowledge-search tool for the selected query.
+        """Run the authorized knowledge-search tool for the user question.
 
         The role comes from graph state created by the API for the logged-in
         user. ToolRegistry checks policy before the handler derives access
         levels and calls the retriever.
 
         Args:
-            state: Authenticated workflow state and optional search plan.
+            state: Authenticated workflow state containing the question.
 
         Returns:
             Serialized results plus tool and retrieval events.
@@ -396,11 +406,113 @@ def build_graph(
         ]
         return {"results": serialized, "events": events}
 
-    async def response(state: AgentState) -> dict[str, Any]:
-        """Generate grounded claims from authorized retrieved chunks.
+    async def analysis(state: AgentState) -> dict[str, Any]:
+        """Execute the strict arithmetic tool under server-side role policy.
 
-        Empty results produce a fixed no-evidence response without a model
-        call. Model citations are canonicalized from the retrieved chunks.
+        The user question must match the documented numeric grammar. The
+        tool receives validated literals only and has no dynamic-code or
+        external-data capabilities.
+
+        Args:
+            state: Authenticated graph state containing the user question.
+
+        Returns:
+            A structured result or stable safe error code with an event.
+        """
+        try:
+            request = parse_analysis_question(state["question"])
+        except AnalysisInputError:
+            return _analysis_failure(
+                state,
+                code="analysis_input_invalid",
+                message=(
+                    "Use a supported calculation, such as calculate "
+                    "average of 10, 20, 30."
+                ),
+            )
+
+        role = Role(state["role"])
+        try:
+            result = cast(
+                AnalysisResult,
+                await tool_registry.execute(
+                    "python_analysis",
+                    role,
+                    request.model_dump(mode="python"),
+                    {"python_analysis": python_analysis.run},
+                ),
+            )
+        except ToolAuthorizationError:
+            return _analysis_failure(
+                state,
+                code="python_analysis_forbidden",
+                message=(
+                    "This account is not authorized to use Python analysis."
+                ),
+            )
+        except AnalysisInputError:
+            return _analysis_failure(
+                state,
+                code="analysis_input_invalid",
+                message="The requested calculation could not be completed.",
+            )
+
+        return {
+            "analysis_result": result.model_dump(mode="json"),
+            "events": [
+                _event(
+                    state,
+                    event_type="tool_execution",
+                    agent="analysis",
+                    node="analysis",
+                    message=(
+                        "Python analysis completed for "
+                        f"{result.input_count} numeric value(s)."
+                    ),
+                    metadata={
+                        "tool": "python_analysis",
+                        "operation": result.operation,
+                        "input_count": result.input_count,
+                    },
+                )
+            ],
+        }
+
+    def _analysis_failure(
+        state: AgentState,
+        *,
+        code: str,
+        message: str,
+    ) -> dict[str, Any]:
+        """Create a safe failed-analysis state update.
+
+        Args:
+            state: Authenticated graph state used for event correlation.
+            code: Stable error identifier, never provider text.
+            message: Static caller-facing description.
+
+        Returns:
+            Analysis failure code and one structured activity event.
+        """
+        return {
+            "analysis_error": code,
+            "events": [
+                _event(
+                    state,
+                    event_type="failure",
+                    agent="analysis",
+                    node="analysis",
+                    message=message,
+                    metadata={"error_code": code},
+                )
+            ],
+        }
+
+    async def response(state: AgentState) -> dict[str, Any]:
+        """Respond from authorized evidence or a validated analysis result.
+
+        Numeric analysis results use a fixed response. Retrieved evidence is
+        passed to the model, and empty search results produce a fixed message.
 
         Args:
             state: Workflow state containing serialized search results.
@@ -412,7 +524,30 @@ def build_graph(
             SearchResult.model_validate(result)
             for result in state.get("results", [])
         ]
-        if results:
+        analysis_data = state.get("analysis_result")
+        analysis_error = state.get("analysis_error")
+        citations: list[SourceCitation]
+        if analysis_data:
+            result = AnalysisResult.model_validate(analysis_data)
+            label = result.operation.title()
+            answer = (
+                f"{label} of {result.field} over {result.input_count} "
+                f"value(s): {result.value:g}."
+            )
+            citations = []
+            grounded = True
+        elif analysis_error == "python_analysis_forbidden":
+            answer = "This account is not authorized to use Python analysis."
+            citations = []
+            grounded = True
+        elif analysis_error == "analysis_input_invalid":
+            answer = (
+                "Use a supported calculation, such as "
+                "calculate average of 10, 20, 30."
+            )
+            citations = []
+            grounded = True
+        elif results:
             model_answer = await language_model.generate_answer(
                 state["question"],
                 results,
@@ -429,15 +564,19 @@ def build_graph(
             )
             citations = []
             grounded = True
+        if analysis_data:
+            response_message = "Returned a validated Python analysis result."
+        elif analysis_error:
+            response_message = "Returned a safe Python analysis rejection."
+        else:
+            response_message = "Generated a response from authorized evidence."
         events = [
             _event(
                 state,
                 event_type="agent_transition",
                 agent="response",
                 node="response",
-                message=(
-                    "Generated a response from authorized evidence."
-                ),
+                message=response_message,
                 metadata={"citation_count": len(citations)},
             )
         ]
@@ -548,10 +687,16 @@ def build_graph(
     graph.add_conditional_edges(
         "supervisor",
         lambda state: state["route"],
-        {"retrieval": "retrieval", "research": "research"},
+        {
+            "retrieval": "retrieval",
+            "research": "research",
+            "analysis": "analysis",
+        },
     )
+    graph.add_node("analysis", analysis)
     graph.add_edge("research", "response")
     graph.add_edge("retrieval", "response")
+    graph.add_edge("analysis", "response")
     graph.add_edge("response", "validate")
     # The topology is acyclic: each turn reaches validation and END once.
     graph.add_edge("validate", END)

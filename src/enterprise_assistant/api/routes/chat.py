@@ -1,8 +1,9 @@
 """Expose owner-scoped sessions and the SSE chat endpoint.
 
 Before streaming, the route authenticates the user, verifies session
-ownership, consumes a per-user rate token, and persists the user message.
-Graph activity is encoded as SSE; failures are returned as generic events.
+ownership, checks the input guardrail, consumes a per-user rate token, and
+persists the user message. Graph activity is encoded as SSE; failures are
+returned as generic events.
 """
 
 from collections.abc import AsyncIterator
@@ -100,11 +101,11 @@ async def stream_chat(
 ) -> StreamingResponse:
     """Validate ownership and limits before starting SSE output.
 
-    The route checks the owner-scoped session, consumes one per-user
-    token, and persists the user message before constructing the stream.
-    It then relays service activity as server-sent events. Stream-time
-    failures produce a generic failure event; the user message remains
-    persisted if graph execution fails.
+    The route checks the owner-scoped session and input guardrail, consumes
+    one per-user token, and persists the user message before constructing
+    the stream. It then relays service activity as server-sent events.
+    Stream-time failures produce a generic failure event; the user message
+    remains persisted if graph execution fails.
 
     Args:
         payload: Validated session identifier and nonblank message.
@@ -115,17 +116,26 @@ async def stream_chat(
         StreamingResponse using text/event-stream.
 
     Raises:
-        HTTPException: 404 for a foreign or missing session, or 429 when
-            the process-local token bucket is empty.
+        HTTPException: 400 for rejected input, 404 for a foreign or missing
+            session, or 429 when the process-local token bucket is empty.
 
     Security:
-        Ownership and rate checks happen before message persistence and
-        graph execution; client-supplied roles are not consulted.
+        Ownership, input guardrails, and rate checks happen before message
+        persistence and graph execution; client roles are not consulted.
     """
     container: Any = request.app.state.container
     if container.memory.get_session(payload.session_id, user.user_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    guardrail_decision = await container.input_guardrail.inspect(
+        payload.message,
+        user_id=user.user_id,
+    )
+    if not guardrail_decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=guardrail_decision.message,
+        )
     # Ownership and quota checks precede persistence and graph side effects.
     try:
         container.rate_limiter.consume(user.user_id)

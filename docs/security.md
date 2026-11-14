@@ -2,143 +2,150 @@
 
 ## Threat boundary
 
-The current system is a local assessment foundation with synthetic
-documents, development-only accounts, and a deterministic graph. It is not
-a production identity or data-isolation system. This guide distinguishes
-controls that execute today from protocols and safeguards still planned.
+This is an assessment application with synthetic documents and local
+development accounts. It has active request validation, role checks,
+retrieval filters, a narrow arithmetic tool, and a deterministic input
+guardrail. These controls are useful for the demonstrated paths but do not
+make the application a production identity or data-isolation system.
 
 | Input or state | Trust level | Current handling |
 |---|---|---|
-| Environment and local account file | Operator-controlled | Settings are validated; secret fields are excluded from model repr. |
+| Environment and local account file | Operator-controlled | Settings validate configuration; secret fields are hidden from model repr. |
 | Bearer token | Untrusted until resolved | AuthService maps it to process-owned identity and role. |
-| Request body | Untrusted | Pydantic schemas bound lengths and reject extra fields. |
-| Retrieved document | Untrusted content with validated metadata | Role filter is applied before fixture text enters graph state. |
-| Graph-generated response and citations | Internal but still validated | Citation marker gate runs before response chunks are emitted. |
-| LangSmith payload | External data transfer when enabled | No redaction is implemented. |
+| Request body | Untrusted | Pydantic bounds text and rejects extra fields; input guardrail runs before storage. |
+| Retrieved document | Untrusted content with validated metadata | Backend role filters run before content reaches the model. Prompt rules treat it as data. |
+| Model answer and citations | Untrusted generated output | Structured schemas and full document/chunk identity validation gate the response. |
+| LangSmith payload | External transfer when tracing is enabled | Configured client hides inputs and outputs and filters metadata. |
 
 ## Authentication and identity
 
-DEV_USERS_JSON accepts inline JSON or a path to a JSON file. The default
-local workflow uses data/users/default.json. That file contains plaintext
+`DEV_USERS_JSON` accepts inline JSON or a path to a JSON file. The local
+workflow uses `data/users/default.json`. That file contains plaintext
 development passwords and must remain ignored by Git. The bootstrap script
-creates the file with restrictive permissions and prints generated
-passwords once.
+creates it with restrictive permissions and prints generated passwords
+once.
 
 AuthService validates credentials and issues random opaque bearer tokens.
 Roles are loaded from server configuration; login input cannot choose a
-role. Unknown usernames use a random comparison value and receive the same
-error message as a wrong password. Tokens have no expiry, are not persisted,
-and are stored in process memory. They disappear at restart and are not
-shared between workers. Use an established identity provider before
-production.
+role. Tokens have no expiry, are not persisted, and are stored in process
+memory. They disappear at restart and are not shared between workers. Use
+an established identity provider before production.
 
-Missing or invalid bearer credentials are rejected with HTTP 401 before
-protected route work. Health and readiness endpoints are public. The
-identity endpoint returns the role associated with the token.
+Missing or invalid bearer credentials receive HTTP 401. Health and readiness
+endpoints are public. The identity endpoint returns the role associated
+with the token.
 
 ## Role policy and authorization boundaries
 
-The role vocabulary is viewer, analyst, and administrator. Document access
-levels follow a simple hierarchy:
+The role vocabulary is viewer, analyst, and administrator. Knowledge search
+is available to all roles, while Python analysis and MCP policies permit
+analysts and administrators only.
 
-| Role | Chat and search | Analytics policy | MCP policy |
-|---|---|---|---|
-| Viewer | Allowed | Denied | Denied |
-| Analyst | Allowed | Allowed | Allowed |
-| Administrator | Allowed | Allowed | Allowed |
+ToolRegistry checks role policy on the backend before awaiting a handler.
+The model returns only a workflow route; it cannot assign roles, access
+labels, departments, tool permissions, or retrieval filters. The graph
+creates identity from the authenticated API user. A request body, prompt,
+or UI control is not authorization.
 
-The current graph installs only a knowledge-search handler. Analytics and
-MCP policy entries do not provide executable tools. Administrator access
-means all tools represented by the current policy table, not unrestricted
-system access.
-
-ToolRegistry checks role policy on the backend before it awaits a handler.
-Prompt text, a UI control, or a request field is not authorization. The
-knowledge tool derives allowed access labels from the role in graph state
-and passes them to retrieval. Graph identity is initialized by ChatService
-from the authenticated API user; future entrypoints must preserve that
-trusted construction.
+The Python analysis handler accepts only a validated count, sum, or average
+over explicit finite numeric values. It has no filesystem, network, shell,
+or dynamic-code interface. Its chat grammar accepts commands such as
+`calculate average of 10, 20, 30`; it does not parse Python expressions.
+Viewers who reach the analysis route are rejected by ToolRegistry before
+the handler runs.
 
 SQLite reads and writes include owner identity. Foreign-owned sessions use
 the same 404 response as missing sessions. The chat route verifies ownership
-before consuming a rate token or storing the user message.
+before input inspection, rate consumption, or message persistence.
 
 ## Document filtering and citation handling
 
-The fixture retriever applies access-level and optional exact department
-filters before ranking content. Viewer may search viewer documents;
-analysts may search viewer and analyst documents; administrators may search
-all three levels.
+The fixture retriever applies access-level and optional department filters
+before ranking. Pinecone receives the same trusted metadata filters in its
+query and rechecks returned metadata before exposing chunk content. Viewer
+may search viewer documents; analysts may search viewer and analyst
+documents; administrators may search all three levels.
 
-This application-level filter is the only active document isolation. The
-Pinecone adapter does not issue queries or filters. A future provider must
-derive namespace and metadata filters from authenticated identity, apply
-them server-side before returning text, and fail closed if filtering cannot
-be enforced. Namespace separation alone is not a complete authorization
-control.
+The response provider receives only authorized retrieved chunks. Every
+claim must include a citation with a complete document ID and chunk ID.
+The graph resolves those identities against the current turn's evidence,
+copies citation metadata from the source chunk, and withholds answers whose
+markers do not validate. Citation identity proves provenance, not semantic
+entailment; response quality still needs evaluation.
 
-The response node copies citations from retrieved chunk metadata. The
-validator checks answer markers against citations whose chunk IDs occur in
-the current retrieval result set. It does not independently compare full
-document/chunk pairs. The deterministic graph does not accept client
-citations, but a model-backed response should validate exact pairs and
-identifier syntax.
+## Prompt injection and exfiltration controls
 
-## Prompt injection and guardrails
+`PromptInjectionGuardrail` blocks clear requests to override prior/system
+instructions and requests to reveal or export credentials. The API applies
+it before persisting a user message, so rejected text is not stored or sent
+to the model. Decisions use safe codes and do not echo the input.
 
-There is no language model in the current graph, so retrieved text is not
-used as model instructions. The deterministic response includes selected
-fixture text and generated source markers. Request schemas validate shape
-and length; citation validation gates response chunks.
+This is a small pattern-based check, not a general injection classifier.
+It can miss paraphrased attacks and can reject some benign wording. The
+model's fixed system instructions separately tell it to treat user input,
+history, and retrieved documents as untrusted data. The model has no direct
+tool-call or arbitrary-code interface. The only active tools are role-gated
+knowledge search and bounded numeric arithmetic.
 
-InputGuardrail and OutputGuardrail are protocol definitions only. No prompt
-injection classifier, output sanitizer, data-exfiltration policy, or unsafe
-tool inspection is implemented or called. Citation checks are not a general
-content-safety mechanism. Treat retrieved documents as untrusted when
-adding a model, and keep unrestricted tools disabled until concrete
-guardrails and server-side authorization tests exist.
+Retrieval authorization is independent of prompts. An injection cannot
+change the server-derived role filter. The response schema requires exact
+source identities, and the arithmetic parser accepts only literal numbers.
+These controls reduce risk for the implemented surface but are not a
+security proof for arbitrary future tools or real customer data.
 
-## Rate limiting
+## External calls, timeouts, and cancellation
 
-TokenBucketRateLimiter keeps one bucket per user in the API process.
-Defaults are capacity 30 and refill 0.5 token per second. Each chat request
-consumes one token. Elapsed time comes from a monotonic clock; the balance
-is capped at capacity. A rejected request receives HTTP 429 and an
-approximate Retry-After value rounded up to at least one second.
+OpenAI requests use configured deadlines and disable automatic retries.
+Caller cancellation propagates through the asynchronous SDK adapter.
+Pinecone operations have an SDK request timeout, retries disabled, and an
+outer async deadline; cancellation propagates to the awaiting coroutine.
+Pinecone's SDK is synchronous, so cancellation cannot stop a worker thread
+already inside an HTTP request. Its SDK timeout bounds that request.
+Errors are sanitized before they reach users or activity events.
 
-The bucket map has no thread lock and no shared backing store. It is not
-safe as a coordinated quota across threaded or multi-worker deployments.
-The configured policy does not limit login attempts or other endpoints.
+## Rate limiting and storage
+
+`TokenBucketRateLimiter` keeps one bucket per user in the API process.
+Defaults are capacity 30 and refill 0.5 token per second. The buckets do not
+coordinate across processes, have no shared backing store, and do not limit
+login attempts.
+
+SQLite operations are synchronous and run from async routes. Production use
+needs a shared identity provider, distributed rate limits, managed
+persistent storage, and a reviewed lifecycle for credentials and sessions.
 
 ## Logging, traces, and secrets
 
 Structured application logs use an allowlist and omit request bodies,
 passwords, bearer tokens, and document contents. Request IDs are validated
 or replaced with UUIDs and used for correlation. Authentication decisions
-are not logged with user identifiers; API status and safe error categories
-are logged.
+are not logged with user identifiers; safe error categories are logged.
 
 Settings fields for secrets are excluded from their model representation.
-DevUserConfig, IssuedToken, and PineconeConfig use default representations
-that include password or token/key fields. Current code does not log those
-objects, but future diagnostics must not format or log them.
+`DevUserConfig`, `IssuedToken`, and `PineconeConfig` representations may
+include sensitive fields; current code does not log those objects.
 
-LangSmith tracing is disabled by default. Enabling it may export graph
-inputs, retrieved text, state, and response content. No payload redaction or
-successful external trace verification is implemented. Keep it disabled
-for sensitive data until a reviewed data policy and a tested redaction
-strategy exist.
+LangSmith tracing is disabled by default. When enabled, the configured
+client hides run inputs and outputs and restricts metadata to an allowlist.
+The synthetic connectivity check confirms the redacted trace path. Never
+enable tracing for data whose transfer is not permitted by the operator.
 
-Never commit .env, local account JSON, real provider keys, or customer data.
-The root ignore rules exclude plan.md and assignment.md under docs. The
-data/users directory has its own ignore file so local credential files do
-not enter commits.
+Never commit `.env`, local account JSON, real provider keys, or customer
+data. Root ignore rules exclude `plan.md` and `assignment.md`; the
+`data/users` directory has a local ignore rule for development credentials.
 
-## Deployment limitations
+## Automated security coverage
 
-The bearer token map and rate limiter are process-local. SQLite operations
-are synchronous and run directly from async API handlers. CORS origins,
-secrets, and provider configuration require deployment-specific review.
-Production use requires shared authentication, distributed rate limits,
-managed persistent storage, provider-side filtering, tracing redaction,
-and security testing.
+Unit and API tests verify that:
+
+- Viewer users cannot run Python analysis.
+- Numeric tool inputs reject extra fields, non-finite numbers, oversized
+  values, and executable expressions.
+- The input guard blocks representative override and credential-exfiltration
+  prompts before persistence.
+- Retrieval filters remove unauthorized documents before graph/model use.
+- Citation validation compares complete source identities.
+- Provider failures and caller cancellation do not expose exception text.
+
+These tests cover implemented controls, not adversarial robustness against
+all prompt-injection styles.

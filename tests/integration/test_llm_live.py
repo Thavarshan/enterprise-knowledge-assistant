@@ -60,7 +60,7 @@ async def test_openai_provider_returns_structured_live_responses() -> None:
     finally:
         await provider.aclose()
 
-    assert decision.route in {"retrieval", "research"}
+    assert decision.route in {"retrieval", "research", "analysis"}
     assert answer.claims
     allowed = {
         (chunk.metadata.document_id, chunk.metadata.chunk_id),

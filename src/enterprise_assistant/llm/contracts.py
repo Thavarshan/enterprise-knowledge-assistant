@@ -14,17 +14,18 @@ from enterprise_assistant.domain.models import SearchResult
 from enterprise_assistant.memory.models import ChatMessage
 from enterprise_assistant.rlm.contracts import TaskDecomposition
 
-Workflow = Literal["retrieval", "research"]
+Workflow = Literal["retrieval", "research", "analysis"]
 
 
 class SupervisorDecision(BaseModel):
     """Validate the supervisor's allowed workflow selection.
 
     The model output contains routing only. It cannot supply roles, access
-    labels, departments, tool permissions, or retrieval filters.
+    labels, departments, tool permissions, or retrieval filters. Analysis
+    inputs are independently parsed and validated by the Python tool.
 
     Attributes:
-        route: Workflow selected for the current request.
+        route: Retrieval, research, or explicit arithmetic analysis.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)

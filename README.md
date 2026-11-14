@@ -17,8 +17,10 @@ flowchart LR
     GRAPH --> SUP[Model supervisor or mock]
     SUP -->|direct question| RET[Retrieval]
     SUP -->|investigation| RES[Bounded recursive research]
+    SUP -->|explicit arithmetic| ANA[Python analysis]
     RET --> TOOL[Authorized knowledge search]
     RES --> TOOL
+    ANA --> RESP
     TOOL --> MOCK[Fixture-backed retrieval]
     TOOL --> HYBRID[Pinecone dense + BM25]
     HYBRID --> RRF[Reciprocal rank fusion]
@@ -109,7 +111,8 @@ provider credentials.
 - SQLite session ownership and turn history.
 - A compiled LangGraph graph with model-backed Supervisor and Response
   nodes, a bounded recursive Research executor, authorized retrieval, and
-  citation validation.
+  citation validation. Explicit arithmetic routes to the role-gated analysis
+  tool.
 - An asynchronous OpenAI Responses adapter that parses structured
   supervisor decisions, research decomposition, and answer claims. Live
   credential-backed verification is still outstanding.
@@ -127,13 +130,16 @@ The mock adapter uses deterministic lexical matching. Pinecone mode uses the exi
 
 The recursive executor is verified with deterministic decomposition and
 synthetic retrieval. It enforces depth two, four retrieval calls, twenty
-documents, and a thirty-second wall-clock budget. It does not execute
-model-generated code. A live OpenAI response has not been verified because
-the workspace has no `OPENAI_API_KEY`; this also prevents a real model-backed
-recursive demonstration. There is no Python analysis tool, MCP server,
-production identity provider, distributed rate limiter, semantic memory, or
-human approval flow. In-memory rate limits and login tokens do not
-coordinate across API processes.
+documents, and a thirty-second wall-clock budget. The Python analysis tool
+supports count, sum, and average over explicit numeric literals; it does not
+execute model-generated code. A live OpenAI response has not been verified
+because the workspace has no `OPENAI_API_KEY`; this also prevents a real
+model-backed recursive demonstration. The input guardrail checks clear
+instruction-override and credential-exfiltration patterns, but it is not a
+general prompt-injection classifier. There is no MCP server, production
+identity provider, distributed rate limiter, semantic memory, or human
+approval flow. In-memory rate limits and login tokens do not coordinate
+across API processes.
 
 LangSmith tracing remains optional for normal requests. The UI continues to
 show application activity events; LangSmith spans are a separate diagnostic
@@ -163,7 +169,7 @@ See [the evaluation matrix](docs/evaluation-matrix.md) for requirement weights, 
 
 ## Next milestone
 
-Complete live OpenAI verification, then implement the validated Python
-analysis tool, prompt-injection controls, and execution-accurate SSE events.
-The recursive research executor and Pinecone integration are documented in
-`docs/agent-design.md` and `docs/retrieval-design.md`.
+Complete live OpenAI verification, then improve execution-accurate SSE
+events, LangSmith model-trace verification, and demonstration readiness. The
+analysis tool, recursive research executor, and Pinecone integration are
+documented in `docs/agent-design.md` and `docs/retrieval-design.md`.

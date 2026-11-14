@@ -13,9 +13,11 @@ flowchart LR
   START --> Supervisor
   Supervisor -->|direct question| Retrieval
   Supervisor -->|investigation| Research
+  Supervisor -->|explicit arithmetic| Analysis
   Research -->|authorized leaf searches| KnowledgeSearch
   Retrieval --> KnowledgeSearch
   KnowledgeSearch --> Response
+  Analysis --> Response
   Response --> Validate
   Validate --> END
 ```
@@ -29,15 +31,16 @@ the Response node.
 
 | Node | Reads | Writes | Behavior |
 |---|---|---|---|
-| Supervisor | Question, recent history | Route, event | Provider returns a validated retrieval or research choice. |
+| Supervisor | Question, recent history | Route, event | Provider returns a validated retrieval, research, or analysis choice. |
 | Research | Question, authenticated role | Results, findings, budget summary, events | Recursively decomposes, searches, and fuses bounded findings. |
 | Retrieval | Question, authenticated role | Results and source event | Runs one direct search through the authorized tool registry. |
+| Analysis | Question, authenticated role | Validated numeric result or safe failure | Parses explicit numeric literals and calls role-gated Python arithmetic. |
 | Response | Authorized serialized results | Grounded response and citations | Provider returns claims citing full document/chunk identities. |
 | Validate | Response, citations, retrieved identities | Final response, validation flag, events | Withholds model output if source identities do not match. |
 
-`ToolRegistry` has policies for knowledge search, Python analysis, and MCP,
-but only knowledge search currently has an executable handler. The analysis
-tool is tracked as remaining work in the roadmap.
+`ToolRegistry` has policies for knowledge search, Python analysis, and MCP.
+Knowledge search and Python analysis have executable handlers; MCP remains
+an interface and policy boundary without an installed handler.
 
 ## Routing and recursive research
 
@@ -85,6 +88,12 @@ mitigations into three searches. The unit and graph tests verify all three
 branches execute, viewer filters remain applied, and source attribution is
 preserved. Live OpenAI decomposition still requires a successful external
 model call; see `docs/roadmap.md`.
+
+An explicit command such as `calculate average of 10, 20, 30` selects the
+analysis route. The parser accepts only a count, sum, or average over
+comma-separated decimal literals; ToolRegistry denies viewers before the
+handler runs. The result is deterministic and does not use retrieved
+documents or execute generated code.
 
 ## Shared graph state and conversation history
 

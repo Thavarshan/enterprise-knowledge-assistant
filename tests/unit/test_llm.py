@@ -5,6 +5,7 @@ validated, complete citation identities are enforced, and injected provider
 decisions reach the graph without controlling role policy.
 """
 
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -26,7 +27,11 @@ from enterprise_assistant.llm.contracts import (
     ModelProvider,
     SupervisorDecision,
 )
-from enterprise_assistant.llm.providers import MockModelProvider
+from enterprise_assistant.llm.providers import (
+    LLMProviderError,
+    MockModelProvider,
+    OpenAIModelProvider,
+)
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.security.authorization import Role
 from enterprise_assistant.tools.registry import ToolRegistry
@@ -155,3 +160,75 @@ async def test_graph_uses_injected_model_decision_and_grounded_answer() -> None:
     assert node_names == ["supervisor", "retrieval", "response", "validate"]
     provider.classify_intent.assert_awaited_once()
     provider.generate_answer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_timeout_is_sanitized() -> None:
+    """Verify a stalled OpenAI call becomes a safe provider error.
+
+    The mocked SDK operation exceeds the configured timeout without
+    contacting the provider or leaking exception details.
+    """
+    provider = OpenAIModelProvider(
+        api_key="synthetic-key",
+        model="synthetic-model",
+        timeout_seconds=1,
+    )
+
+    async def slow_parse(**kwargs):
+        """Simulate an unresponsive provider SDK call.
+
+        Args:
+            kwargs: SDK request fields unused by the fake operation.
+        """
+        del kwargs
+        await asyncio.sleep(1.1)
+
+    provider._client.responses.parse = AsyncMock(side_effect=slow_parse)
+    try:
+        with pytest.raises(LLMProviderError) as error:
+            await provider.classify_intent("payment timeout")
+        assert "synthetic-key" not in str(error.value)
+    finally:
+        await provider.aclose()
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_preserves_caller_cancellation() -> None:
+    """Verify request cancellation propagates through the provider adapter.
+
+    The SDK call is mocked and signaled before cancellation so the test
+    checks the active request path rather than a task that never started.
+    """
+    provider = OpenAIModelProvider(
+        api_key="synthetic-key",
+        model="synthetic-model",
+        timeout_seconds=5,
+    )
+    started = asyncio.Event()
+
+    async def wait_for_cancellation(**kwargs):
+        """Wait until the caller cancels this mocked SDK request.
+
+        Args:
+            kwargs: SDK request fields unused by the fake operation.
+        """
+        del kwargs
+        started.set()
+        await asyncio.Event().wait()
+
+    provider._client.responses.parse = AsyncMock(
+        side_effect=wait_for_cancellation
+    )
+    task = asyncio.create_task(
+        provider.classify_intent("payment timeout")
+    )
+    try:
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    finally:
+        if not task.done():
+            task.cancel()
+        await provider.aclose()

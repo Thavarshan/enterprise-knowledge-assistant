@@ -88,9 +88,11 @@ doing work. A missing session and a foreign-owned session both return 404.
 It then consumes one token from the authenticated user's in-memory bucket.
 An empty bucket returns HTTP 429 with a `Retry-After` value.
 
+The input guardrail also runs before persistence. Clear instruction-override
+or credential-exfiltration requests receive HTTP 400 and are not stored.
 Only after these checks does the route append the user message. Therefore an
-invalid owner or a rate-limited request does not create a message. If later
-graph execution fails, the user message remains in session history.
+invalid owner, rejected prompt, or rate-limited request does not create a
+message. If later graph execution fails, the user message remains in history.
 
 ### 4. Graph inputs and node updates
 
@@ -107,14 +109,17 @@ count, then yields events to the route.
 
 ### 5. Retrieval, response, and validation
 
-With `LLM_PROVIDER=openai`, the Supervisor requests a structured retrieval or
-research route. It cannot provide or modify authorization fields. Mock mode
+With `LLM_PROVIDER=openai`, the Supervisor requests a structured retrieval,
+research, or analysis route. It cannot provide or modify authorization
+fields. Mock mode
 uses the existing case-insensitive keyword rule for `investigate`, `compare`,
 and `analyze`. Direct retrieval performs one authorized search. Research
 recursively expands model-proposed subtasks to depth two and runs at most
 four searches under a twenty-document and thirty-second budget. It preserves
 per-task source IDs and aggregates results using full document/chunk identity.
-Partial failures leave successful branches available to Response.
+Partial failures leave successful branches available to Response. Explicit
+arithmetic requests route to `PythonAnalysisTool`, which parses literal
+numbers and is denied to viewers by ToolRegistry.
 
 Direct retrieval and every research leaf use the server role with
 `ToolRegistry`, then call `KnowledgeSearchTool`. The tool maps the role to
@@ -155,6 +160,7 @@ answer.
 | Invalid request body | HTTP 422 with error type and field location only. |
 | Missing or foreign session | HTTP 404 with the same message. |
 | Empty rate bucket | HTTP 429 with `Retry-After`. |
+| Rejected override or credential-exfiltration prompt | HTTP 400 before persistence. |
 | Graph or provider exception after SSE starts | Generic `failure` event; exception text stays server-side. |
 | Assistant persistence `LookupError` | Generic memory `failure` event. |
 | Other stream exception | Generic `failure` event from the route boundary. |

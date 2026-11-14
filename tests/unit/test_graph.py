@@ -92,3 +92,49 @@ async def test_graph_aggregates_a_multi_subtask_incident_investigation(
         finding["sources"]
         for finding in research_update["investigation_findings"]
     )
+
+
+@pytest.mark.asyncio
+async def test_analysis_route_executes_tool_only_for_authorized_roles() -> None:
+    """Verify explicit arithmetic uses the tool registry's role policy.
+
+    Analysts receive a computed result. Viewers reach the same route but are
+    rejected by server-side policy before the Python handler can run.
+    """
+    graph = build_graph(InMemoryRetriever([]), ToolRegistry())
+
+    async def run_as(role: str) -> list[dict[str, object]]:
+        """Run one arithmetic request as a fixed authenticated role.
+
+        Args:
+            role: Server-assigned test role, never request data.
+
+        Returns:
+            LangGraph updates for the requested conversation.
+        """
+        state: AgentState = {
+            "request_id": f"analysis-{role}",
+            "session_id": f"analysis-session-{role}",
+            "user_id": role,
+            "role": role,
+            "question": "Calculate average of 10, 20, 30.",
+            "events": [],
+        }
+        return [
+            update async for update in graph.astream(
+                state,
+                stream_mode="updates",
+            )
+        ]
+
+    analyst_updates = await run_as("analyst")
+    viewer_updates = await run_as("viewer")
+    analyst_response = analyst_updates[2]["response"]
+    viewer_response = viewer_updates[2]["response"]
+    viewer_analysis = viewer_updates[1]["analysis"]
+
+    assert analyst_updates[0]["supervisor"]["route"] == "analysis"
+    assert "20" in analyst_response["response"]
+    assert "python_analysis" in str(analyst_updates[1]["analysis"])
+    assert "not authorized" in viewer_response["response"]
+    assert viewer_analysis["analysis_error"] == "python_analysis_forbidden"

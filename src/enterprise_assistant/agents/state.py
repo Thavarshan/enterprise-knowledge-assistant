@@ -1,8 +1,8 @@
 """Define the shared TypedDict state for the LangGraph workflow.
 
-Node updates share identity, question, route, plan, result, response, and
-citation fields. The `events` field uses `operator.add` so updates append
-activity records instead of replacing records from earlier nodes.
+Node updates share identity, question, route, analysis output, research
+findings, results, response, and citation fields. The `events` field uses
+`operator.add` so updates append rather than replace activity records.
 """
 
 import operator
@@ -27,7 +27,7 @@ class AgentState(TypedDict, total=False):
         role: Server-resolved role used by tool policy.
         question: Validated user question for the current turn.
         history: Owner-scoped messages available as model context.
-        route: Supervisor choice: retrieval or research.
+        route: Supervisor choice: retrieval, research, or analysis.
         investigation_findings: Subtasks paired with returned source IDs.
         investigation_summary: Bounded search and decomposition counters.
         results: Serialized ranked evidence chunks.
@@ -47,7 +47,9 @@ class AgentState(TypedDict, total=False):
     role: str
     question: str
     history: list[ChatMessage]
-    route: Literal["retrieval", "research"]
+    route: Literal["retrieval", "research", "analysis"]
+    analysis_result: dict[str, Any]
+    analysis_error: str
     investigation_findings: list[dict[str, Any]]
     investigation_summary: dict[str, Any]
     results: list[dict[str, Any]]

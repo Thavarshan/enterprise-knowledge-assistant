@@ -25,6 +25,10 @@ from enterprise_assistant.llm.contracts import (
 )
 from enterprise_assistant.memory.models import ChatMessage
 from enterprise_assistant.rlm.contracts import TaskDecomposition
+from enterprise_assistant.tools.analysis import (
+    AnalysisInputError,
+    parse_analysis_question,
+)
 
 logger = logging.getLogger(__name__)
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
@@ -68,12 +72,17 @@ class MockModelProvider:
         """
         del history
         normalized = question.casefold()
-        research_terms = ("investigate", "compare", "analyze")
-        route = (
-            "research"
-            if any(term in normalized for term in research_terms)
-            else "retrieval"
-        )
+        try:
+            parse_analysis_question(question)
+        except AnalysisInputError:
+            research_terms = ("investigate", "compare", "analyze")
+            route = (
+                "research"
+                if any(term in normalized for term in research_terms)
+                else "retrieval"
+            )
+        else:
+            route = "analysis"
         return SupervisorDecision(route=route)
 
     async def generate_answer(
@@ -399,10 +408,12 @@ def _system_instructions(task: str) -> str:
     )
     task_instructions = {
         "supervisor": (
-            "Select retrieval for a direct knowledge question and research "
-            "for multi-part investigation or comparison. Choose only the "
-            "route field. Do not infer or assign roles, permissions, access "
-            "levels, departments, tools, or filters."
+            "Select retrieval for a direct knowledge question, research for "
+            "multi-part investigation or comparison, and analysis only for "
+            "an explicit calculate/compute count, sum, or average request "
+            "over comma-separated numeric literals in the user question. "
+            "Choose only the route field. Do not infer or assign roles, "
+            "permissions, access levels, departments, tools, or filters."
         ),
         "response": (
             "Answer using only the supplied retrieved evidence. Make every "

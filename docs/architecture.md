@@ -29,9 +29,13 @@ flowchart TB
   Graph --> Supervisor[Structured model supervisor or mock]
   Supervisor -->|direct route| Retrieval[Retrieval node]
   Supervisor -->|investigation route| Research[Bounded recursive research]
+  Supervisor -->|explicit arithmetic| Analysis[Python analysis]
   Research --> Registry
   Retrieval --> Registry[ToolRegistry authorization]
   Registry --> Knowledge[KnowledgeSearchTool]
+  Registry --> PythonAnalysis[Validated arithmetic handler]
+  Analysis --> Registry
+  PythonAnalysis --> Response[Validated analysis result]
   Knowledge --> Filter[Role-derived metadata filter]
   Filter --> Fixture[In-memory fixture retriever]
   Filter --> Pinecone[Filtered Pinecone dense and BM25 searches]
@@ -50,7 +54,7 @@ flowchart TB
 | FastAPI | HTTP schemas, identity, ownership, rate checks, SSE transport | Async routes call synchronous SQLite methods directly. |
 | Chat service | Build per-turn state, consume graph updates, persist final answer | Graph and assistant persistence are separate failure boundaries. |
 | LangGraph | Route, recursively investigate, search, generate claims, validate citations | Configurable structured model provider; deterministic mock remains default. |
-| Security | Resolve local users and enforce tool roles | Local-only tokens and in-memory limits; see the security guide. |
+| Security | Resolve local users, inspect prompts, and enforce tool roles | Local-only tokens, bounded input patterns, and in-memory limits; see the security guide. |
 | Retrieval | Apply role filters; search fixtures or Pinecone; fuse dense and BM25 | Pinecone uses its existing document schema and configured namespace. |
 | Memory | Store owner-scoped sessions and messages | SQLite, one synchronous connection per operation. |
 | Observability | Request logs, graph activity events, optional tracing | Redacted LangSmith delivery is verified for deterministic runs; model traces await a live model call. |
@@ -76,7 +80,7 @@ sequenceDiagram
   U->>UI: Submit question
   UI->>API: Authenticated POST /chat/stream
   API->>S: Resolve identity and verify session owner
-  API->>S: Consume rate token and persist user message
+  API->>S: Inspect message, consume token, and persist user message
   API->>G: Start graph with trusted user, role, and question
   G->>R: Search with role-derived access labels
   R-->>G: Ranked authorized chunks
@@ -110,13 +114,17 @@ searches under a twenty-document and thirty-second budget. Findings retain
 task-to-source identities and are fused by complete document/chunk pairs.
 Partial search failures preserve successful sibling results. Both paths
 generate structured claims from authorized evidence and validate citation
-pairs. No model-generated code is executed. See `docs/model-provider.md`
-and `docs/agent-design.md` for provider and executor details.
+pairs. Explicit numeric commands may select the analysis route; the graph
+parses a narrow literal-number grammar and enforces analyst/admin policy
+before using the arithmetic handler. No model-generated code is executed.
+The API input guard blocks obvious instruction overrides and credential
+exfiltration before it stores or sends the user message. See
+`docs/model-provider.md`, `docs/security.md`, and `docs/agent-design.md`.
 
 Graph events use a reducer that appends each node's event list. The graph has
-no cycles, retries, or model-driven tool loop, and it compiles without a
-checkpointer. A session ID passed as LangGraph thread metadata does not make
-state durable.
+no cycles, retries, or open-ended model-driven tool loop. It compiles without
+a checkpointer; a session ID passed as LangGraph thread metadata does not
+make state durable.
 
 The user message is stored before graph execution. A graph failure becomes a
 generic activity event and prevents assistant-answer persistence. The route

@@ -1,8 +1,8 @@
 """Enforce backend role policy before dispatching an async tool handler.
 
 The registry maps known tool names to allowed roles, rejects unknown tools
-and missing handlers, then awaits an injected handler. Analytics and MCP
-policies exist, but the graph currently wires only knowledge search.
+and missing handlers, then awaits an injected handler. Knowledge search and
+Python analysis are executable; MCP remains a policy/interface boundary.
 """
 
 from collections.abc import Awaitable, Callable
@@ -44,10 +44,10 @@ class ToolPolicy:
 class ToolRegistry:
     """Centralize backend role checks for named tool handlers.
 
-    Knowledge search is allowed to all roles. Analytics and MCP policy
-    entries allow analysts and administrators, but the graph currently
-    installs only knowledge search. Prompt instructions are not a substitute
-    for this server-side check.
+    Knowledge search is allowed to all roles. Python analysis and MCP are
+    restricted to analysts and administrators. The graph installs handlers
+    for search and numeric analysis; MCP has no executable handler.
+    Prompt instructions are not a substitute for this server-side check.
 
     Notes:
         Policies and handlers are separate: authorize can succeed while
@@ -58,7 +58,7 @@ class ToolRegistry:
         """Install the current role policy table.
 
         Viewer access covers knowledge search. Analyst and administrator
-        roles are allowed by policy for analytics and MCP scaffolds.
+        roles are allowed by policy for Python analysis and MCP.
         """
         all_roles = frozenset(Role)
         analyst_roles = frozenset({Role.ANALYST, Role.ADMINISTRATOR})

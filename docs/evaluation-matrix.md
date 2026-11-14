@@ -10,10 +10,10 @@ copies those weights, which total 100%.
 | RAG Design | 15% | Implemented for the synthetic corpus | Pinecone Documents API ingestion, integrated dense search, BM25 full-text search, role filters, and RRF pass the live synthetic test. Broader labeled evaluation remains. |
 | LangGraph Usage | 15% | In progress | A compiled graph executes and emits node updates. OpenAI structured routing and response calls are wired; mock mode remains deterministic and live calls are unverified. |
 | RLM Implementation | 10% | Implemented with mock; live-model verification pending | The executor recursively decomposes, authorizes each leaf search, enforces depth/call/document/time budgets, preserves partial findings, and fuses source identities. |
-| Security & Guardrails | 10% | In progress | Development authentication, backend role checks, request validation, and full document/chunk citation matching work. Model-facing defenses need additional coverage. |
+| Security & Guardrails | 10% | In progress | Server role checks, strict numeric tool inputs, full citation identities, and a pre-persistence override/exfiltration guard are tested. Pattern coverage is intentionally limited and needs adversarial evaluation. |
 | Observability | 10% | In progress | Structured logs and graph activity events work. A redacted LangSmith trace has been verified; real model-backed parent-child traces remain blocked on model credentials. |
 | Async Engineering | 5% | In progress | API routes, graph nodes, and provider/retrieval adapters are async. SQLite, local fixture scanning, and the Streamlit HTTP client still perform blocking work. |
-| RBAC | 5% | Implemented | Server-assigned roles are enforced for the active knowledge-search tool. Analytics and MCP tools are not executable yet. |
+| RBAC | 5% | Implemented for active tools | Server-assigned roles control knowledge search and Python analysis; MCP has no executable handler. |
 | Code Quality | 5% | Implemented | Ruff, formatting, type, docstring, comment, line-length, syntax, build, test, and dependency-audit checks run in CI. |
 | Documentation | 5% | Implemented | Architecture, lifecycle, security, assumptions, decisions, and implementation limits are documented. |
 
@@ -35,8 +35,9 @@ copies those weights, which total 100%.
 | Sparse/BM25 and hybrid retrieval | Implemented | Pinecone `TextQuery` runs BM25 full-text ranking; `EmbedQuery` returns dense ranking; `HybridRetriever` fuses both through RRF. |
 | Pinecone metadata authorization and retrieval quality | Verified | Opt-in live integration test checks provider filters, viewer restrictions, semantic paraphrase, and exact incident-ID ranking in `assessment-demo`. |
 | Recursive research and execution budgets | Implemented with mock | `rlm/executor.py`; tests verify nested decomposition, multi-subtask incident search, source attribution, partial failures, and depth/call/document/time limits. No model-generated code is executed. |
+| Python analysis tool | Implemented for bounded arithmetic | `tools/analysis.py`; count, sum, and average accept only explicit finite numeric literals, with analyst/administrator authorization. |
 | LangSmith conversations, graph, tool, retrieval, and failure traces | In progress | `observability/langsmith.py` and a redacted external trace verify the existing path; model-backed parent-child trace evidence remains. |
-| Prompt injection, exfiltration, unsafe tools, output policies | In progress | Fixed model instructions treat user/history/document content as untrusted; complete citation pairs are checked. Tool validation and automated injection tests remain. |
+| Prompt injection, exfiltration, unsafe tools, output policies | In progress | Fixed model instructions treat user/history/document content as untrusted. Clear override/exfiltration requests are rejected before persistence; arbitrary code execution is absent; broader adversarial coverage remains. |
 | Docker Compose, reproducible lock, and CI | Implemented | `Dockerfile`, `compose.yaml`, `uv.lock`, `.github/workflows/ci.yaml`; CI builds and starts both Compose services and checks API/UI connectivity. |
 | MCP server, semantic memory, approval flow | Deferred | These capabilities are outside the current implementation milestone. |
 | Repository-wide Python documentation enforcement | Implemented | Ruff Google pydocstyle rules, AST coverage validation, Makefile, pre-commit, CI, and validator tests. |

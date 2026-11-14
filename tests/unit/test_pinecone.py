@@ -4,6 +4,7 @@ The unit tests use SDK-compatible mocks and the synthetic incident corpus.
 They do not contact Pinecone or disclose restricted chunk content.
 """
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -120,10 +121,12 @@ async def test_pinecone_query_applies_and_rechecks_access_filter() -> None:
     )
 
     query_filter = index.documents.search.call_args.kwargs["filter"]
+    query_timeout = index.documents.search.call_args.kwargs["timeout"]
     assert query_filter == {
         "access_level": {"$in": ["viewer"]},
         "department": {"$eq": "payments"},
     }
+    assert query_timeout == 15
     assert len(results) == 1
     assert results[0].chunk.metadata.access_level == "viewer"
     assert results[0].chunk.content == corpus.chunks[0].content
@@ -139,6 +142,43 @@ async def test_pinecone_query_applies_and_rechecks_access_filter() -> None:
 
     assert sparse_results
     assert type(sparse_score).__name__ == "TextQuery"
+
+
+@pytest.mark.asyncio
+async def test_pinecone_search_preserves_caller_cancellation() -> None:
+    """Verify async cancellation is not converted into a provider failure.
+
+    A stalled index acquisition is cancelled before a search request is
+    issued, proving the adapter preserves the caller's cancellation signal.
+    """
+    client, _index = _fake_pinecone_client([])
+    retriever = PineconeRetriever(
+        PineconeConfig("synthetic-key", "synthetic-index", "assessment-demo"),
+        client=client,
+    )
+    started = asyncio.Event()
+
+    async def wait_for_index() -> object:
+        """Wait until cancellation reaches the adapter's async boundary.
+
+        Returns:
+            No index; the test cancels this coroutine before it completes.
+        """
+        started.set()
+        await asyncio.Event().wait()
+
+    retriever._ensure_index = wait_for_index
+    task = asyncio.create_task(
+        retriever.search(
+            "payment timeout",
+            allowed_access_levels=frozenset({"viewer"}),
+        )
+    )
+    await started.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
 
 @pytest.mark.asyncio
