@@ -2,15 +2,19 @@
 
 import re
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
+from enterprise_assistant.agents.nodes.research import plan_research
+from enterprise_assistant.agents.nodes.response import grounded_response
+from enterprise_assistant.agents.nodes.retrieval import selected_query
+from enterprise_assistant.agents.nodes.supervisor import select_workflow
 from enterprise_assistant.agents.state import AgentState
 from enterprise_assistant.domain.models import SearchResult, SourceCitation
 from enterprise_assistant.observability.events import ActivityEvent, EventType
 from enterprise_assistant.retrieval.interfaces import Retriever
-from enterprise_assistant.rlm.contracts import ExecutionBudget, interpret_search_plan, plan_queries
+from enterprise_assistant.rlm.contracts import ExecutionBudget
 from enterprise_assistant.security.authorization import Role
 from enterprise_assistant.tools.knowledge import KnowledgeSearchTool
 from enterprise_assistant.tools.registry import ToolRegistry
@@ -59,12 +63,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
     """Compile the deterministic workflow; a checkpointer can be supplied later."""
 
     async def supervisor(state: AgentState) -> dict[str, Any]:
-        question = state["question"].casefold()
-        route = (
-            "research"
-            if any(word in question for word in ("investigate", "compare", "analyze"))
-            else "retrieval"
-        )
+        route = select_workflow(state["question"])
         event = _event(
             state,
             event_type="agent_transition",
@@ -76,9 +75,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
         return {"route": route, "events": [event]}
 
     async def research(state: AgentState) -> dict[str, Any]:
-        plan = plan_queries(state["question"], max_queries=1)
-        budget = ExecutionBudget(max_depth=1, max_search_calls=1, max_documents=5)
-        queries = interpret_search_plan(plan, budget)
+        plan, queries, budget = plan_research(state["question"])
         event = _event(
             state,
             event_type="agent_transition",
@@ -96,8 +93,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
 
     async def retrieval(state: AgentState) -> dict[str, Any]:
         role = Role(state["role"])
-        plan = state.get("search_plan", {"queries": [state["question"]]})
-        query = cast(list[str], plan["queries"])[0]
+        query = selected_query(state["question"], state.get("search_plan"))
         results = await tool_registry.execute(
             "knowledge_search",
             role,
@@ -136,15 +132,7 @@ def build_graph(retriever: Retriever, tool_registry: ToolRegistry) -> Any:
 
     async def response(state: AgentState) -> dict[str, Any]:
         results = [SearchResult.model_validate(result) for result in state.get("results", [])]
-        if results:
-            citations = [SourceCitation.from_chunk(result.chunk) for result in results[:2]]
-            answer = "\n\n".join(
-                f"{result.chunk.content} [{citation.document_id}#{citation.chunk_id}]"
-                for result, citation in zip(results[:2], citations, strict=True)
-            )
-        else:
-            citations = []
-            answer = "I could not find an accessible document that answers this question."
+        answer, citations = grounded_response(results)
         events = [
             _event(
                 state,

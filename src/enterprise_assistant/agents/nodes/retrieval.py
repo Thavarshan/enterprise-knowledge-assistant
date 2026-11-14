@@ -1,3 +1,9 @@
-"""Retrieval behavior is currently represented in the executable graph node."""
+"""Select only a validated query from the bounded graph search plan."""
 
-RETRIEVAL_BOUNDARY = "Access-filtered evidence lookup through the Retriever protocol."
+from typing import Any
+
+
+def selected_query(question: str, plan: dict[str, Any] | None) -> str:
+    """Return the sole bounded search query, falling back to the user question."""
+    queries = plan.get("queries", []) if plan is not None else []
+    return str(queries[0]) if queries else question

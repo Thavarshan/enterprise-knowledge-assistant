@@ -1,3 +1,13 @@
-"""Supervisor behavior is currently represented in the executable graph node."""
+"""Deterministic intent routing policy for the Supervisor graph node."""
 
-SUPERVISOR_BOUNDARY = "Intent classification and workflow routing; deterministic in Phase 0."
+from typing import Literal
+
+Workflow = Literal["retrieval", "research"]
+
+
+def select_workflow(question: str) -> Workflow:
+    """Choose the bounded investigation path for explicit analysis requests."""
+    normalized = question.casefold()
+    if any(word in normalized for word in ("investigate", "compare", "analyze")):
+        return "research"
+    return "retrieval"
