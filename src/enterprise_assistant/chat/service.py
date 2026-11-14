@@ -1,4 +1,10 @@
-"""Translate LangGraph updates into safe events and persisted turns."""
+"""Adapt an authenticated chat turn to LangGraph and session persistence.
+
+The service creates initial graph state from server-resolved identity,
+streams node-produced events, captures the validated response, and persists
+it only after graph completion. Graph and persistence failures become safe
+activity events; exception details are limited to structured logs.
+"""
 
 import logging
 from collections.abc import AsyncIterator
@@ -16,12 +22,34 @@ logger = logging.getLogger(__name__)
 
 
 class ChatService:
+    """Run the graph for a turn and persist the final assistant message.
+
+    The service translates LangGraph node updates into validated activity
+    events. It stores an assistant response only after graph completion;
+    failures are logged by type and returned as generic events.
+
+    Attributes:
+        memory: Synchronous session store used for assistant persistence.
+        graph: Compiled LangGraph workflow built from injected adapters.
+
+    Notes:
+        No checkpointer is configured, so a thread ID in run metadata does
+        not make graph state durable.
+    """
+
     def __init__(
         self,
         retriever: Retriever,
         memory: SessionStore,
         tool_registry: ToolRegistry,
     ) -> None:
+        """Build a graph around injected retrieval and tool policy.
+
+        Args:
+            retriever: Adapter used by the knowledge-search tool.
+            memory: Session store used after a successful graph run.
+            tool_registry: Role policy applied before tool handler dispatch.
+        """
         self.memory = memory
         self.graph: Any = build_graph(retriever, tool_registry)
 
@@ -33,6 +61,32 @@ class ChatService:
         question: str,
         user: AuthenticatedUser,
     ) -> AsyncIterator[ActivityEvent]:
+        """Stream a graph run and persist its final answer.
+
+        Initial identity and role come from the authenticated API user.
+        Node updates are converted to ActivityEvent objects while response
+        text and citation count are collected. Graph failures yield a
+        generic failure event and stop; assistant persistence errors also
+        yield a failure event. The user message was persisted by the route.
+
+        Args:
+            request_id: Correlation identifier assigned by middleware.
+            session_id: Owner-scoped conversation thread identifier.
+            question: Validated message passed to the graph.
+            user: Authenticated identity and server-assigned role.
+
+        Yields:
+            Typed graph activity, persistence, completion, or failure
+            events.
+
+        Side Effects:
+            Appends an assistant message after graph success. Events and
+            provider exception details are not saved to session history.
+
+        Notes:
+            The graph run uses LangGraph update streaming. The configured
+            thread ID is metadata only because no checkpointer is supplied.
+        """
         state: AgentState = {
             "request_id": request_id,
             "session_id": session_id,

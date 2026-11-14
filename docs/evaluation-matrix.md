@@ -16,11 +16,12 @@ The source PDF containing evaluator weightings was not available in the supplied
 | Retrieval interfaces and local deterministic adapter | Not supplied | Implemented | `retrieval/interfaces.py`, `retrieval/in_memory.py`; lexical mock search only. |
 | Pinecone-backed dense retrieval and ingestion | Not supplied | Scaffolded | `retrieval/pinecone.py` and settings define the adapter boundary; live SDK, indexing, embeddings, and queries remain. |
 | Sparse/BM25 and hybrid retrieval | Not supplied | Scaffolded | `retrieval/sparse.py`, `retrieval/hybrid.py`; RRF fusion is implemented, but no live dense/sparse sources are connected. |
-| RLM planning, batching, depth and execution budgets | Not supplied | Scaffolded | `rlm/contracts.py`; one structured query is interpreted with fixed budgets; no recursive investigation. |
-| LangSmith conversations, graph, tool, retrieval, and failure traces | Not supplied | Scaffolded | `observability/langsmith.py` enables LangGraph native tracing when configured; a real external trace has not been verified. |
-| Prompt injection, exfiltration, unsafe tools, output policies | Not supplied | Scaffolded | `security/guardrails.py` contracts; concrete model-facing protections remain. Backend role and citation enforcement are implemented. |
+| RLM planning, batching, depth and execution budgets | Not supplied | Scaffolded | `rlm/contracts.py`; one query, depth, call count, and result limit are used. Timeout is not enforced; decomposition and batching are unused. |
+| LangSmith conversations, graph, tool, retrieval, and failure traces | Not supplied | Scaffolded | `observability/langsmith.py` configures native tracing when enabled; no successful external trace has been verified. |
+| Prompt injection, exfiltration, unsafe tools, output policies | Not supplied | Scaffolded | `security/guardrails.py` contracts; concrete model-facing protections remain. Backend role checks and citation-marker validation exist; full document/chunk pair validation is a known gap. |
 | Docker, Compose, reproducible lock, CI | Not supplied | Implemented | `Dockerfile`, `compose.yaml`, `uv.lock`, `.github/workflows/ci.yaml`; exact local build/start results are reported in the final verification. |
 | Production model provider, full research, MCP server, semantic memory, approval flow | Not supplied | Deferred | Roadmap milestones documented in `docs/roadmap.md`. |
+| Repository-wide Python documentation enforcement | Not supplied | Implemented | Ruff Google pydocstyle rules, AST coverage validation, Makefile, pre-commit, CI, and validator tests. |
 
 ## Status meanings
 

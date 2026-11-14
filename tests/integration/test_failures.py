@@ -1,4 +1,9 @@
-"""Graceful graph dependency failure behavior."""
+"""Verify graph dependency failures become safe user-visible events.
+
+A failing retriever simulates provider outage. The test checks that exception
+text is withheld and that no assistant answer is persisted after graph
+failure.
+"""
 
 import json
 
@@ -11,6 +16,13 @@ from enterprise_assistant.retrieval.interfaces import Retriever
 
 
 class FailingRetriever:
+    """Simulate a provider failure through the Retriever contract.
+
+    The adapter raises a synthetic runtime error so tests can verify the
+    graph boundary returns a generic failure and does not save an assistant
+    answer.
+    """
+
     async def search(
         self,
         query: str,
@@ -19,6 +31,17 @@ class FailingRetriever:
         department: str | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
+        """Raise a deterministic provider error for every query.
+
+        Args:
+            query: Search text, unused in this failure adapter.
+            allowed_access_levels: Access labels, unused in this adapter.
+            department: Optional filter, unused in this adapter.
+            limit: Result cap, unused in this adapter.
+
+        Raises:
+            RuntimeError: Always, to simulate an unavailable provider.
+        """
         del query, allowed_access_levels, department, limit
         raise RuntimeError("synthetic provider outage")
 
@@ -26,6 +49,14 @@ class FailingRetriever:
 def test_retrieval_failure_is_streamed_without_exception_details(
     tmp_path,
 ) -> None:
+    """Verify provider details stay server-side on graph failure.
+
+    The user message is already stored before graph execution; the
+    assistant answer is not persisted when retrieval fails.
+
+    Args:
+        tmp_path: Pytest-managed directory for the temporary database.
+    """
     settings = Settings(
         _env_file=None,
         app_env="test",

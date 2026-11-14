@@ -1,4 +1,14 @@
-"""FastAPI application factory with explicit dependencies and clean lifespan."""
+"""Assemble the FastAPI application and process-scoped service container.
+
+The factory selects fixture or Pinecone retrieval, creates authentication,
+SQLite memory, tool authorization, rate limiting, and the graph-backed chat
+service, then registers routes and error handlers. SQLite initialization is
+performed in the ASGI lifespan; other adapters are constructed at factory
+time. Provider and credential values come from `Settings`.
+
+The factory supports injected settings, memory, and retrievers so tests can
+exercise request behavior without external providers.
+"""
 
 import logging
 from collections.abc import AsyncIterator
@@ -35,6 +45,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AppContainer:
+    """Hold process-scoped adapters and services for FastAPI.
+
+    The factory stores one container on application state so route handlers
+    share the same authentication token map, memory adapter, retriever, tool
+    policy, rate limiter, and chat service. It is constructed once per app;
+    injected memory and retrieval adapters support isolated tests.
+
+    Attributes:
+        settings: Validated configuration used to build the process.
+        auth: Process-local development identity and token service.
+        memory: Session persistence adapter shared by routes.
+        retriever: Search adapter passed to the chat graph.
+        tool_registry: Backend role policy for tool invocation.
+        rate_limiter: Per-user, process-local request limiter.
+        chat_service: Graph orchestration and turn persistence service.
+    """
     settings: Settings
     auth: AuthService
     memory: SessionStore
@@ -50,6 +76,26 @@ def create_app(
     retriever: Retriever | None = None,
     memory: SessionStore | None = None,
 ) -> FastAPI:
+    """Build the API and its process-scoped dependencies.
+
+    Settings select mock fixture retrieval or the explicit Pinecone
+    scaffold. The factory registers health and versioned API routes,
+    request correlation, CORS, and safe exception responses. SQLite
+    initialization runs in the lifespan hook, not during import.
+
+    Args:
+        settings: Optional validated settings; environment settings are
+            loaded when omitted.
+        retriever: Optional search adapter override for tests or embedding.
+        memory: Optional session store override for tests or embedding.
+
+    Returns:
+        A configured FastAPI application with its service container attached.
+
+    Notes:
+        LangSmith setup only configures environment variables. It does not
+        establish that the external workspace accepts traces.
+    """
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
     tracing_enabled = configure_langsmith(app_settings)
@@ -82,6 +128,18 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        """Initialize process resources for the ASGI lifetime.
+
+        The synchronous store initializer creates SQLite tables before the
+        application serves requests. There is no async database pool or
+        explicit shutdown hook.
+
+        Args:
+            application: FastAPI instance entering its lifespan.
+
+        Yields:
+            Control to the ASGI server after initialization.
+        """
         container.memory.initialize()
         logger.info(
             "Application startup complete",
@@ -116,6 +174,18 @@ def create_app(
     async def handle_api_error(
         _request: Request, exc: APIError
     ) -> JSONResponse:
+        """Serialize a deliberate application error safely.
+
+        The response contains only the status, stable code, and caller-safe
+        message carried by APIError.
+
+        Args:
+            _request: Request associated with the exception; unused here.
+            exc: Structured application error.
+
+        Returns:
+            JSON response with the error status and payload.
+        """
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": exc.code, "message": exc.message}},
@@ -125,6 +195,18 @@ def create_app(
     async def handle_validation_error(
         _request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        """Return a safe summary of request validation failures.
+
+        Only error types and locations are exposed; submitted values are
+        omitted to avoid echoing credentials or other request content.
+
+        Args:
+            _request: Request associated with the invalid payload.
+            exc: FastAPI validation error containing field locations.
+
+        Returns:
+            HTTP 422 JSON response with sanitized validation details.
+        """
         errors = [{"type": error["type"], "loc": error["loc"]}
                   for error in exc.errors()]
         return JSONResponse(
@@ -142,6 +224,19 @@ def create_app(
     async def handle_http_error(
         _request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
+        """Normalize framework HTTP errors for API clients.
+
+        Known status codes receive stable machine-readable codes. The
+        framework status, safe string detail, and response headers are
+        preserved.
+
+        Args:
+            _request: Request associated with the HTTP error.
+            exc: Framework HTTP exception to translate.
+
+        Returns:
+            JSON response preserving the exception status and headers.
+        """
         code = {
             401: "unauthorized",
             403: "forbidden",
@@ -160,6 +255,19 @@ def create_app(
     async def handle_unexpected_error(
         _request: Request, exc: Exception
     ) -> JSONResponse:
+        """Hide unexpected exception details from API responses.
+
+        The handler logs the exception type and returns a generic HTTP 500
+        payload. It intentionally does not include exception text or a
+        traceback in the client response.
+
+        Args:
+            _request: Request associated with the failure.
+            exc: Unexpected exception; only its type is logged.
+
+        Returns:
+            Generic internal-error JSON response.
+        """
         logger.error("Unhandled API error", extra={
                      "error_type": type(exc).__name__})
         return JSONResponse(

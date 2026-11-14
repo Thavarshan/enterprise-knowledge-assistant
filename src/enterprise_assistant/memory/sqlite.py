@@ -1,4 +1,10 @@
-"""SQLite session store with explicit owner scoping for every read and write."""
+"""Persist sessions and messages in a local SQLite database.
+
+Each operation opens a short-lived connection, uses parameterized SQL, and
+includes `owner_id` in session access queries. Foreign keys cascade message
+deletes. Database calls are synchronous and use a five-second connection
+timeout; they are not offloaded from the FastAPI event loop.
+"""
 
 import sqlite3
 from datetime import UTC, datetime
@@ -13,10 +19,40 @@ from enterprise_assistant.memory.models import (
 
 
 class SQLiteSessionStore:
+    """Persist owner-scoped chat sessions and messages in SQLite.
+
+    The store opens one synchronous connection per operation and creates the
+    parent directory for file-backed databases. SQL parameters protect
+    values from injection; every session lookup and append includes owner
+    identity. The adapter is intended for the demo and modest local use,
+    not high-latency production storage.
+
+    Attributes:
+        database_path: SQLite filename or the special in-memory path.
+
+    Concurrency:
+        Connections are operation-local, but calls are synchronous and the
+        API does not offload them from its event loop.
+    """
+
     def __init__(self, database_path: str) -> None:
+        """Set the database path used by each operation.
+
+        Args:
+            database_path: File path or SQLite in-memory database marker.
+        """
         self.database_path = database_path
 
     def _connect(self) -> sqlite3.Connection:
+        """Open a configured connection and ensure its parent exists.
+
+        Returns:
+            Connection with row mappings and foreign-key enforcement
+            enabled.
+
+        Notes:
+            The caller owns and must close the returned connection.
+        """
         if self.database_path != ":memory:":
             Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.database_path, timeout=5)
@@ -25,6 +61,11 @@ class SQLiteSessionStore:
         return connection
 
     def initialize(self) -> None:
+        """Create session and message tables and their lookup indexes.
+
+        The schema enforces valid message roles and cascades message deletion
+        when a session is removed.
+        """
         with self._connect() as connection:
             connection.executescript(
                 """
@@ -50,6 +91,11 @@ class SQLiteSessionStore:
             )
 
     def healthcheck(self) -> bool:
+        """Run a minimal query to check database availability.
+
+        Returns:
+            True when SQLite accepts a query; False for SQLite errors.
+        """
         try:
             with self._connect() as connection:
                 connection.execute("SELECT 1").fetchone()
@@ -60,6 +106,18 @@ class SQLiteSessionStore:
     def create_session(
         self, owner_id: str, title: str | None = None
     ) -> ChatSession:
+        """Create and persist a new session for an owner.
+
+        Empty or missing titles become New conversation. The database
+        assigns no session ID; this method generates a UUID before insert.
+
+        Args:
+            owner_id: Trusted authenticated user ID.
+            title: Optional title supplied by the API.
+
+        Returns:
+            The session record inserted into the database.
+        """
         session = ChatSession(
             session_id=str(uuid4()),
             owner_id=owner_id,
@@ -77,6 +135,15 @@ class SQLiteSessionStore:
         return session
 
     def get_session(self, session_id: str, owner_id: str) -> ChatSession | None:
+        """Fetch a session only for its authenticated owner.
+
+        Args:
+            session_id: Session identifier to query.
+            owner_id: Authenticated user ID.
+
+        Returns:
+            Session record or None for missing and foreign-owned sessions.
+        """
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT session_id, owner_id, title, created_at FROM sessions "
@@ -88,6 +155,15 @@ class SQLiteSessionStore:
     def list_messages(
         self, session_id: str, owner_id: str
     ) -> list[ChatMessage] | None:
+        """Read messages only after confirming session ownership.
+
+        Args:
+            session_id: Session whose history is requested.
+            owner_id: Authenticated user ID.
+
+        Returns:
+            Ordered message records, or None if the session is inaccessible.
+        """
         with self._connect() as connection:
             owns_session = connection.execute(
                 "SELECT 1 FROM sessions WHERE session_id = ? AND owner_id = ?",
@@ -115,6 +191,25 @@ class SQLiteSessionStore:
     def append_message(
         self, session_id: str, owner_id: str, role: MessageRole, content: str
     ) -> ChatMessage:
+        """Insert a message after checking session ownership.
+
+        Ownership lookup and insert occur within the same connection
+        context.
+        A missing or foreign-owned session fails before content is written.
+
+        Args:
+            session_id: Destination session identifier.
+            owner_id: Authenticated owner.
+            role: User or assistant role.
+            content: Message text to persist.
+
+        Returns:
+            The stored message with its generated row ID.
+
+        Raises:
+            LookupError: No session exists for this owner.
+            RuntimeError: SQLite does not return the inserted row ID.
+        """
         created_at = datetime.now(UTC).isoformat()
         with self._connect() as connection:
             owner = connection.execute(

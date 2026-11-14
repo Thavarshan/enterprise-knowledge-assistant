@@ -1,1 +1,5 @@
-"""MCP adapter boundary; no server or network client is wired in Phase 0."""
+"""Define the boundary for future Model Context Protocol integrations.
+
+No network client, credentials, approval gate, or executable MCP handler is
+registered in the current application.
+"""

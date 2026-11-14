@@ -1,4 +1,9 @@
-"""Owned session endpoints and graph-backed SSE conversation endpoint."""
+"""Expose owner-scoped sessions and the SSE chat endpoint.
+
+Before streaming, the route authenticates the user, verifies session
+ownership, consumes a per-user rate token, and persists the user message.
+Graph activity is encoded as SSE; failures are returned as generic events.
+"""
 
 from collections.abc import AsyncIterator
 from typing import Any
@@ -32,6 +37,19 @@ async def create_session(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
 ) -> SessionResponse:
+    """Create a conversation owned by the authenticated user.
+
+    Session data is written through the configured synchronous store;
+    the resulting record is converted to the public response schema.
+
+    Args:
+        payload: Optional title validated by the request schema.
+        request: Request containing the shared service container.
+        user: Authenticated owner resolved by FastAPI.
+
+    Returns:
+        The newly created session identifier, title, and timestamp.
+    """
     session = request.app.state.container.memory.create_session(
         user.user_id, payload.title)
     return SessionResponse.from_record(session)
@@ -43,6 +61,24 @@ async def get_session(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
 ) -> SessionDetailResponse:
+    """Return a session and its messages only to its owner.
+
+    The store checks ownership on both the session lookup and history
+    query. Nonexistent and foreign-owned sessions share the same 404
+    response to avoid disclosing whether another user's ID exists.
+
+    Args:
+        session_id: Session identifier from the URL.
+        request: Request containing the shared service container.
+        user: Authenticated owner resolved by FastAPI.
+
+    Returns:
+        Public session details and ordered messages.
+
+    Raises:
+        HTTPException: 404 when the session is absent or not owned by
+            this user.
+    """
     memory = request.app.state.container.memory
     session: ChatSession | None = memory.get_session(session_id, user.user_id)
     messages = memory.list_messages(session_id, user.user_id)
@@ -62,10 +98,35 @@ async def stream_chat(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
 ) -> StreamingResponse:
+    """Validate ownership and limits before starting SSE output.
+
+    The route checks the owner-scoped session, consumes one per-user
+    token, and persists the user message before constructing the stream.
+    It then relays service activity as server-sent events. Stream-time
+    failures produce a generic failure event; the user message remains
+    persisted if graph execution fails.
+
+    Args:
+        payload: Validated session identifier and nonblank message.
+        request: Request supplying the service container and request ID.
+        user: Authenticated user and trusted role.
+
+    Returns:
+        StreamingResponse using text/event-stream.
+
+    Raises:
+        HTTPException: 404 for a foreign or missing session, or 429 when
+            the process-local token bucket is empty.
+
+    Security:
+        Ownership and rate checks happen before message persistence and
+        graph execution; client-supplied roles are not consulted.
+    """
     container: Any = request.app.state.container
     if container.memory.get_session(payload.session_id, user.user_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    # Ownership and quota checks precede persistence and graph side effects.
     try:
         container.rate_limiter.consume(user.user_id)
     except RateLimitExceeded as exc:
@@ -84,6 +145,15 @@ async def stream_chat(
         payload.session_id, user.user_id, "user", payload.message)
 
     async def event_stream() -> AsyncIterator[str]:
+        """Relay graph activity and mask unexpected stream failures.
+
+        Each service event is encoded as an SSE record. An exception
+        after response headers have been sent cannot change the HTTP
+        status, so the generator emits a generic failure event instead.
+
+        Yields:
+            Encoded SSE strings for activity and any terminal failure.
+        """
         try:
             async for event in container.chat_service.stream_turn(
                 request_id=request_id,

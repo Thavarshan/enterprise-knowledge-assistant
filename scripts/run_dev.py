@@ -1,4 +1,9 @@
-"""Run the API and Streamlit processes together and stop them on Ctrl+C."""
+"""Start API and Streamlit processes for local development.
+
+The launcher bootstraps missing user configuration, starts Uvicorn and
+Streamlit as separate child processes, and terminates both on exit or
+interrupt. Child processes share the repository and its `.env` file.
+"""
 
 import os
 import subprocess
@@ -10,6 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _users_configured(contents: str) -> bool:
+    """Check whether the configured development accounts can be loaded.
+
+    Args:
+        contents: Local environment-file text.
+
+    Returns:
+        True for inline account JSON or an existing configured file.
+    """
     configured_value = next(
         (
             line.partition("=")[2].strip().strip("'\"")
@@ -29,6 +42,16 @@ def _users_configured(contents: str) -> bool:
 
 
 def main() -> None:
+    """Bootstrap configuration and supervise API and UI child processes.
+
+    Uvicorn and Streamlit run as separate processes with the repository as
+    their working directory. If either exits, the launcher terminates the
+    other, waits briefly, then kills remaining children.
+
+    Side Effects:
+        May create local credentials and starts subprocesses on configured
+        API and UI ports.
+    """
     env_path = ROOT / ".env"
     contents = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
     if not _users_configured(contents):

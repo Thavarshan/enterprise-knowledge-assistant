@@ -1,4 +1,9 @@
-"""Minimal JSON log formatter with request correlation and safe fields."""
+"""Emit structured JSON logs with request correlation.
+
+The formatter serializes a small allowlist of operational fields and omits
+request bodies, credentials, tokens, and document contents. Middleware
+provides the request context and resets it after each request.
+"""
 
 import json
 import logging
@@ -9,7 +14,25 @@ request_id_context: ContextVar[str] = ContextVar("request_id", default="-")
 
 
 class JsonFormatter(logging.Formatter):
+    """Format selected operational log fields as JSON.
+
+    The formatter uses an allowlist rather than serializing arbitrary record
+    attributes. It includes request correlation and omits request bodies,
+    credentials, tokens, and document contents.
+    """
+
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize a log record with the approved operational fields.
+
+        The active request context supplies a correlation ID when the record
+        does not carry one directly.
+
+        Args:
+            record: Standard logging record to format.
+
+        Returns:
+            One JSON object as a string.
+        """
         payload: dict[str, object] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
@@ -34,6 +57,14 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str) -> None:
+    """Replace root handlers with the structured JSON formatter.
+
+    Args:
+        level: Logging level name applied to the root logger.
+
+    Side Effects:
+        Clears existing root handlers and installs one stream handler.
+    """
     root = logging.getLogger()
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())

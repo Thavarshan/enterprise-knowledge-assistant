@@ -7,3 +7,46 @@
 - Local mode uses a fixture-backed retriever. `MOCK_MODE=false` selects the explicit Pinecone boundary, which currently returns an actionable not-configured failure rather than silently choosing another production database.
 - The backend is intended to run as one API process while using local in-memory tokens and rate buckets. Production multi-instance deployment needs shared identity and rate-limit state.
 - LangSmith integration uses LangGraph's native environment-based tracing and is disabled by default. No external trace was tested as part of the foundation.
+
+## Configuration reference
+
+The API's Settings model reads process environment variables and then the
+repository .env file. Empty values are ignored. Secret-bearing fields are
+excluded from the Pydantic model representation. Mock mode needs no model,
+LangSmith, or Pinecone credentials.
+
+| Variable | Default | Use and limits |
+|---|---|---|
+| APP_NAME | Enterprise Knowledge Assistant | FastAPI title. |
+| APP_ENV | development | Environment label; does not itself enable production controls. |
+| MOCK_MODE | true | Selects fixture retrieval. False selects the unimplemented Pinecone adapter. |
+| API_PREFIX | /api/v1 | Prefix for authentication and chat routes. |
+| API_HOST | 0.0.0.0 | Settings field only; launch commands currently bind 0.0.0.0 directly. |
+| API_PORT | 8000 | Read by run_dev and Compose host-port mapping; make api currently uses 8000. |
+| UI_PORT | 8501 | Read by run_dev and Compose host-port mapping. |
+| API_BASE_URL | http://localhost:8000 | Read by Streamlit from its process environment; Compose overrides it to api:8000. |
+| SQLITE_PATH | data/sessions.sqlite3 | Local synchronous SQLite store path. |
+| CORS_ORIGINS | http://localhost:8501 | JSON list of browser origins accepted by FastAPI. |
+| LOG_LEVEL | INFO | Root application log level. |
+| RATE_LIMIT_CAPACITY | 30 | Initial token capacity per user in this process. |
+| RATE_LIMIT_REFILL_PER_SECOND | 0.5 | Token refill rate per user. |
+| DEV_USERS_JSON | empty | Inline account JSON or file path; setup writes data/users/default.json. |
+| LANGSMITH_TRACING | false | Explicit tracing opt-in; payloads are not redacted or verified. |
+| LANGSMITH_API_KEY | empty | Secret required with tracing opt-in. |
+| LANGSMITH_PROJECT | enterprise-knowledge-assistant | LangSmith project label. |
+| LANGSMITH_WORKSPACE_ID | empty | Optional workspace selector for LangSmith. |
+| PINECONE_API_KEY | empty | Secret retained in settings; no client consumes it yet. |
+| PINECONE_INDEX_NAME | empty | Reserved for the future Pinecone adapter. |
+| PINECONE_NAMESPACE | empty | Reserved for the future Pinecone adapter. |
+
+The UI reads API_BASE_URL directly from its process environment and falls
+back to localhost:8000. The API_HOST and Settings.api_port fields do not
+currently control Uvicorn's bind address or port. The local launcher reads
+API_PORT and UI_PORT from the process environment; Docker Compose also uses
+them for host port mappings. These launcher values are not a replacement
+for checking the effective runtime environment.
+
+The API and UI may use different configuration sources: the API Settings
+model reads .env, while run_dev reads port variables from os.environ and the
+UI reads API_BASE_URL from os.environ. Compose injects .env values and
+overrides the UI's internal service URL.

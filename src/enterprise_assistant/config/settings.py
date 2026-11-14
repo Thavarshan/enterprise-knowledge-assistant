@@ -1,4 +1,10 @@
-"""Environment-backed settings shared by the API and local tooling."""
+"""Load and validate environment-backed application settings.
+
+Pydantic Settings reads `.env` and process environment variables, with the
+process environment taking precedence. Secret-bearing values are excluded
+from model representations. Defaults select local mock retrieval and
+in-memory development authentication unless explicitly configured.
+"""
 
 from functools import lru_cache
 
@@ -7,6 +13,35 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Validate environment-backed application and provider settings.
+
+    Pydantic Settings reads process variables before the local .env file.
+    Secret values are excluded from model representations. Defaults select
+    mock retrieval and development identity configuration.
+
+    Attributes:
+        app_name: FastAPI title and displayed product name.
+        app_env: Deployment label such as development or test.
+        mock_mode: Select fixture search when true.
+        api_prefix: Prefix for versioned API routes.
+        api_host: Stored bind setting; current launch commands bind directly.
+        api_port: Stored field; the launcher reads API_PORT from the process.
+        ui_port: Stored field; the launcher reads UI_PORT from the process.
+        api_base_url: Default API URL; Streamlit reads its process environment.
+        sqlite_path: Local session database path.
+        cors_origins: Browser origins allowed by FastAPI.
+        log_level: Root structured-log level.
+        rate_limit_capacity: Initial token-bucket capacity per user.
+        rate_limit_refill_per_second: Per-user token refill rate.
+        dev_users_json: Inline JSON or path to local development users.
+        langsmith_tracing: Explicit opt-in for LangSmith tracing.
+        langsmith_api_key: Secret used only when tracing is enabled.
+        langsmith_project: Trace project name.
+        langsmith_workspace_id: Optional LangSmith workspace identifier.
+        pinecone_api_key: Secret reserved for the Pinecone adapter.
+        pinecone_index_name: Configured index name.
+        pinecone_namespace: Optional configured namespace.
+    """
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -40,5 +75,12 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return cached process settings for application entrypoints."""
+    """Return the cached settings object used by app entrypoints.
+
+    The one-entry cache avoids rereading environment configuration each time
+    a dependency or factory asks for settings.
+
+    Returns:
+        Validated Settings instance.
+    """
     return Settings()

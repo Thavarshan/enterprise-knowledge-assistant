@@ -1,4 +1,8 @@
-"""Directly exercise the compiled LangGraph state transitions."""
+"""Verify the compiled graph's bounded route and event sequence.
+
+The test streams node updates directly from the fixture-backed graph and
+checks that the Research route reaches retrieval, response, and validation.
+"""
 
 import pytest
 
@@ -11,6 +15,15 @@ from enterprise_assistant.tools.registry import ToolRegistry
 @pytest.mark.asyncio
 async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events(
 ) -> None:
+    """Verify the Research route executes each expected node and emits events.
+
+    The deterministic graph must traverse supervisor, research, retrieval,
+    response, and citation validation in order.
+
+    Notes:
+        The test uses fixture retrieval and does not contact external
+        providers.
+    """
     graph = build_graph(InMemoryRetriever.from_json(), ToolRegistry())
     state: AgentState = {
         "request_id": "graph-test",

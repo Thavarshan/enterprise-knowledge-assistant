@@ -1,4 +1,9 @@
-"""Regression coverage for Streamlit's app-directory module search path."""
+"""Protect the UI client's import behavior from its app directory.
+
+The test launches a short child Python process with the Streamlit directory
+as its working directory, matching the package-resolution context used by
+the UI command.
+"""
 
 import subprocess
 import sys
@@ -7,6 +12,11 @@ from pathlib import Path
 
 def test_ui_api_client_imports_when_running_from_the_streamlit_directory(
 ) -> None:
+    """Verify the UI package imports from its launch working directory.
+
+    A child interpreter mirrors the package-resolution context used by
+    Streamlit without starting the UI server.
+    """
     repository_root = Path(__file__).resolve().parents[2]
     result = subprocess.run(
         [

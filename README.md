@@ -64,6 +64,7 @@ make test
 make lint
 make format-check
 make typecheck
+make docs-check
 make audit
 make check
 ```
@@ -102,6 +103,21 @@ LangSmith auto-tracing is configured when enabled and credentials are present; v
 ## Assessment status
 
 See [the evaluation matrix](docs/evaluation-matrix.md) for requirement weights, implementation status, evidence locations, and remaining work. Architecture and assumptions are documented in `docs/`; concise decisions are in `docs/decisions/`.
+
+## Engineering documentation
+
+- [System architecture](docs/architecture.md) and
+  [request lifecycle](docs/request-lifecycle.md) explain component and API
+  boundaries.
+- [Agent design](docs/agent-design.md) and
+  [retrieval design](docs/retrieval-design.md) describe graph execution,
+  RLM limits, ranking, and evidence.
+- [Security](docs/security.md) and
+  [observability](docs/observability.md) describe trust boundaries, logs,
+  activity events, and LangSmith limitations.
+- [Documentation standards](docs/documentation-standards.md) explains the
+  Ruff and AST checks. [ADRs](docs/decisions/README.md) record current
+  architectural choices and proposed integration boundaries.
 
 ## Next milestone
 

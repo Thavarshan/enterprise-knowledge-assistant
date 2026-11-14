@@ -1,4 +1,12 @@
-"""Minimal Streamlit client for observing backend graph events."""
+"""Render the Streamlit chat and graph activity interface.
+
+The UI keeps the bearer token, selected conversation, and identity in
+Streamlit session state. It calls FastAPI through `AssistantApiClient` for
+login, session history, and SSE chat updates; roles always come from the API.
+
+The sidebar renders coarse graph activity and validation outcomes. It does
+not expose LangGraph's internal state or model chain-of-thought.
+"""
 
 import os
 from typing import Any

@@ -1,4 +1,10 @@
-"""Deterministic fixture-backed retrieval for local use and automated tests."""
+"""Search validated fixture chunks deterministically for local use and tests.
+
+The adapter applies access-level and optional department filters before
+lexical scoring, then returns ranked chunks with stable metadata. Its token
+overlap score is a mock relevance signal, not a production BM25 or embedding
+score.
+"""
 
 import json
 import re
@@ -11,11 +17,50 @@ _TOKEN_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 
 
 class InMemoryRetriever:
+    """Search fixture chunks with deterministic lexical overlap.
+
+    The adapter stores an immutable tuple of chunks and applies access
+    and department filters before scoring. It is intended for local
+    demos and tests, not production relevance evaluation.
+
+    Attributes:
+        _chunks: Tuple of chunks searched by this adapter.
+
+    Concurrency:
+        The async method performs a small synchronous scan; it does not
+        offload work to a thread.
+    """
+
     def __init__(self, chunks: list[DocumentChunk]) -> None:
+        """Store the supplied chunks as an immutable tuple.
+
+        The caller can validate schemas before construction or use
+        from_json.
+
+        Args:
+            chunks: Validated document chunks to search.
+        """
         self._chunks = tuple(chunks)
 
     @classmethod
     def from_json(cls, path: Path | None = None) -> "InMemoryRetriever":
+        """Load fixture chunks from a supplied or repository-default JSON file.
+
+        Each record is validated as a DocumentChunk. File, decoding, and
+        schema errors propagate rather than causing a silent provider
+        fallback.
+
+        Args:
+            path: Optional fixture path; defaults to
+            data/samples/documents.json.
+
+        Returns:
+            A retriever containing the validated fixture chunks.
+
+        Raises:
+            OSError: The selected fixture file cannot be read.
+            ValidationError: A record violates the chunk schema.
+        """
         source = path or Path.cwd() / "data" / "samples" / "documents.json"
         raw_documents: Any = json.loads(source.read_text(encoding="utf-8"))
         chunks = [
@@ -32,13 +77,33 @@ class InMemoryRetriever:
         department: str | None = None,
         limit: int = 5,
     ) -> list[SearchResult]:
-        """Filter access metadata before ranking evidence candidates."""
+        """Filter authorized chunks and score token overlap for top results.
+
+        Access and department checks happen before content is scored. Query
+        tokens are deduplicated; matching token occurrences in title or
+        content contribute to the count. Scores are scaled by the best
+        candidate.
+
+        Args:
+            query: Text tokenized for the lexical demo score.
+            allowed_access_levels: Trusted access labels from backend role.
+            department: Optional exact department restriction.
+            limit: Maximum number of ranked results.
+
+        Returns:
+            Accessible chunks ordered by overlap with score and rank fields.
+
+        Notes:
+            Non-positive limits return no results. Equal scores use document
+            ID ordering; this heuristic is not BM25.
+        """
         if limit <= 0:
             return []
         query_terms = set(_TOKEN_PATTERN.findall(query.casefold()))
         ranked: list[tuple[int, DocumentChunk]] = []
         for chunk in self._chunks:
             metadata = chunk.metadata
+            # Apply trusted scope before examining content or computing rank.
             if metadata.access_level not in allowed_access_levels:
                 continue
             if department is not None and metadata.department != department:
@@ -56,6 +121,16 @@ class InMemoryRetriever:
         ]
 
     def contains_chunk(self, chunk_id: str) -> bool:
+        """Check whether a chunk identifier exists in the stored fixtures.
+
+        The lookup supports lineage checks without copying chunk content.
+
+        Args:
+            chunk_id: Identifier to locate.
+
+        Returns:
+            True when a stored chunk has that identifier.
+        """
         return any(
             chunk.metadata.chunk_id == chunk_id for chunk in self._chunks
         )

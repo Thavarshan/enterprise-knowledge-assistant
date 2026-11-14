@@ -1,4 +1,9 @@
-"""Typed shared state for the minimal executable agent graph."""
+"""Define the shared TypedDict state for the LangGraph workflow.
+
+Node updates share identity, question, route, plan, result, response, and
+citation fields. The `events` field uses `operator.add` so updates append
+activity records instead of replacing records from earlier nodes.
+"""
 
 import operator
 from typing import Annotated, Any, Literal
@@ -7,6 +12,30 @@ from typing_extensions import TypedDict
 
 
 class AgentState(TypedDict, total=False):
+    """Represent values shared between LangGraph nodes.
+
+    Keys are optional at the type level because each node returns a
+    partial update. The API creates identity and question fields; nodes
+    add routing, evidence, response, and validation data.
+
+    Attributes:
+        request_id: Correlation ID propagated from the API.
+        session_id: Owner-scoped conversation identifier.
+        user_id: Server-resolved user ID for the turn.
+        role: Server-resolved role used by tool policy.
+        question: Validated user question for the current turn.
+        route: Supervisor choice: retrieval or research.
+        search_plan: Serialized bounded query plan if selected.
+        results: Serialized ranked evidence chunks.
+        response: Answer text after response construction.
+        citations: Citation metadata copied from retrieved chunks.
+        validation_passed: Result of the citation gate.
+        events: Event dictionaries appended with operator.add.
+
+    Security:
+        Identity and role values must come from API authentication, not
+        request fields.
+    """
     request_id: str
     session_id: str
     user_id: str
@@ -18,4 +47,5 @@ class AgentState(TypedDict, total=False):
     response: str
     citations: list[dict[str, str]]
     validation_passed: bool
+    # The list reducer appends node updates instead of replacing prior events.
     events: Annotated[list[dict[str, Any]], operator.add]

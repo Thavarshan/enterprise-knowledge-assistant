@@ -1,4 +1,10 @@
-"""Create ignored local demo credentials and point .env to the JSON file."""
+"""Create local development users and configure the `.env` file path.
+
+The script generates random passwords only when the configured JSON file is
+missing, writes the file with restrictive permissions, and prints the
+one-time passwords to the invoking developer. Existing inline JSON and
+existing files are preserved.
+"""
 
 import json
 import os
@@ -12,6 +18,15 @@ DEFAULT_USERS_PATH = Path("data/users/default.json")
 
 
 def _configured_value(contents: str) -> str:
+    """Read the current DEV_USERS_JSON value from dotenv text.
+
+    Args:
+        contents: Complete local environment-file contents.
+
+    Returns:
+        The first configured value with surrounding quotes removed, or an
+        empty string when the setting is absent.
+    """
     return next(
         (
             line.partition("=")[2].strip().strip("'\"")
@@ -23,6 +38,15 @@ def _configured_value(contents: str) -> str:
 
 
 def _set_configured_path(contents: str, users_path: str) -> str:
+    """Replace duplicate user settings with one configured path.
+
+    Args:
+        contents: Existing environment-file text to preserve.
+        users_path: Relative or absolute account-file value to write.
+
+    Returns:
+        Updated dotenv text ending in one newline.
+    """
     lines = contents.splitlines()
     updated: list[str] = []
     added = False
@@ -39,6 +63,18 @@ def _set_configured_path(contents: str, users_path: str) -> str:
 
 
 def main() -> None:
+    """Ensure local development accounts exist and update .env.
+
+    Existing inline JSON and existing account files are retained. When no
+    file exists, the script generates random passwords, creates the parent
+    directory with restrictive permissions, creates the file exclusively
+    with mode 0600, and prints the one-time credentials to the terminal.
+
+    Side Effects:
+        Reads .env or .env.example; writes .env and possibly a local account
+        JSON file. The generated credential file is expected to be ignored
+        by Git.
+    """
     contents = (
         ENV_PATH.read_text(encoding="utf-8")
         if ENV_PATH.exists()

@@ -1,4 +1,8 @@
-"""FastAPI authentication, session isolation, and event streaming tests."""
+"""Verify API health, identity, ownership, persistence, and streaming behavior.
+
+Tests use the shared fixture client and inspect public HTTP/SSE responses;
+they do not call external model, LangSmith, or Pinecone services.
+"""
 
 from collections.abc import Callable
 
@@ -8,6 +12,12 @@ from fastapi.testclient import TestClient
 def test_health_readiness_and_bearer_identity(
     client: TestClient, login: Callable
 ) -> None:
+    """Verify health probes and server-assigned bearer identity.
+
+    Args:
+        client: Isolated test API.
+        login: Helper that authenticates a fixture user.
+    """
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/ready").json() == {"status": "ready"}
     assert client.get("/api/v1/me").status_code == 401
@@ -20,6 +30,15 @@ def test_health_readiness_and_bearer_identity(
 def test_chat_session_is_owned_and_messages_survive_turns(
     client: TestClient, login: Callable
 ) -> None:
+    """Verify ownership isolation and message persistence across turns.
+
+    The second user's session lookup must return 404, while the owner can
+    retrieve the user and assistant messages from both completed turns.
+
+    Args:
+        client: Isolated test API.
+        login: Helper that creates bearer headers for a selected role.
+    """
     viewer_headers = login("viewer")
     analyst_headers = login("analyst")
     session = client.post(
@@ -64,6 +83,15 @@ def test_chat_session_is_owned_and_messages_survive_turns(
 def test_stream_contains_actual_graph_activity_and_request_id(
     client: TestClient, login: Callable
 ) -> None:
+    """Verify SSE includes graph events and request correlation.
+
+    The validation event must precede response chunks, demonstrating that
+    the API relays only post-validation response content.
+
+    Args:
+        client: Isolated test API.
+        login: Helper that obtains authenticated headers.
+    """
     headers = login()
     session_id = client.post("/api/v1/chat/sessions",
                              headers=headers, json={}).json()["session_id"]
@@ -89,6 +117,12 @@ def test_stream_contains_actual_graph_activity_and_request_id(
 def test_stream_rejects_unauthenticated_and_invalid_body(
     client: TestClient, login: Callable
 ) -> None:
+    """Verify authentication and message validation fail before streaming.
+
+    Args:
+        client: Isolated test API.
+        login: Helper that obtains a valid test bearer token.
+    """
     assert (
         client.post(
             "/api/v1/chat/stream",
