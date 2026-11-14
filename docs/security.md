@@ -131,6 +131,33 @@ data/users directory has its own ignore rule for development accounts. The
 Docker build context also excludes local account JSON and environment files.
 The cloud simulation uses only synthetic hard-coded local accounts.
 
+## Deployment workflow boundary
+
+Pull requests and scheduled CI runs do not receive production secrets. A
+deployment can start only after the complete `ci-gate` passes for a push to
+`main`, or after a manual run invokes the same CI workflow successfully.
+Repository variables `DEPLOY_ENABLED` and `RUN_LIVE_E2E_SMOKE` must both be
+explicitly enabled. Production credentials belong to the protected GitHub
+`production` environment. The Cloudflare token is limited to the dedicated
+Worker and D1 resources; the default Actions token gets write access only in
+the Streamlit branch-promotion job.
+
+The deployment workflow serializes production releases and rechecks the
+approved Git SHA before each remote mutation. It verifies the exact Cloudflare
+D1 name and ID, rejects destructive SQL migrations, and uses a temporary
+permission-restricted secret file for Wrangler. Vercel Git-triggered
+deployments are disabled; Actions stages, tests, and promotes the deployment.
+Streamlit follows a protected `deploy/streamlit` branch advanced by a normal
+fast-forward push. A failed upstream deployment or smoke test prevents later
+platform promotion. The end-to-end smoke uses synthetic accounts and one
+retrieval turn through the live Supervisor and Response agents, only after
+explicit opt-in.
+
+This automation does not replace reviewers or repository rules. Before
+enablement, require production environment approval, restrict it to `main`,
+protect `deploy/streamlit`, and configure the exact secret inventory in
+[`ci-cd.md`](ci-cd.md). The implementation has not made a live cloud change.
+
 ## Automated security coverage
 
 Unit and API tests cover:

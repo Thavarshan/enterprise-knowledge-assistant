@@ -205,24 +205,21 @@ must not be pointed at an existing resource.
 
 For a future live setup:
 
-1. Install Node.js 22 or later, then install the locked Worker dependencies
-   with `npm ci` in `infra/cloudflare/d1-gateway`.
-2. Create a dedicated D1 database from the Cloudflare dashboard or with
-   Wrangler. Set its returned database ID in a private local copy of
-   `wrangler.jsonc`; do not commit the real account-specific ID.
-3. Apply the checked-in, non-destructive migrations to that new database:
-
-   ```bash
-   npx wrangler d1 migrations apply eka-assessment-d1 --remote
-   ```
-
-   This is a future deployment command. It was not run during this work.
-4. Generate a high-entropy service token and store the same value in the
-   Worker secret and Vercel `D1_SERVICE_TOKEN`. Add it to the Worker with
-   `npx wrangler secret put D1_SERVICE_TOKEN`; enter the value at the prompt.
-5. Deploy the Worker from this directory with `npm run deploy`. Then set the
-   Worker URL as Vercel `D1_API_URL` and verify `/ready` from FastAPI.
-6. Confirm that D1 reads and writes only through this Worker's authenticated
+1. Install Node.js 22 or later and the locked Worker dependencies with
+   `npm ci` in `infra/cloudflare/d1-gateway`.
+2. Create the dedicated D1 database `eka-assessment-d1` and Worker
+   `eka-d1-gateway` in the Cloudflare dashboard. Use the Worker URL on
+   `workers.dev`; do not attach unrelated routes or domains.
+3. Create a scoped Cloudflare token and configure the GitHub `production`
+   environment. The deployment workflow renders its ignored Wrangler config
+   from explicit account and D1 IDs, verifies their identity, inspects
+   migrations, applies them, and writes the Worker service secret securely.
+   Do not run remote migrations or `npm run deploy` from a local shell; those
+   package commands are guarded for the approved Actions workflow.
+4. Set the Worker URL as Vercel `D1_API_URL` and configure the same
+   `D1_SERVICE_TOKEN` value for the Worker and Vercel. Verify `/ready` after
+   the gated deployment succeeds.
+5. Confirm that D1 reads and writes only through this Worker's authenticated
    endpoints. Do not use Cloudflare's administrative D1 API at runtime.
 
 For local development, copy `.dev.vars.example` to `.dev.vars`, replace the
@@ -302,6 +299,14 @@ Python tests and the existing Docker Compose smoke test. No Vercel build or
 deployment, Streamlit Cloud app, remote Worker, or remote D1 migration has
 been run. A real provider configuration and account-specific D1 ID remain
 required before any live deployment can be verified.
+
+The repository also contains a gated GitHub Actions release workflow and a
+reusable post-deployment smoke workflow. The release pipeline is not enabled
+by default. It requires protected production credentials, dedicated
+Cloudflare resources, a Vercel project with Git deployments disabled, a
+Streamlit app following `deploy/streamlit`, and explicit deployment and live
+smoke opt-ins. See [CI/CD setup, secrets, and rollback](ci-cd.md) before
+configuring or enabling it.
 
 [vercel-fastapi]: https://vercel.com/docs/frameworks/backend/fastapi
 [vercel-python]: https://vercel.com/docs/functions/runtimes/python

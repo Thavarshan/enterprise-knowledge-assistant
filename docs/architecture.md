@@ -187,12 +187,26 @@ runs the opt-in OpenAI, Pinecone, and LangSmith end-to-end test;
 `make evaluate-retrieval` runs the labeled Pinecone evaluation.
 
 CI has separate jobs for lint, format, docblocks, comments, line length,
-syntax, package build, tests, type checking, dependency audit, a Worker and
-local-D1 check, and Docker Compose smoke. Pytest has a Python 3.12, 3.13,
-and 3.14 matrix. The Worker job checks types, route behavior against local
-D1, and the Python API adapter through Wrangler. The Compose job starts the
-existing services with `docker compose up`, checks API health and readiness,
-opens the UI, and verifies UI-to-API connectivity.
+syntax, package build, tests, type checking, Python/npm dependency audits,
+Worker/D1,
+Streamlit startup, GitHub Actions syntax, deployment configuration, and
+Docker Compose smoke. Pytest has a Python 3.12, 3.13, and 3.14 matrix. The
+Worker job validates Wrangler config, applies local D1 migrations, checks
+types and routes, and tests the Python API adapter through Wrangler. The
+Compose job starts the existing services with `docker compose up`, checks
+API health and readiness, opens the UI, and verifies UI-to-API connectivity.
+An explicit `ci-gate` fails for any required job that fails, is cancelled, or
+is skipped.
+
+The separate deployment workflow starts only after successful CI on `main`
+or a manual request that runs CI again. Its dependency chain is Cloudflare
+deployment and smoke, Vercel staging and smoke, Vercel promotion, Streamlit
+branch promotion and readiness, then a reusable post-deployment smoke. A
+non-cancelling concurrency group serializes releases, and every mutation
+checks that the approved SHA still matches `main`. Production deployment and
+the one live model-backed end-to-end smoke require separate explicit opt-ins.
+Both remain disabled until cloud resources, credentials, and GitHub
+environment protection are configured. See [CI/CD operations](ci-cd.md).
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values

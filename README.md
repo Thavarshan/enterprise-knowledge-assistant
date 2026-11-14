@@ -87,10 +87,13 @@ requests, and requires remote LangSmith read access. It does not create an
 index or delete records. `make evaluate-retrieval` runs a separate four-case
 synthetic evaluation. Neither result predicts quality on production data.
 
-CI runs independent lint, formatting, docblock, comment, line-length, and
-syntax jobs; package build, type, dependency, and test verification; a test
-matrix for Python 3.12 through 3.14; Cloudflare Worker tests against local
-D1; and a Docker Compose smoke test. CI does not need external credentials.
+CI runs independent quality, build, test, type, Python and npm dependency,
+Worker/D1, Streamlit startup, GitHub Actions syntax, deployment configuration,
+and Docker Compose checks. Python tests cover 3.12 through 3.14. The required
+`ci-gate` fails if any check fails, is cancelled, or is skipped. Production
+deployment is separately gated and remains disabled until operators configure
+the protected environment and explicitly enable it. See
+[CI/CD operations](docs/ci-cd.md).
 
 ## Implemented behavior
 
@@ -134,6 +137,7 @@ and rate limits are local demonstration components. No recording is included.
   [observability](docs/observability.md), and
   [evaluation matrix](docs/evaluation-matrix.md)
 - [Multi-cloud deployment guide](docs/deployment.md)
+- [CI/CD and release operations](docs/ci-cd.md)
 - [Demonstration guide](docs/demo-guide.md) and
   [architecture decisions](docs/decisions/README.md)
 
