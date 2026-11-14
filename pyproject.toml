@@ -43,8 +43,11 @@ target-version = "py312"
 src = ["src", "apps", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "D"]
 extend-select = ["E501"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.autopep8]
 max_line_length = 80

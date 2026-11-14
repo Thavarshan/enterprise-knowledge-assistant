@@ -33,7 +33,7 @@ jobs:
             pyproject.toml
             uv.lock
       - run: uv sync --locked --all-groups --python 3.13
-      - run: make lint format-check typecheck
+      - run: make lint format-check typecheck docs-check
 
   tests:
     name: Tests (Python ${{ matrix.python-version }})
