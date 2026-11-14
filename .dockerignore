@@ -9,3 +9,4 @@ __pycache__
 tests
 data/*.sqlite3
 data/*.db
+data/users/

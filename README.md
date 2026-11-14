@@ -31,7 +31,7 @@ FastAPI and Streamlit run as separate processes because they have different runt
 
 ```bash
 uv sync
-make setup   # creates ignored .env and prints one-time demo credentials
+make setup   # creates ignored .env and user file; prints demo credentials
 make dev     # starts FastAPI on :8000 and Streamlit on :8501
 ```
 

@@ -2,7 +2,13 @@
 
 ## Identity and roles
 
-The local token endpoint accepts credentials loaded from `DEV_USERS_JSON`; it assigns the role from server configuration and keeps opaque bearer tokens in process memory. Client request bodies cannot set a role. Unknown users and incorrect passwords have the same response. Missing credentials disable token issuance without preventing health checks. Use a real identity provider before production.
+The local token endpoint accepts credentials from the JSON file named by
+`DEV_USERS_JSON`. Inline JSON remains supported for tests and older local
+setups. The service assigns roles from server configuration and keeps opaque
+bearer tokens in process memory. Client request bodies cannot set a role.
+Unknown users and incorrect passwords have the same response. Missing
+credentials disable token issuance without preventing health checks. Use a
+real identity provider before production.
 
 The `ToolRegistry` enforces the role matrix in backend execution paths: Viewer can search, Analyst can search and use planned analytics/MCP tools, and Administrator has all registered permissions. The graph calls the registry before `KnowledgeSearchTool` runs. Unimplemented tools have policy entries but no handler and cannot be executed.
 
@@ -20,7 +26,10 @@ Guardrail protocols exist for prompt injection, output validation, and unsafe to
 
 ## Local infrastructure limitations
 
-`.env` is ignored and generated demo passwords are local-only. Rotate them by replacing `.env` and rerunning setup. API tokens and rate-limit buckets are in memory, so run one API worker locally. SQLite is appropriate for this phase, not an HA deployment.
+`.env` and `data/users/*.json` are ignored; generated demo passwords stay
+local. Rotate them by replacing the JSON file and rerunning setup. API tokens
+and rate-limit buckets are in memory, so run one API worker locally. SQLite
+is appropriate for this phase, not an HA deployment.
 
 GitHub Actions uses read-only repository permissions for pull request checks, pins third-party actions to full commit SHAs, installs from the lockfile, and runs `pip-audit` against the local dependency environment on every change and weekly. These checks require no repository secrets.
 

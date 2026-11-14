@@ -4,6 +4,7 @@ import hmac
 import json
 import secrets
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -43,11 +44,18 @@ class AuthService:
 
     def __init__(self, configured_users_json: str) -> None:
         self._tokens: dict[str, AuthenticatedUser] = {}
-        if not configured_users_json:
+        configured_value = configured_users_json.strip()
+        if not configured_value:
             self._users: dict[str, DevUserConfig] = {}
             return
         try:
-            raw_users: Any = json.loads(configured_users_json)
+            if configured_value.startswith("{"):
+                raw_users: Any = json.loads(configured_value)
+            else:
+                users_path = Path(configured_value).expanduser()
+                raw_users = json.loads(
+                    users_path.read_text(encoding="utf-8")
+                )
             if not isinstance(raw_users, dict) or not raw_users:
                 raise ValueError("expected a non-empty JSON object")
             self._users = {
@@ -56,7 +64,11 @@ class AuthService:
             }
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:
             raise AuthenticationConfigurationError(
-                "DEV_USERS_JSON must map usernames to password and role values."
+                "DEV_USERS_JSON must contain user JSON or point to a JSON file."
+            ) from exc
+        except OSError as exc:
+            raise AuthenticationConfigurationError(
+                "DEV_USERS_JSON must point to a readable JSON file."
             ) from exc
 
     def issue_token(self, username: str, password: str) -> IssuedToken:

@@ -9,15 +9,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _users_configured(contents: str) -> bool:
+    configured_value = next(
+        (
+            line.partition("=")[2].strip().strip("'\"")
+            for line in contents.splitlines()
+            if line.startswith("DEV_USERS_JSON=")
+        ),
+        "",
+    )
+    if not configured_value:
+        return False
+    if configured_value.lstrip().startswith("{"):
+        return True
+    users_path = Path(configured_value).expanduser()
+    if not users_path.is_absolute():
+        users_path = ROOT / users_path
+    return users_path.is_file()
+
+
 def main() -> None:
     env_path = ROOT / ".env"
     contents = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-    configured = any(
-        line.partition("=")[2].strip().strip("'\"")
-        for line in contents.splitlines()
-        if line.startswith("DEV_USERS_JSON=")
-    )
-    if not configured:
+    if not _users_configured(contents):
         subprocess.run(
             [sys.executable, "scripts/bootstrap_dev_env.py"],
             cwd=ROOT,

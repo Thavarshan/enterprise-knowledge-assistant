@@ -12,6 +12,8 @@ htmlcov/
 .streamlit/secrets.toml
 data/*.sqlite3
 data/*.db
+docs/assignment.md
+docs/plan.md
 dist/
 build/
 *.egg-info/
