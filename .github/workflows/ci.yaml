@@ -234,59 +234,35 @@ jobs:
       - run: make audit
 
   docker-api-ui:
-    name: Docker build and API/UI smoke test
+    name: Docker Compose API/UI smoke test
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Build application image
-        run: docker build --pull --tag enterprise-knowledge-assistant:ci .
-      - name: Start services and check readiness
+      - name: Create a minimal CI environment
+        run: |
+          cat > .env <<'EOF'
+          APP_ENV=test
+          MOCK_MODE=true
+          API_PORT=18000
+          UI_PORT=18501
+          EOF
+      - name: Build and start Compose services
+        run: >-
+          docker compose --project-name eka-ci up --build
+          --detach --wait --wait-timeout 120
+      - name: Check API, UI, and service network
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          cleanup() {
-            status=$?
-            if (( status != 0 )); then
-              docker logs eka-ci-api || true
-              docker logs eka-ci-ui || true
-            fi
-            docker rm --force eka-ci-api eka-ci-ui >/dev/null 2>&1 || true
-            docker network rm eka-ci >/dev/null 2>&1 || true
-            exit "$status"
-          }
-          trap cleanup EXIT
+          curl --fail --show-error http://127.0.0.1:18000/health
+          curl --fail --show-error http://127.0.0.1:18000/ready
 
-          docker network create eka-ci
-          docker run --detach \
-            --name eka-ci-api \
-            --network eka-ci \
-            --publish 8000:8000 \
-            --env SQLITE_PATH=/tmp/ci-sessions.sqlite3 \
-            enterprise-knowledge-assistant:ci
-          docker run --detach \
-            --name eka-ci-ui \
-            --network eka-ci \
-            --publish 8501:8501 \
-            --env API_BASE_URL=http://eka-ci-api:8000 \
-            enterprise-knowledge-assistant:ci \
-            streamlit run apps/ui/main.py --server.address 0.0.0.0 \
-            --server.port 8501 --server.headless true
-
-          for _ in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8000/ready >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          curl --fail --show-error http://127.0.0.1:8000/health
-          curl --fail --show-error http://127.0.0.1:8000/ready
-
-          docker exec eka-ci-ui python -c '
+          docker compose --project-name eka-ci exec -T ui python -c '
           import os
           import httpx
 
@@ -298,9 +274,18 @@ jobs:
           '
 
           for _ in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8501/ >/dev/null; then
+            if curl --fail --silent http://127.0.0.1:18501/ >/dev/null; then
               break
             fi
             sleep 2
           done
-          curl --fail --show-error --output /dev/null http://127.0.0.1:8501/
+          curl --fail --show-error --output /dev/null \
+            http://127.0.0.1:18501/
+      - name: Collect Compose logs after failure
+        if: failure()
+        run: docker compose --project-name eka-ci logs --no-color
+      - name: Stop Compose services
+        if: always()
+        run: >-
+          docker compose --project-name eka-ci down --volumes
+          --remove-orphans || true

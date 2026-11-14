@@ -176,19 +176,26 @@ exits or the operator interrupts the command.
 | dev | Sync dependencies, bootstrap if needed, and start both processes. |
 | api / ui | Start one development process for split-terminal workflows. |
 | test | Run pytest across unit and integration suites. |
-| lint / format / format-check | Run Ruff or Autopep8 formatting checks. |
+| lint | Run Ruff lint rules. |
+| comments-check | Reject commented-out Python code with Ruff ERA001. |
+| line-length-check | Enforce the configured 80-character Python limit. |
+| format / format-check | Apply or verify Autopep8 formatting. |
+| build | Build the source distribution and wheel. |
 | typecheck | Run strict mypy over src and apps. |
 | docs-check | Run the AST docstring validator. |
+| syntax-check | Compile Python files without executing them. |
 | audit | Check installed dependencies with pip-audit. |
-| check | Run lint, format check, type check, docs check, and tests. |
+| check | Run all local checks except dependency audit and Docker. |
 | docker-up / docker-down | Start or stop the Compose services. |
 
 Runtime and development dependencies are declared in pyproject.toml and
-resolved in uv.lock. Python metadata supports 3.12 through 3.14. The CI
-quality job runs Ruff, formatting, mypy, and documentation validation. Its
-test matrix runs pytest on all three supported minor versions. Separate jobs
-run pip-audit and build/start both containers for smoke checks. GitHub
-Actions are pinned to commit SHAs and repository permissions are read-only.
+resolved in uv.lock. Python metadata supports 3.12 through 3.14. CI runs
+lint, formatting, package build, tests, docblock, comment, line-length,
+syntax, type, and dependency-audit checks as separate jobs. The test matrix
+runs pytest on all three supported minor versions. A separate Docker Compose
+job builds and starts both services, checks API health and readiness, opens
+the UI, and verifies UI-to-API connectivity. GitHub Actions are pinned to
+commit SHAs and repository permissions are read-only.
 
 Pytest uses automatic asyncio mode and a function-scoped event loop. The
 shared client fixture creates a temporary SQLite database, synthetic local
