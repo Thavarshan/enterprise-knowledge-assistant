@@ -1,6 +1,6 @@
 .PHONY: setup dev api ui test lint comments-check line-length-check \
 	format format-check build typecheck docs-check syntax-check audit check \
-	docker-up docker-down verify-langsmith
+	docker-up docker-down verify-langsmith verify-live evaluate-retrieval
 
 setup:
 	uv sync --all-groups
@@ -21,6 +21,15 @@ test:
 
 verify-langsmith:
 	uv run --env-file .env python scripts/verify_langsmith.py
+
+verify-live:
+	OPENAI_RUN_LIVE_TESTS=true RUN_LIVE_WORKFLOW_TESTS=true \
+		uv run --env-file .env pytest -s -q \
+		tests/integration/test_llm_live.py \
+		tests/integration/test_live_workflows.py
+
+evaluate-retrieval:
+	uv run --env-file .env python scripts/evaluate_retrieval.py --live
 
 lint:
 	uv run ruff check .

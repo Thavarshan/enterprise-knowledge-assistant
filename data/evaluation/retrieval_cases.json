@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "case_id": "exact_incident_id",
+      "query": "INC-2026-057",
+      "role": "analyst",
+      "document_type": "incident_report",
+      "expected_document_ids": ["incident-2026-057"],
+      "expected_empty": false
+    },
+    {
+      "case_id": "semantic_webhook_paraphrase",
+      "query": "What failures left payment webhook callbacks waiting as retry traffic overloaded the queue?",
+      "role": "viewer",
+      "document_type": "incident_report",
+      "expected_document_ids": ["incident-2026-057"],
+      "expected_empty": false
+    },
+    {
+      "case_id": "viewer_cannot_retrieve_analyst_incident",
+      "query": "INC-2025-203",
+      "role": "viewer",
+      "document_type": "incident_report",
+      "forbidden_document_ids": ["incident-2025-203"],
+      "expected_empty": null
+    },
+    {
+      "case_id": "empty_date_window",
+      "query": "INC-2024-301 payment incident",
+      "role": "analyst",
+      "document_type": "incident_report",
+      "date_from": "2024-01-01",
+      "date_to": "2024-06-30",
+      "expected_empty": true
+    }
+  ]
+}
