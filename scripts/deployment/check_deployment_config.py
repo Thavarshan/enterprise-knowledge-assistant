@@ -137,6 +137,8 @@ def configuration_errors() -> list[str]:
         "streamlit-smoke",
     }
     gate = _needs_text(ci, "ci-gate")
+    if "actions/checkout@" not in gate:
+        errors.append("ci-gate must check out its result validator.")
     for job in mandatory_jobs:
         if not re.search(rf"(?m)^      - {re.escape(job)}$", gate):
             errors.append(f"ci-gate is missing mandatory job {job}.")
