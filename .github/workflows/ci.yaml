@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint
+    name: "Quality: Lint"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -40,7 +40,7 @@ jobs:
       - run: make lint
 
   format:
-    name: Format check
+    name: "Quality: Format check"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -61,7 +61,14 @@ jobs:
       - run: make format-check
 
   build:
-    name: Package build
+    name: "Verify: Package build"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -81,7 +88,14 @@ jobs:
       - run: make build
 
   tests:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: "Verify: Tests (Python ${{ matrix.python-version }})"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -108,7 +122,7 @@ jobs:
       - run: make test
 
   docblocks:
-    name: Docblock check
+    name: "Quality: Docblock check"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -129,7 +143,7 @@ jobs:
       - run: make docs-check
 
   comments:
-    name: Comments (no commented-out code)
+    name: "Quality: Comments"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -150,7 +164,7 @@ jobs:
       - run: make comments-check
 
   line-length:
-    name: Line length check
+    name: "Quality: Line length"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -171,7 +185,7 @@ jobs:
       - run: make line-length-check
 
   syntax:
-    name: Syntax check
+    name: "Quality: Syntax check"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -192,7 +206,14 @@ jobs:
       - run: make syntax-check
 
   typecheck:
-    name: Type check
+    name: "Verify: Type check"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -213,7 +234,14 @@ jobs:
       - run: make typecheck
 
   dependency-audit:
-    name: Dependency vulnerability audit
+    name: "Verify: Dependency audit"
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -234,7 +262,12 @@ jobs:
       - run: make audit
 
   docker-api-ui:
-    name: Docker Compose API/UI smoke test
+    name: "Runtime: Docker Compose smoke"
+    needs:
+      - build
+      - tests
+      - typecheck
+      - dependency-audit
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

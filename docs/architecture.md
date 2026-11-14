@@ -141,8 +141,11 @@ not test Pinecone or LangSmith.
 `make setup` prepares local credentials and `make dev`
 starts both local processes. `make check` runs lint, comment and line-length
 checks, formatting, package build, type checking, docstring validation,
-syntax checks, and tests. CI runs these as separate jobs, plus a Python
-version matrix, dependency audit, and Docker API/UI smoke test.
+syntax checks, and tests. CI presents three stages: independent quality
+checks first; package build, the Python test matrix, type checking, and the
+dependency audit after they pass; then the Docker Compose smoke test after
+all verification jobs pass. Each check remains its own job, while the test
+matrix groups the supported Python versions.
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values
@@ -186,6 +189,7 @@ exits or the operator interrupts the command.
 | syntax-check | Compile Python files without executing them. |
 | audit | Check installed dependencies with pip-audit. |
 | check | Run all local checks except dependency audit and Docker. |
+| langsmith-check | Send a synthetic trace and verify delivery and redaction. |
 | docker-up / docker-down | Start or stop the Compose services. |
 
 Runtime and development dependencies are declared in pyproject.toml and
