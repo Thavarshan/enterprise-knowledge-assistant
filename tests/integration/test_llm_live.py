@@ -4,6 +4,8 @@ The test is opt-in through OPENAI_API_KEY. It uses synthetic evidence only
 and validates both structured supervisor output and cited response output.
 """
 
+import os
+
 import pytest
 
 from enterprise_assistant.config.settings import get_settings
@@ -23,6 +25,8 @@ async def test_openai_provider_returns_structured_live_responses() -> None:
     The small synthetic passage prevents customer information from entering
     the external provider during this integration check.
     """
+    if os.environ.get("OPENAI_RUN_LIVE_TESTS") != "true":
+        pytest.skip("Set OPENAI_RUN_LIVE_TESTS=true to opt in.")
     settings = get_settings()
     if not settings.openai_api_key:
         pytest.skip("OPENAI_API_KEY is not configured.")
@@ -51,9 +55,18 @@ async def test_openai_provider_returns_structured_live_responses() -> None:
     result = SearchResult(chunk=chunk, score=1.0, rank=1)
     try:
         decision = await provider.classify_intent(
-            "What happened in the payment incident?"
+            "What mitigation stopped the duplicate authorizations?"
         )
         greeting_decision = await provider.classify_intent("Hello!")
+        research_decision = await provider.classify_intent(
+            "Compare two payment incidents and their mitigations."
+        )
+        analysis_decision = await provider.classify_intent(
+            "Calculate average of 10, 20, 30."
+        )
+        decomposition = await provider.decompose_question(
+            "Compare symptoms and mitigations across payment incidents."
+        )
         answer = await provider.generate_answer(
             "What caused the duplicate authorizations?",
             [result],
@@ -63,6 +76,9 @@ async def test_openai_provider_returns_structured_live_responses() -> None:
 
     assert decision.route == "retrieval"
     assert greeting_decision.route == "small_talk"
+    assert research_decision.route == "research"
+    assert analysis_decision.route == "analysis"
+    assert len(decomposition.subtasks) >= 2
     assert answer.claims
     allowed = {
         (chunk.metadata.document_id, chunk.metadata.chunk_id),

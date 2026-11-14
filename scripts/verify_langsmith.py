@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Iterator
 from typing import Any
+from uuid import UUID
 
 from langsmith import Client, agent_address, traceable, tracing_context, uuid7
 
@@ -210,11 +211,14 @@ def _verify_remote_trace(
     agent_id: str,
     environment: str,
     sentinel: str,
+    expected_spans: frozenset[str] = EXPECTED_SPANS,
+    expected_parent_spans: dict[str, str] | None = None,
+    forbidden_spans: frozenset[str] = frozenset(),
 ) -> tuple[str, str]:
     """Read back the submitted run and confirm its address and hierarchy.
 
     A tracing-only key can submit successfully without read permission. Such
-    a case returns SUBMITTED, rather than being misreported as a failure.
+    a case returns BLOCKED, rather than being misreported as a failure.
 
     Args:
         client: Redacting LangSmith SDK client.
@@ -222,6 +226,9 @@ def _verify_remote_trace(
         agent_id: Expected registered agent ID.
         environment: Expected agent environment.
         sentinel: Synthetic marker that must not appear in remote payloads.
+        expected_spans: Span names that must occur in the trace tree.
+        expected_parent_spans: Child span names and their required parent.
+        forbidden_spans: Span names that must not occur in the trace tree.
 
     Returns:
         A remote verification status and a safe explanation.
@@ -233,25 +240,29 @@ def _verify_remote_trace(
         except Exception as exc:
             status = _http_status(exc)
             if status in {401, 403}:
-                return "SUBMITTED", "remote read permission is unavailable"
+                return "BLOCKED", "remote read permission is unavailable"
             if status == 404 and attempt < 7:
                 time.sleep(1)
                 continue
             if status == 404:
                 return (
-                    "SUBMITTED",
+                    "BLOCKED",
                     "remote run was not visible after bounded retries",
                 )
             return (
-                "SUBMITTED",
+                "BLOCKED",
                 f"remote readback unavailable ({type(exc).__name__})",
             )
     else:
-        return "SUBMITTED", "remote run was not queryable before timeout"
+        return "BLOCKED", "remote run was not queryable before timeout"
 
+    try:
+        expected_id = UUID(str(verification_id))
+    except ValueError:
+        return "FAILED", "local verification run identifier is invalid"
     runs = list(_walk_runs(root))
-    if root.id != verification_id:
-        return "SUBMITTED", "remote read returned a different run identifier"
+    if root.id != expected_id:
+        return "FAILED", "remote read returned a different run identifier"
 
     serialized = json.dumps(
         [run.model_dump(mode="json") for run in runs],
@@ -271,12 +282,28 @@ def _verify_remote_trace(
         == environment.lower()
     )
     observed_spans = {run.name for run in runs}
-    hierarchy_is_confirmed = EXPECTED_SPANS <= observed_spans
+    if observed_spans.intersection(forbidden_spans):
+        return "FAILED", "a forbidden operation appeared in the trace tree"
+    hierarchy_is_confirmed = expected_spans <= observed_spans
+    if expected_parent_spans:
+        runs_by_id = {run.id: run for run in runs}
+        hierarchy_is_confirmed = hierarchy_is_confirmed and all(
+            child_name in observed_spans
+            and parent_name in observed_spans
+            and any(
+                run.name == child_name
+                and run.parent_run_id == parent.id
+                for run in runs
+                for parent in runs_by_id.values()
+                if parent.name == parent_name
+            )
+            for child_name, parent_name in expected_parent_spans.items()
+        )
     if address_is_confirmed and hierarchy_is_confirmed:
         return "VERIFIED", "remote agent, environment, and span tree match"
     return (
-        "SUBMITTED",
-        "remote run exists; destination or children were partial",
+        "FAILED",
+        "remote run exists; destination or child hierarchy did not match",
     )
 
 
@@ -296,7 +323,7 @@ def main() -> int:
     """Run the nested probe and return a result suitable for Make/CI.
 
     Returns:
-        Zero for VERIFIED or SUBMITTED; one for FAILED; two for BLOCKED.
+        Zero for VERIFIED; one for FAILED; two for BLOCKED.
     """
     settings = get_settings()
     print("LangSmith Connectivity Verification\n")
@@ -323,7 +350,7 @@ def main() -> int:
     sentinel = f"LANGSMITH_SYNTHETIC_{verification_text}"
     trace_execution_passed = False
     submission_passed = False
-    remote_status = "SUBMITTED"
+    remote_status = "BLOCKED"
     remote_detail = "remote readback was not attempted"
     trace_failure_type = ""
     try:
@@ -385,7 +412,7 @@ def main() -> int:
         elif not submission_passed:
             print(f"Trace submission: FAILED ({trace_failure_type})")
         else:
-            remote_status = "SUBMITTED"
+            remote_status = "BLOCKED"
             remote_detail = (
                 "remote readback unavailable "
                 f"({trace_failure_type})"
@@ -402,7 +429,7 @@ def main() -> int:
         print("Result: FAILED")
         return 1
     print(f"Result: {remote_status}")
-    return 0
+    return 0 if remote_status == "VERIFIED" else 2
 
 
 if __name__ == "__main__":
