@@ -162,7 +162,10 @@ def run_smoke() -> None:
         },
         expected_status=404,
     )
-    if denied.get("detail") != "Session not found.":
+    if denied.get("error") != {
+        "code": "not_found",
+        "message": "Session not found.",
+    }:
         raise SmokeCheckError("Session ownership isolation was not enforced.")
 
     write_summary(
