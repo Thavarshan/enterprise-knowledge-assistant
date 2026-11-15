@@ -139,29 +139,27 @@ The cloud simulation uses only synthetic hard-coded local accounts.
 Pull requests and scheduled CI runs do not receive production secrets. A
 deployment can start only after the complete `ci-gate` passes for a push to
 `main`, or after a manual run invokes the same CI workflow successfully.
-Repository variables `DEPLOY_ENABLED` and `RUN_LIVE_E2E_SMOKE` must both be
-explicitly enabled at repository scope; the readiness job does not enter the
-production environment. The live end-to-end smoke uses real provider calls
-and may incur usage charges. Production credentials belong to the protected
+No deployment opt-in variable is required. The full-stack live end-to-end
+smoke uses real provider calls and may incur usage charges; it is separately
+controlled by `RUN_LIVE_E2E_SMOKE`. Production credentials belong to the
 GitHub `production` environment. The Cloudflare token is limited to the
-dedicated Worker and D1 resources. The default Actions token gets write access
-only in the Streamlit branch-promotion job.
+dedicated Worker and D1 resources. Deployment jobs use read-only repository
+access.
 
 The deployment workflow serializes production releases and rechecks the
 approved Git SHA before each remote mutation. It verifies the exact Cloudflare
 D1 name and ID, rejects destructive SQL migrations, and uses a temporary
 permission-restricted secret file for Wrangler. Vercel Git-triggered
-deployments are disabled; Actions stages, tests, and promotes the deployment.
-Streamlit follows a protected `deploy/streamlit` branch advanced by a normal
-fast-forward push. A failed upstream deployment or smoke test prevents later
-platform promotion. The end-to-end smoke uses synthetic accounts and one
-retrieval turn through the live Supervisor and Response agents, only after
-explicit opt-in.
+deployments are disabled; Actions triggers the production deploy hook and
+smokes the published API. Streamlit Community Cloud follows `main` and
+begins rebuilding after a main-branch push. CI then verifies the source SHA
+and running page. The live end-to-end smoke uses synthetic accounts and one
+model-backed retrieval turn only when enabled, because it can incur usage
+charges.
 
-This automation does not replace reviewers or repository rules. Before
-enablement, require production environment approval, restrict it to `main`,
-protect `deploy/streamlit`, and configure the exact secret inventory in
-[`ci-cd.md`](ci-cd.md). The implementation has not made a live cloud change.
+This automation does not replace repository rules. Restrict the production
+environment to `main` and configure the secret inventory in
+[`ci-cd.md`](ci-cd.md).
 
 ## Automated security coverage
 

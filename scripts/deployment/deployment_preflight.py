@@ -15,11 +15,9 @@ REQUIRED_VALUES = (
     "CLOUDFLARE_API_TOKEN",
     "D1_SERVICE_TOKEN",
     "CLOUDFLARE_WORKER_URL",
-    "VERCEL_TOKEN",
-    "VERCEL_ORG_ID",
+    "VERCEL_DEPLOY_HOOK",
     "VERCEL_PROJECT_ID",
     "VERCEL_PRODUCTION_URL",
-    "VERCEL_AUTOMATION_BYPASS_SECRET",
     "STREAMLIT_URL",
     "STREAMLIT_BRANCH",
     "SMOKE_ANALYST_PASSWORD",
@@ -50,8 +48,8 @@ def main() -> int:
         except SmokeCheckError as exc:
             print(str(exc))
             return 1
-    if os.environ["STREAMLIT_BRANCH"] != "deploy/streamlit":
-        print("STREAMLIT_BRANCH must equal deploy/streamlit.")
+    if os.environ["STREAMLIT_BRANCH"] != "main":
+        print("STREAMLIT_BRANCH must equal main.")
         return 1
     print("Required deployment variables and secret names are configured.")
     return 0

@@ -9,6 +9,7 @@ not expose LangGraph's internal state or model chain-of-thought.
 """
 
 import os
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -17,12 +18,16 @@ import httpx
 import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
-from apps.ui.services.api_client import AssistantApiClient
-from apps.ui.services.config import (
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from apps.ui.services.api_client import AssistantApiClient  # noqa: E402
+from apps.ui.services.config import (  # noqa: E402
     PUBLIC_API_BASE_URL,
     resolve_api_base_url,
 )
-from apps.ui.services.release import resolve_release_sha
+from apps.ui.services.release import resolve_release_sha  # noqa: E402
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
 st.title("Enterprise Knowledge Assistant")

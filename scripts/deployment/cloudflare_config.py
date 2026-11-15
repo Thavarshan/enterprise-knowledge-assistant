@@ -187,7 +187,3 @@ def require_gated_cloud_deployment() -> None:
         raise RuntimeError("Remote deployment is restricted to GitHub Actions.")
     if os.environ.get("CI_GATE_PASSED") != "true":
         raise RuntimeError("The required CI gate has not passed.")
-    if os.environ.get("DEPLOY_ENABLED", "").lower() != "true":
-        raise RuntimeError("DEPLOY_ENABLED must be true for remote changes.")
-    if os.environ.get("RUN_LIVE_E2E_SMOKE", "").lower() != "true":
-        raise RuntimeError("Live end-to-end smoke testing must be enabled.")

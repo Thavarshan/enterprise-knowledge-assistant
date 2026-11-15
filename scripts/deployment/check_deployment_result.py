@@ -32,6 +32,8 @@ def main() -> int:
         )
         for name, details in jobs.items()
     }
+    if results.get("post-deploy-end-to-end") == "skipped":
+        results.pop("post-deploy-end-to-end")
     failures = failed_ci_jobs(results)
     if failures:
         details = ", ".join(

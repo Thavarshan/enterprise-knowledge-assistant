@@ -6,6 +6,7 @@ response content while checking owner isolation across separate requests.
 
 import os
 import sys
+import time
 
 from scripts.deployment.smoke_http import (
     SmokeCheckError,
@@ -68,18 +69,36 @@ def run_smoke() -> None:
         raise SmokeCheckError(
             "Release SHA or synthetic smoke credentials missing."
         )
-    if not bypass_secret:
-        raise SmokeCheckError("Vercel deployment access is not configured.")
-    bypass_headers = {
-        "x-vercel-protection-bypass": bypass_secret,
-    }
+    bypass_headers = (
+        {"x-vercel-protection-bypass": bypass_secret}
+        if bypass_secret
+        else {}
+    )
+
+    version: dict[str, object] = {}
+    for attempt in range(40):
+        try:
+            _, response = request_json(
+                f"{origin}/version",
+                headers=bypass_headers,
+            )
+            if response.get("release_sha") == expected_sha:
+                version = response
+                break
+        except SmokeCheckError:
+            pass
+        if attempt < 39:
+            time.sleep(15)
+    else:
+        raise SmokeCheckError(
+            "Vercel did not serve the approved release SHA in time."
+        )
 
     _, health = request_json(f"{origin}/health", headers=bypass_headers)
     _, readiness = request_json(
         f"{origin}/ready",
         headers=bypass_headers,
     )
-    _, version = request_json(f"{origin}/version", headers=bypass_headers)
     if health.get("status") != "ok":
         raise SmokeCheckError("The Vercel health response was unexpected.")
     if readiness.get("status") != "ready":

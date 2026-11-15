@@ -662,13 +662,11 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: true
-      - name: Evaluate CI, event, opt-ins, and release freshness
+      - name: Evaluate CI, event, and release freshness
         id: gate
         env:
           TRIGGER: ${{ github.event_name }}
           CI_RESULT: ${{ needs.ci-gate.result }}
-          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
-          RUN_LIVE_E2E_SMOKE: ${{ vars.RUN_LIVE_E2E_SMOKE }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
@@ -693,13 +691,10 @@ jobs:
       worker_url: ${{ vars.CLOUDFLARE_WORKER_URL }}
     env:
       CI_GATE_PASSED: "true"
-      DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
-      RUN_LIVE_E2E_SMOKE: ${{ vars.RUN_LIVE_E2E_SMOKE }}
       RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
       CLOUDFLARE_WORKER_URL: ${{ vars.CLOUDFLARE_WORKER_URL }}
-      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
       STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
@@ -721,13 +716,11 @@ jobs:
       - name: Install pinned Worker dependencies
         working-directory: infra/cloudflare/d1-gateway
         run: npm ci
-      - name: Verify every target, credential name, and opt-in
+      - name: Verify every target and credential
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: >-
-            ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
         run: python3 -m scripts.deployment.deployment_preflight
@@ -784,7 +777,7 @@ jobs:
         run: python3 -m scripts.deployment.smoke_cloudflare
 
   deploy-vercel:
-    name: "Deploy: Stage Vercel FastAPI"
+    name: "Deploy: Vercel FastAPI"
     needs: [readiness, smoke-cloudflare]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -792,35 +785,30 @@ jobs:
     permissions:
       contents: read
     outputs:
-      stage_url: ${{ steps.stage.outputs.stage_url }}
-      previous_deployment_ref: >-
-        ${{ steps.stage.outputs.previous_deployment_ref }}
+      production_url: ${{ steps.trigger.outputs.production_url }}
     steps:
-      - name: Check out the exact approved commit
+      - name: Check out the CI-approved commit
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.readiness.outputs.release_sha }}
           fetch-depth: 0
           persist-credentials: true
-      # actions/setup-node v5.0.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
-        with:
-          node-version: 22
-      - name: Install reviewed Vercel CLI 65.16.0
-        run: npm install --global --ignore-scripts vercel@65.16.0
-      - name: Build and stage without assigning production domains
-        id: stage
+      - name: Confirm the approved release is still current
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
+        run: python3 -m scripts.deployment.assert_release_current
+      - name: Trigger the Vercel production deploy hook
+        id: trigger
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.vercel_control stage
+        run: python3 -m scripts.deployment.trigger_vercel_hook
 
   smoke-vercel:
-    name: "Smoke: Staged Vercel FastAPI"
+    name: "Smoke: Vercel FastAPI"
     needs: [readiness, deploy-vercel]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -834,76 +822,36 @@ jobs:
         with:
           ref: ${{ needs.readiness.outputs.release_sha }}
           persist-credentials: false
-      - name: Check health, D1, identity, sessions, and ownership
+      - name: Wait for release and check API, identity, and sessions
         env:
-          VERCEL_URL: ${{ needs.deploy-vercel.outputs.stage_url }}
+          VERCEL_URL: ${{ needs.deploy-vercel.outputs.production_url }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: >-
-            ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: python3 -m scripts.deployment.smoke_vercel
 
-  promote-vercel:
-    name: "Promote: Verified Vercel FastAPI"
-    needs: [readiness, deploy-vercel, smoke-vercel]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment: production
-    permissions:
-      contents: read
-    outputs:
-      production_url: ${{ steps.promote.outputs.production_url }}
-    steps:
-      - name: Check out the exact approved commit
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          fetch-depth: 0
-          persist-credentials: true
-      # actions/setup-node v5.0.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
-        with:
-          node-version: 22
-      - name: Install reviewed Vercel CLI 65.16.0
-        run: npm install --global --ignore-scripts vercel@65.16.0
-      - name: Promote the tested deployment
-        id: promote
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_STAGE_URL: ${{ needs.deploy-vercel.outputs.stage_url }}
-          VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
-          VERCEL_PREVIOUS_DEPLOYMENT_REF: >-
-            ${{ needs.deploy-vercel.outputs.previous_deployment_ref }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.vercel_control promote
-
   promote-streamlit:
-    name: "Promote: Streamlit source branch"
-    needs: [readiness, promote-vercel]
+    name: "Verify: Streamlit source branch"
+    needs: [readiness, smoke-vercel]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: production
     permissions:
-      contents: write
+      contents: read
     outputs:
       branch_sha: ${{ steps.promote.outputs.branch_sha }}
     steps:
-      - name: Check out the exact approved commit
+      - name: Check out the CI-approved commit
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.readiness.outputs.release_sha }}
           fetch-depth: 0
-          persist-credentials: true
-      - name: Fast-forward deploy/streamlit without force push
+          persist-credentials: false
+      - name: Confirm Streamlit source points to the approved main commit
         id: promote
         env:
           CI_GATE_PASSED: "true"
-          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           STREAMLIT_BRANCH: ${{ vars.STREAMLIT_BRANCH }}
         run: python3 -m scripts.deployment.promote_streamlit
@@ -944,7 +892,7 @@ jobs:
     needs:
       - readiness
       - deploy-cloudflare
-      - promote-vercel
+      - smoke-vercel
       - streamlit-readiness
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -970,7 +918,7 @@ jobs:
     needs:
       - readiness
       - deploy-cloudflare
-      - promote-vercel
+      - smoke-vercel
       - streamlit-readiness
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -985,12 +933,10 @@ jobs:
           persist-credentials: false
       - name: Test API, authentication, and D1 session persistence
         env:
-          VERCEL_URL: ${{ needs.promote-vercel.outputs.production_url }}
+          VERCEL_URL: ${{ needs.deploy-vercel.outputs.production_url }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: >-
-            ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: python3 -m scripts.deployment.smoke_vercel
 
   post-deploy-streamlit:
@@ -998,7 +944,7 @@ jobs:
     needs:
       - readiness
       - deploy-cloudflare
-      - promote-vercel
+      - smoke-vercel
       - streamlit-readiness
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1029,9 +975,10 @@ jobs:
 
   post-deploy-end-to-end:
     name: "Smoke: Full-stack synthetic conversation"
+    if: vars.RUN_LIVE_E2E_SMOKE == 'true'
     needs:
       - readiness
-      - promote-vercel
+      - deploy-vercel
       - post-deploy-cloudflare
       - post-deploy-vercel
       - post-deploy-streamlit
@@ -1060,7 +1007,7 @@ jobs:
         env:
           STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
           VERCEL_PRODUCTION_URL: >-
-            ${{ needs.promote-vercel.outputs.production_url }}
+            ${{ needs.deploy-vercel.outputs.production_url }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
@@ -1104,7 +1051,6 @@ jobs:
       - smoke-cloudflare
       - deploy-vercel
       - smoke-vercel
-      - promote-vercel
       - promote-streamlit
       - streamlit-readiness
       - post-deploy-cloudflare

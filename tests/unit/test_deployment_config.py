@@ -240,8 +240,8 @@ def test_ci_gate_command_exits_nonzero_for_incomplete_checks(
     assert "tests=cancelled" in capsys.readouterr().out
 
 
-def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
-    """Block PR, scheduled, stale, disabled, and failed deployment runs.
+def test_deployment_requires_successful_main_ci_without_opt_ins() -> None:
+    """Block PR, scheduled, stale, and failed deployment runs.
 
     Automatic and manual paths must prove the current main SHA and CI success.
     """
@@ -249,8 +249,6 @@ def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
         "trigger": "push",
         "ref": "refs/heads/main",
         "ci_result": "success",
-        "deploy_enabled": True,
-        "live_smoke_enabled": True,
         "release_sha": "a" * 40,
         "main_sha": "a" * 40,
     }
@@ -263,9 +261,6 @@ def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
     )
     assert "This workflow event is not a deployment trigger." in (
         deployment_blockers(**{**base, "trigger": "schedule"})
-    )
-    assert "DEPLOY_ENABLED is not true." in deployment_blockers(
-        **{**base, "deploy_enabled": False}
     )
     assert "The CI-approved release has been superseded on main." in (
         deployment_blockers(**{**base, "main_sha": "b" * 40})
@@ -285,9 +280,6 @@ def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
             "trigger": "workflow_dispatch",
             "ref": "refs/heads/feature",
         }
-    )
-    assert "RUN_LIVE_E2E_SMOKE is not true." in deployment_blockers(
-        **{**base, "live_smoke_enabled": False}
     )
 
 

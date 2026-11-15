@@ -1,7 +1,7 @@
 """Keep CI and deployment authorization rules explicit and testable.
 
-Pure policy helpers reject incomplete job results, unsafe events, disabled
-opt-ins, and release commits that are no longer current on the main branch.
+Pure policy helpers reject incomplete job results, unsafe events, and release
+commits that are no longer current on the main branch.
 """
 
 from collections.abc import Mapping
@@ -28,8 +28,6 @@ def deployment_blockers(
     trigger: str,
     ref: str,
     ci_result: str,
-    deploy_enabled: bool,
-    live_smoke_enabled: bool,
     release_sha: str,
     main_sha: str,
 ) -> list[str]:
@@ -39,8 +37,6 @@ def deployment_blockers(
         trigger: Event that started the consolidated CI workflow.
         ref: Git ref selected for a manual workflow run.
         ci_result: Result of the mandatory CI gate in this workflow run.
-        deploy_enabled: Explicit repository deployment opt-in.
-        live_smoke_enabled: Explicit permission for one live chat smoke.
         release_sha: Commit approved by CI.
         main_sha: Current remote main commit.
 
@@ -60,10 +56,6 @@ def deployment_blockers(
     if ci_result != "success":
         blockers.append("The mandatory CI gate did not succeed.")
 
-    if not deploy_enabled:
-        blockers.append("DEPLOY_ENABLED is not true.")
-    if not live_smoke_enabled:
-        blockers.append("RUN_LIVE_E2E_SMOKE is not true.")
     if len(release_sha) != 40 or any(
         char not in "0123456789abcdef" for char in release_sha.lower()
     ):

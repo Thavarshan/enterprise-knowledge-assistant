@@ -199,14 +199,13 @@ API health and readiness, opens the UI, and verifies UI-to-API connectivity.
 An explicit `ci-gate` fails for any required job that fails, is cancelled, or
 is skipped.
 
-The same workflow contains the optional deployment chain: Cloudflare
-deployment and smoke, Vercel staging and smoke, Vercel promotion, Streamlit
-branch promotion and readiness, then separate post-deployment smoke jobs. A
-non-cancelling concurrency group serializes runs, and every mutation checks
-that the approved SHA still matches `main`. Production deployment and the
-one live model-backed end-to-end smoke require separate explicit opt-ins.
-They remain skipped until enabled in the protected GitHub environment. See
-[CI/CD operations](ci-cd.md).
+The same workflow runs deployment after the full CI gate: Cloudflare deploy
+and smoke, Vercel deploy-hook and smoke, Streamlit release check, then
+post-deployment checks. A non-cancelling concurrency group serializes runs,
+and every mutation checks that the approved SHA still matches `main`.
+Streamlit Community Cloud follows `main` and may rebuild on push; CI waits
+for and verifies the approved SHA. The paid live model smoke is optional and
+controlled separately from deployment. See [CI/CD operations](ci-cd.md).
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values

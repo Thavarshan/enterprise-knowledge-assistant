@@ -35,6 +35,8 @@ async def version(request: Request) -> dict[str, str]:
     """
     release_sha = os.environ.get("APP_RELEASE_SHA", "").lower()
     if not _RELEASE_SHA_PATTERN.fullmatch(release_sha):
+        release_sha = os.environ.get("VERCEL_GIT_COMMIT_SHA", "").lower()
+    if not _RELEASE_SHA_PATTERN.fullmatch(release_sha):
         release_sha = "unknown"
     settings: Any = request.app.state.container.settings
     return {

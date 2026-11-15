@@ -1,8 +1,7 @@
-"""Report an explicit blocked or ready deployment authorization state.
+"""Report a blocked or ready deployment authorization state.
 
 The result is written to GitHub's job output and summary without exposing
-secrets. A blocked deployment leaves the CI workflow successful and skips
-all optional deployment jobs.
+secrets. Successful CI on the current main commit authorizes deployment.
 """
 
 import os
@@ -43,20 +42,15 @@ def _write_summary(title: str, details: list[str]) -> None:
 
 
 def main() -> int:
-    """Evaluate the workflow event, CI result, opt-ins, and release SHA.
+    """Evaluate the workflow event, CI result, and release SHA.
 
     Returns:
-        Zero when readiness was evaluated, including an explicit block.
+        Zero when readiness was evaluated, including a safe block.
     """
     blockers = deployment_blockers(
         trigger=os.environ.get("TRIGGER", ""),
         ref=os.environ.get("GITHUB_REF", ""),
         ci_result=os.environ.get("CI_RESULT", ""),
-        deploy_enabled=os.environ.get("DEPLOY_ENABLED", "").lower()
-        == "true",
-        live_smoke_enabled=os.environ.get(
-            "RUN_LIVE_E2E_SMOKE", ""
-        ).lower() == "true",
         release_sha=os.environ.get("RELEASE_SHA", "").lower(),
         main_sha=os.environ.get("CURRENT_MAIN_SHA", "").lower(),
     )
@@ -72,7 +66,7 @@ def main() -> int:
     else:
         _write_summary(
             "Deployment READY",
-            ["CI passed; explicit deployment and live-smoke opt-ins are set."],
+            ["CI passed; the current main commit is authorized to deploy."],
         )
         print("Deployment is ready to start.")
     return 0

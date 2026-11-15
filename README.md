@@ -5,6 +5,17 @@ Streamlit, LangGraph, SQLite, D1, Pinecone, OpenAI, and LangSmith are kept
 behind small internal module boundaries. Deterministic mock mode remains
 available for tests and local development.
 
+## Live demo
+
+Open the [Enterprise Knowledge Assistant demo][live-demo]. In the sidebar,
+select a user, enter the matching password, and press **Sign in**.
+
+- Viewer (`viewer`): `viewer-demo-2026`
+- Analyst (`analyst`): `analyst-demo-2026`
+- Administrator (`admin`): `admin-demo-2026`
+
+These public demo accounts use synthetic data. Do not reuse their passwords.
+
 ## Architecture
 
 ```mermaid
@@ -91,8 +102,10 @@ CI runs independent quality, build, test, type, Python and npm dependency,
 Worker/D1, Streamlit startup, GitHub Actions syntax, deployment configuration,
 and Docker Compose checks. Python tests cover 3.12 through 3.14. The required
 `ci-gate` fails if any check fails, is cancelled, or is skipped. Production
-deployment is separately gated and remains disabled until operators configure
-the protected environment and explicitly enable it. See
+Cloudflare and Vercel deployment runs automatically after the full CI gate
+passes on `main`. Streamlit Community Cloud follows `main` and rebuilds on a
+push; CI verifies its release before reporting success. A live model-backed
+end-to-end smoke remains separate to avoid routine model usage charges. See
 [CI/CD operations](docs/ci-cd.md).
 
 ## Implemented behavior
@@ -143,3 +156,5 @@ and rate limits are local demonstration components. No recording is included.
 
 The authoritative assessment is `docs/assignment.md`. Planning files are
 kept local and ignored by Git.
+
+[live-demo]: https://enterprise-knowledge-assistant-g6qo3szfwp33c9yqdp2t2o.streamlit.app/
