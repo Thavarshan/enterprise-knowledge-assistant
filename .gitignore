@@ -25,3 +25,4 @@ infra/cloudflare/d1-gateway/wrangler.deploy.jsonc
 !infra/cloudflare/d1-gateway/.dev.vars.example
 **/node_modules/
 **/.wrangler/
+ext/
