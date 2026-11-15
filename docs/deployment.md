@@ -161,8 +161,8 @@ Troubleshooting:
 3. Streamlit finds `apps/ui/requirements.txt` in the app directory. It
    contains only `streamlit` and `httpx`, so the UI does not install the
    backend's OpenAI, Pinecone, LangSmith, or Cloudflare dependencies.
-4. After Vercel is deployed, add the public API base URL as a Streamlit
-   secret:
+4. The UI defaults to the production Vercel API URL. To target a different
+   API, override the public base URL as a Streamlit secret:
 
    ```toml
    API_BASE_URL = "https://<vercel-api-host>"
@@ -190,8 +190,9 @@ and [secrets guide][streamlit-secrets].
 Troubleshooting:
 
 - A blank chat input before sign-in is expected; authenticate first.
-- A connection error usually means `API_BASE_URL` is missing, misspelled,
-  or points to an API that is not ready.
+- A connection error usually means an `API_BASE_URL` override is misspelled
+  or points to an API that is not ready. The hosted UI otherwise uses the
+  production Vercel default.
 - The UI shows caller-safe errors. Inspect API request IDs and service logs
   rather than surfacing backend exception text to users.
 - The public hostname can be included in backend `CORS_ORIGINS` for any

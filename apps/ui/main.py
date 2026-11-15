@@ -18,7 +18,10 @@ import streamlit as st
 from streamlit.errors import StreamlitSecretNotFoundError
 
 from apps.ui.services.api_client import AssistantApiClient
-from apps.ui.services.config import resolve_api_base_url
+from apps.ui.services.config import (
+    PUBLIC_API_BASE_URL,
+    resolve_api_base_url,
+)
 from apps.ui.services.release import resolve_release_sha
 
 st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
@@ -46,6 +49,18 @@ with st.sidebar:
     st.caption(
         "Choose a server-configured demo user; the backend assigns the role.")
     if not st.session_state.access_token:
+        if base_url == PUBLIC_API_BASE_URL:
+            st.markdown(
+                "**Reviewer sign-in**\n\n"
+                "Choose the matching user below and enter its password:\n\n"
+                "- Viewer (`viewer`): `viewer-demo-2026`\n"
+                "- Analyst (`analyst`): `analyst-demo-2026`\n"
+                "- Administrator (`admin`): `admin-demo-2026`"
+            )
+            st.caption(
+                "Public demo passwords for synthetic data only. "
+                "Do not reuse them."
+            )
         username = st.selectbox("User", ["viewer", "analyst", "admin"])
         password = st.text_input("Password", type="password")
         if st.button("Sign in", type="primary"):

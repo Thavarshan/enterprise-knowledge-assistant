@@ -7,23 +7,25 @@ storage, and authentication credentials stay outside Streamlit's runtime.
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
+PUBLIC_API_BASE_URL = "https://enterprise-knowledge-assistant-omega.vercel.app"
+
 
 def resolve_api_base_url(
     environment: Mapping[str, str],
     secrets: Mapping[str, object],
     *,
-    default: str = "http://localhost:8000",
+    default: str = PUBLIC_API_BASE_URL,
 ) -> str:
     """Select and validate the configured public FastAPI URL.
 
     Process environment values take precedence over Streamlit secrets. The
-    fallback keeps local development compatible with the Docker Compose
-    network configuration supplied by the caller.
+    fallback points new deployments at the public API. Local `.env` and
+    Docker Compose settings override it with their respective API addresses.
 
     Args:
         environment: Process environment mapping.
         secrets: Streamlit secrets mapping, containing public settings only.
-        default: Local API address used when no setting is provided.
+        default: API origin used when no setting is provided.
 
     Returns:
         Valid HTTP(S) origin without a trailing slash.

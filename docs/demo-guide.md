@@ -12,7 +12,9 @@ existing configured Pinecone index and namespace.
 
 Provider calls and Pinecone writes may incur account usage. The demo sends
 only synthetic assessment data. It does not create an index or delete
-records. No credentials are stored in the repository.
+records. Provider credentials and local user passwords are not stored in the
+repository. The online assessment app intentionally shows public demo
+passwords for synthetic accounts; never reuse them.
 
 ## Startup
 
@@ -26,8 +28,8 @@ make setup
 `make setup` creates local users only if they do not already exist. It prints
 newly generated passwords once and stores them in ignored
 `data/users/default.json`. The demonstration usernames/roles are `viewer`,
-`analyst`, and `admin` (Administrator). Passwords are local and are not
-recorded in this guide.
+`analyst`, and `admin` (Administrator). These local passwords are separate
+from the public online assessment passwords below.
 
 Set the following in ignored `.env`, preserving the real secret values only
 in that local file:
@@ -56,6 +58,25 @@ make dev
 Open <http://localhost:8501> and sign in. `make dev` runs the API and UI in
 one foreground process group; Ctrl+C stops both. To use containers instead,
 run `docker compose up --build` after setting `.env`.
+
+## Online reviewer access
+
+Open the online Streamlit demo:
+<https://enterprise-knowledge-assistant-g6qo3szfwp33c9yqdp2t2o.streamlit.app/>
+
+In the **Demo access** sidebar, select the user, copy its matching password
+from the reviewer sign-in list, and click **Sign in**.
+
+| User | Role | Public demo password |
+|---|---|---|
+| `viewer` | Viewer | `viewer-demo-2026` |
+| `analyst` | Analyst | `analyst-demo-2026` |
+| `admin` | Administrator | `admin-demo-2026` |
+
+These public passcodes work only with the synthetic assessment demo. Do not
+reuse them for other accounts. If Streamlit asks a reviewer to sign in to
+Streamlit before showing the app, the app owner must grant viewer access or
+make the app public in Streamlit Community Cloud settings.
 
 ## Preflight verification
 

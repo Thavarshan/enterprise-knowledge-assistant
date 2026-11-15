@@ -149,14 +149,15 @@ GitHub `VERCEL_AUTOMATION_BYPASS_SECRET`; CI sends it only as an HTTP header
 when testing the staged deployment URL.
 
 For Streamlit Community Cloud, create the app manually with
-`apps/ui/main.py`, the pinned dependencies in `apps/ui/requirements.txt`, and
-the public Vercel API URL as `API_BASE_URL`. Configure the app to follow
-`deploy/streamlit`. Before enabling production, initialize this branch from a
-known-good `main` commit and protect it so normal users cannot push or merge
-to it. After bootstrap, only the gated Actions workflow should advance it.
-Use a ruleset that restricts updates to the GitHub Actions app. If the
-repository's rules block the default Actions token, configure an authorized
-GitHub App installation token for this job; do not weaken branch protection.
+`apps/ui/main.py` and the pinned dependencies in
+`apps/ui/requirements.txt`. The UI defaults to the production Vercel API;
+configure an `API_BASE_URL` override only for another target. Configure the
+app to follow `deploy/streamlit`. Before enabling production, initialize the
+branch from a known-good `main` commit. Protect it so normal users cannot push
+or merge to it. After bootstrap, only the gated Actions workflow should
+advance it. Use a ruleset to restrict updates to the GitHub Actions app.
+If repository rules block the default Actions token, use a GitHub App
+installation token for this job; do not weaken branch protection.
 The app displays its checked-out Git SHA. Actions polls for the exact release
 and checks the login, chat, and activity panel after promotion.
 

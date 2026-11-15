@@ -129,6 +129,9 @@ Never commit .env, local account JSON, provider keys, or customer data.
 Root ignore rules exclude docs/plan.md and docs/assignment.md. The
 data/users directory has its own ignore rule for development accounts. The
 Docker build context also excludes local account JSON and environment files.
+The online assessment demo intentionally displays fixed public passcodes for
+its synthetic demo accounts. Never reuse them or store confidential documents
+in the assessment index. Replace these accounts before using real data.
 The cloud simulation uses only synthetic hard-coded local accounts.
 
 ## Deployment workflow boundary
@@ -137,10 +140,12 @@ Pull requests and scheduled CI runs do not receive production secrets. A
 deployment can start only after the complete `ci-gate` passes for a push to
 `main`, or after a manual run invokes the same CI workflow successfully.
 Repository variables `DEPLOY_ENABLED` and `RUN_LIVE_E2E_SMOKE` must both be
-explicitly enabled. Production credentials belong to the protected GitHub
-`production` environment. The Cloudflare token is limited to the dedicated
-Worker and D1 resources; the default Actions token gets write access only in
-the Streamlit branch-promotion job.
+explicitly enabled at repository scope; the readiness job does not enter the
+production environment. The live end-to-end smoke uses real provider calls
+and may incur usage charges. Production credentials belong to the protected
+GitHub `production` environment. The Cloudflare token is limited to the
+dedicated Worker and D1 resources. The default Actions token gets write access
+only in the Streamlit branch-promotion job.
 
 The deployment workflow serializes production releases and rechecks the
 approved Git SHA before each remote mutation. It verifies the exact Cloudflare

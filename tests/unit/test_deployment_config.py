@@ -30,7 +30,8 @@ from enterprise_assistant.memory.factory import create_session_store
 def test_api_base_url_reads_environment_before_streamlit_secrets() -> None:
     """Prefer an environment override and support Streamlit secrets.
 
-    Local defaults remain available for the development environment.
+    Local environment overrides still take precedence over the deployment
+    default.
     """
     assert resolve_api_base_url(
         {"API_BASE_URL": "https://api.example/"},
@@ -40,7 +41,9 @@ def test_api_base_url_reads_environment_before_streamlit_secrets() -> None:
         {},
         {"API_BASE_URL": "https://secret.example/"},
     ) == "https://secret.example"
-    assert resolve_api_base_url({}, {}) == "http://localhost:8000"
+    assert resolve_api_base_url({}, {}) == (
+        "https://enterprise-knowledge-assistant-omega.vercel.app"
+    )
 
 
 def test_api_base_url_rejects_invalid_values() -> None:

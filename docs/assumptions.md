@@ -50,7 +50,7 @@ representations. Mock mode needs no provider credentials.
 | API_HOST | 0.0.0.0 | Settings field; launcher currently binds directly. |
 | API_PORT | 8000 | Launcher and Compose host-port mapping. |
 | UI_PORT | 8501 | Launcher and Compose host-port mapping. |
-| API_BASE_URL | http://localhost:8000 | UI API target; set per deployment. |
+| API_BASE_URL | localhost:8000 | Local override; hosted UI uses Vercel. |
 | MEMORY_BACKEND | sqlite | `sqlite` locally or `d1` via the Worker. |
 | SQLITE_PATH | data/sessions.sqlite3 | Local SQLite database path. |
 | D1_API_URL | empty | Dedicated Worker origin; HTTPS in production. |
@@ -83,11 +83,12 @@ representations. Mock mode needs no provider credentials.
 | PINECONE_DOCUMENTS_PATH | data/samples/incident_corpus.json | Ingest source. |
 
 `make setup` creates `data/users/default.json` when it is missing. The UI
-reads `API_BASE_URL` from its process environment and defaults to localhost.
-The local launcher reads ports from the process environment; Compose also
-uses them for host-port mappings. The API's `API_HOST` and `api_port` fields
-do not currently control Uvicorn's bind address or port. Compose supplies
-the internal UI URL as `http://api:8000`.
+reads `API_BASE_URL` from its process environment or Streamlit secrets and
+defaults to the deployed Vercel API. Local `.env` and Compose override that
+default; Compose supplies the internal UI URL as `http://api:8000`. The local
+launcher reads ports from the process environment; Compose also uses them for
+host-port mappings. The API's `API_HOST` and `api_port` fields do not
+currently control Uvicorn's bind address or port.
 
 The API and UI can use different configuration sources. API Settings reads
 `.env`; the launcher reads process environment variables; the UI reads its
