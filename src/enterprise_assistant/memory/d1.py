@@ -39,6 +39,14 @@ class _SessionPayload(BaseModel):
     created_at: str = Field(min_length=1, max_length=40)
 
 
+class _SessionListPayload(BaseModel):
+    """Validate a bounded list of owner-scoped session records."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    sessions: list[_SessionPayload] = Field(max_length=100)
+
+
 class _MessagePayload(BaseModel):
     """Validate a message record returned by the Worker.
 
@@ -182,6 +190,43 @@ class D1SessionStore:
                 "Session store returned an invalid session response."
             )
         return session
+
+    async def list_sessions(self, owner_id: str) -> list[ChatSession]:
+        """List sessions returned by the owner-scoped Worker endpoint.
+
+        Args:
+            owner_id: Authenticated account identifier.
+
+        Returns:
+            Up to 100 validated sessions ordered newest first.
+
+        Raises:
+            SessionStoreUnavailable: The Worker fails or returns invalid data.
+        """
+        response = await self._request(
+            "GET",
+            "/v1/sessions",
+            owner_id=owner_id,
+        )
+        if response is None:
+            raise SessionStoreUnavailable(
+                "Session store returned an invalid session list."
+            )
+        try:
+            payload = _SessionListPayload.model_validate(response.json())
+        except (ValidationError, ValueError) as exc:
+            raise SessionStoreUnavailable(
+                "Session store returned an invalid session list."
+            ) from exc
+        sessions = [
+            ChatSession(**session.model_dump())
+            for session in payload.sessions
+        ]
+        if any(session.owner_id != owner_id for session in sessions):
+            raise SessionStoreUnavailable(
+                "Session store returned an invalid session list."
+            )
+        return sessions
 
     async def get_session(
         self, session_id: str, owner_id: str

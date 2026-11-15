@@ -44,6 +44,19 @@ class SessionStore(Protocol):
         """
         ...
 
+    async def list_sessions(
+        self, owner_id: str
+    ) -> list[ChatSession]:
+        """List the most recent conversations owned by one user.
+
+        Args:
+            owner_id: Authenticated account identifier.
+
+        Returns:
+            The owner's sessions ordered newest first.
+        """
+        ...
+
     async def get_session(
         self, session_id: str, owner_id: str
     ) -> ChatSession | None:

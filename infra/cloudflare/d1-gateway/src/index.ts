@@ -24,6 +24,7 @@ interface MessageRow {
 const MAX_BODY_BYTES = 48_000;
 const MAX_MESSAGE_LENGTH = 40_000;
 const MAX_HISTORY = 1_000;
+const MAX_SESSIONS = 100;
 const SESSION_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OWNER_ID_PATTERN = /^[A-Za-z0-9._@+-]{1,128}$/;
@@ -167,6 +168,21 @@ async function createSession(
   return jsonResponse(session, 201);
 }
 
+async function listSessions(
+  ownerId: string,
+  env: Env,
+): Promise<Response> {
+  const result = await env.DB.prepare(
+    "SELECT session_id, owner_id, title, created_at FROM sessions " +
+      "WHERE owner_id = ? " +
+      "ORDER BY created_at DESC, session_id DESC LIMIT ?",
+  ).bind(ownerId, MAX_SESSIONS).all<SessionRow>();
+  if (!result.success) {
+    return jsonResponse({ error: "storage_unavailable" }, 503);
+  }
+  return jsonResponse({ sessions: result.results });
+}
+
 async function getSession(
   sessionId: string,
   ownerId: string,
@@ -258,6 +274,9 @@ export default {
       const ownerId = getOwner(request);
       if (!ownerId) {
         return jsonResponse({ error: "invalid_owner" }, 400);
+      }
+      if (url.pathname === "/v1/sessions" && request.method === "GET") {
+        return await listSessions(ownerId, env);
       }
       if (url.pathname === "/v1/sessions" && request.method === "POST") {
         return await createSession(request, env, ownerId);

@@ -134,6 +134,24 @@ class SQLiteSessionStore:
             )
         return session
 
+    def list_sessions(self, owner_id: str) -> list[ChatSession]:
+        """List the newest sessions belonging to one owner.
+
+        Args:
+            owner_id: Trusted authenticated user ID.
+
+        Returns:
+            Up to 100 owner-scoped sessions, newest first.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT session_id, owner_id, title, created_at "
+                "FROM sessions WHERE owner_id = ? "
+                "ORDER BY created_at DESC, session_id DESC LIMIT 100",
+                (owner_id,),
+            ).fetchall()
+        return [ChatSession(**dict(row)) for row in rows]
+
     def get_session(self, session_id: str, owner_id: str) -> ChatSession | None:
         """Fetch a session only for its authenticated owner.
 

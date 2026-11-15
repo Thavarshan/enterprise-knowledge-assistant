@@ -101,17 +101,25 @@ with st.sidebar:
         if st.button("Sign in", type="primary"):
             try:
                 token = AssistantApiClient(base_url).login(username, password)
-                st.session_state.access_token = token
                 signed_in_client = AssistantApiClient(base_url, token)
                 identity = signed_in_client.get_identity()
+                sessions = signed_in_client.list_sessions()
+                session_ids = [
+                    str(session["session_id"])
+                    for session in sessions
+                ]
+                if not session_ids:
+                    session = signed_in_client.create_session()
+                    session_ids.append(str(session["session_id"]))
+                st.session_state.access_token = token
                 st.session_state.identity = identity
-                session = signed_in_client.create_session()
-                st.session_state.session_ids = []
-                st.session_state.session_ids.append(session["session_id"])
-                st.session_state.current_session_id = session["session_id"]
+                st.session_state.session_ids = session_ids
+                st.session_state.current_session_id = session_ids[0]
                 st.rerun()
             except httpx.HTTPError:
-                st.error("Sign-in failed. Check the user and password.")
+                st.error(
+                    "Sign-in or conversation loading failed. Please retry."
+                )
     else:
         identity = st.session_state.get("identity", {})
         st.write(f"Signed in as **{identity.get('user_id', 'user')}**")

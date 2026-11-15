@@ -58,6 +58,26 @@ async def create_session(
     return SessionResponse.from_record(session)
 
 
+@router.get("/sessions", response_model=list[SessionResponse])
+async def list_sessions(
+    request: Request,
+    user: AuthenticatedUser = Depends(get_current_user),  # noqa: B008
+) -> list[SessionResponse]:
+    """List conversations owned by the authenticated account.
+
+    Args:
+        request: Request containing the shared service container.
+        user: Authenticated owner resolved by FastAPI.
+
+    Returns:
+        The owner's recent sessions, newest first.
+    """
+    sessions = await request.app.state.container.memory.list_sessions(
+        user.user_id
+    )
+    return [SessionResponse.from_record(session) for session in sessions]
+
+
 @router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
 async def get_session(
     session_id: str,

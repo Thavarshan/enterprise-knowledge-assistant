@@ -63,6 +63,20 @@ class AsyncSQLiteSessionStore:
             title,
         )
 
+    async def list_sessions(self, owner_id: str) -> list[ChatSession]:
+        """List owner-scoped sessions without blocking the event loop.
+
+        Args:
+            owner_id: Authenticated account identifier.
+
+        Returns:
+            Up to 100 sessions ordered newest first.
+        """
+        return await asyncio.to_thread(
+            self.repository.list_sessions,
+            owner_id,
+        )
+
     async def get_session(
         self, session_id: str, owner_id: str
     ) -> ChatSession | None:

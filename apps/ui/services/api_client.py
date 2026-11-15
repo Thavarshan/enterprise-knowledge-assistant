@@ -92,6 +92,23 @@ class AssistantApiClient:
         response.raise_for_status()
         return cast(dict[str, str], response.json())
 
+    def list_sessions(self) -> list[dict[str, Any]]:
+        """List conversations owned by the authenticated user.
+
+        Returns:
+            Session summaries ordered newest first.
+
+        Raises:
+            httpx.HTTPError: The API request fails.
+        """
+        response = httpx.get(
+            f"{self.base_url}/api/v1/chat/sessions",
+            headers=self.headers,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return cast(list[dict[str, Any]], response.json())
+
     def create_session(
         self, title: str = "Demo conversation"
     ) -> dict[str, Any]:
