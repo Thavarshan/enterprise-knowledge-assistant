@@ -124,7 +124,7 @@ def create_app(
     elif app_settings.mock_mode:
         document_retriever = InMemoryRetriever.from_json()
     else:
-        dense_retriever = PineconeRetriever(
+        pinecone_retriever = PineconeRetriever(
             PineconeConfig(
                 api_key=app_settings.pinecone_api_key,
                 index_name=app_settings.pinecone_index_name,
@@ -137,8 +137,8 @@ def create_app(
             )
         )
         document_retriever = HybridRetriever(
-            dense_retriever,
-            dense_retriever,
+            pinecone_retriever,
+            pinecone_retriever,
         )
     registry = ToolRegistry()
     container = AppContainer(
