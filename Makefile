@@ -63,8 +63,7 @@ syntax-check:
 audit:
 	uv sync --locked --all-groups --extra ui
 	uv pip install --python .venv/bin/python \
-		--requirement apps/ui/requirements.txt \
-		--requirement scripts/deployment/requirements.txt
+		--requirement apps/ui/requirements.txt
 	uv run --no-sync pip-audit --local --skip-editable --progress-spinner off
 
 check: lint comments-check line-length-check format-check build typecheck \
