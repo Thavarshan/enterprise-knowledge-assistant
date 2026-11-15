@@ -40,7 +40,10 @@ class _SessionPayload(BaseModel):
 
 
 class _SessionListPayload(BaseModel):
-    """Validate a bounded list of owner-scoped session records."""
+    """Validate a bounded list of owner-scoped session records.
+
+    Worker responses may contain at most one hundred session records.
+    """
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
