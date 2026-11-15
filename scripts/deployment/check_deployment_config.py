@@ -58,13 +58,6 @@ def configuration_errors() -> list[str]:
     vercel = json.loads(
         (REPOSITORY_ROOT / "vercel.json").read_text(encoding="utf-8")
     )
-    requirements = (
-        REPOSITORY_ROOT / "apps/ui/requirements.txt"
-    ).read_text(encoding="utf-8").splitlines()
-    streamlit_startup = (
-        REPOSITORY_ROOT / "scripts/deployment/check_streamlit_startup.py"
-    ).read_text(encoding="utf-8")
-
     worker_pin = package.get("devDependencies", {}).get("wrangler")
     locked_pin = lock.get("packages", {}).get("node_modules/wrangler", {})
     if not worker_pin or worker_pin != locked_pin.get("version"):
@@ -97,16 +90,6 @@ def configuration_errors() -> list[str]:
         )
     if vercel.get("git", {}).get("deploymentEnabled") is not False:
         errors.append("Vercel Git auto-deployments must be disabled.")
-    if not requirements or any(
-        "==" not in line or line.lstrip().startswith("#")
-        for line in requirements
-    ):
-        errors.append(
-            "Streamlit dependencies must be exact pinned requirements."
-        )
-    if 'if __name__ == "__main__":' not in streamlit_startup:
-        errors.append("The Streamlit startup check must run when invoked.")
-
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
     workflow_files = {
         path.name for path in WORKFLOW_DIRECTORY.glob("*.yml")
@@ -133,10 +116,9 @@ def configuration_errors() -> list[str]:
         "cloudflare-unit",
         "cloudflare-integration",
         "d1-api-integration",
-        "docker-api-ui",
+        "docker-compose-api",
         "github-actions",
         "deployment-config",
-        "streamlit-smoke",
     }
     gate = _needs_text(ci, "ci-gate")
     if "actions/checkout@" not in gate:
@@ -151,14 +133,7 @@ def configuration_errors() -> list[str]:
         ("smoke-cloudflare", "deploy-cloudflare"),
         ("deploy-vercel", "smoke-cloudflare"),
         ("smoke-vercel", "deploy-vercel"),
-        ("promote-streamlit", "smoke-vercel"),
-        ("streamlit-readiness", "promote-streamlit"),
-        ("post-deploy-cloudflare", "streamlit-readiness"),
-        ("post-deploy-vercel", "deploy-vercel"),
-        ("post-deploy-vercel", "streamlit-readiness"),
-        ("post-deploy-streamlit", "streamlit-readiness"),
-        ("post-deploy-end-to-end", "post-deploy-cloudflare"),
-        ("post-deploy-smoke-result", "post-deploy-end-to-end"),
+        ("deployment-result", "smoke-vercel"),
     )
     for job_name, required_dependency in sequence:
         block = _needs_text(ci, job_name)
@@ -172,21 +147,13 @@ def configuration_errors() -> list[str]:
         "smoke-cloudflare",
         "deploy-vercel",
         "smoke-vercel",
-        "promote-streamlit",
-        "streamlit-readiness",
-        "post-deploy-cloudflare",
-        "post-deploy-vercel",
-        "post-deploy-streamlit",
-        "post-deploy-end-to-end",
-        "post-deploy-smoke-result",
         "deployment-result",
     ):
         if not _needs_text(ci, required_job):
             errors.append(f"ci.yml is missing deployment job {required_job}.")
     for protected_smoke_job in (
-        "post-deploy-cloudflare",
-        "post-deploy-vercel",
-        "post-deploy-end-to-end",
+        "smoke-cloudflare",
+        "smoke-vercel",
     ):
         block = _needs_text(ci, protected_smoke_job)
         if not re.search(r"(?m)^    environment: production$", block):

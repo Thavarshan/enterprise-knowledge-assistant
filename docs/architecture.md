@@ -189,23 +189,20 @@ runs the opt-in OpenAI, Pinecone, and LangSmith end-to-end test;
 The single `.github/workflows/ci.yml` workflow has separate jobs for lint,
 format, docblocks, comments, line length,
 syntax, package build, tests, type checking, Python/npm dependency audits,
-Worker/D1,
-Streamlit startup, GitHub Actions syntax, deployment configuration, and
-Docker Compose smoke. Pytest has a Python 3.12, 3.13, and 3.14 matrix. The
+Worker/D1, GitHub Actions syntax, deployment configuration, and Docker
+Compose API smoke. Pytest has a Python 3.12, 3.13, and 3.14 matrix. The
 Worker job validates Wrangler config, applies local D1 migrations, checks
 types and routes, and tests the Python API adapter through Wrangler. The
-Compose job starts the existing services with `docker compose up`, checks
-API health and readiness, opens the UI, and verifies UI-to-API connectivity.
-An explicit `ci-gate` fails for any required job that fails, is cancelled, or
-is skipped.
+Compose job runs `docker compose up` for FastAPI, then checks API health and
+readiness. CI does not start or probe Streamlit. An explicit `ci-gate` fails
+for any required job that fails, is cancelled, or is skipped.
 
-The same workflow runs deployment after the full CI gate: Cloudflare deploy
-and smoke, Vercel deploy-hook and smoke, Streamlit release check, then
-post-deployment checks. A non-cancelling concurrency group serializes runs,
+The same workflow deploys Cloudflare and Vercel after the full CI gate and
+smokes both services. A non-cancelling concurrency group serializes runs,
 and every mutation checks that the approved SHA still matches `main`.
-Streamlit Community Cloud follows `main` and may rebuild on push; CI waits
-for and verifies the approved SHA. The paid live model smoke is optional and
-controlled separately from deployment. See [CI/CD operations](ci-cd.md).
+Streamlit Community Cloud follows `main` and rebuilds on push, but CI does
+not wait for or probe that frontend. Release smokes do not invoke the model.
+See [CI/CD operations](ci-cd.md).
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values

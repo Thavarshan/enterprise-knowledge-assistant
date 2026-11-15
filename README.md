@@ -98,15 +98,14 @@ requests, and requires remote LangSmith read access. It does not create an
 index or delete records. `make evaluate-retrieval` runs a separate four-case
 synthetic evaluation. Neither result predicts quality on production data.
 
-CI runs independent quality, build, test, type, Python and npm dependency,
-Worker/D1, Streamlit startup, GitHub Actions syntax, deployment configuration,
-and Docker Compose checks. Python tests cover 3.12 through 3.14. The required
+CI runs separate quality, build, test, type, Python and npm dependency,
+Worker/D1, GitHub Actions syntax, deployment configuration, and
+Docker Compose API checks. Python tests cover 3.12 through 3.14. The required
 `ci-gate` fails if any check fails, is cancelled, or is skipped. Production
 Cloudflare and Vercel deployment runs automatically after the full CI gate
-passes on `main`. Streamlit Community Cloud follows `main` and rebuilds on a
-push; CI verifies its release before reporting success. A live model-backed
-end-to-end smoke remains separate to avoid routine model usage charges. See
-[CI/CD operations](docs/ci-cd.md).
+passes on `main`, followed by API and Worker smoke checks. Streamlit
+Community Cloud follows `main` and rebuilds on a push; CI does not probe its
+frontend. See [CI/CD operations](docs/ci-cd.md).
 
 ## Implemented behavior
 

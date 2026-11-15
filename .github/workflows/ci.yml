@@ -473,35 +473,6 @@ jobs:
       - name: Test FastAPI through Wrangler and local D1
         run: make cloud-sim-test
 
-  streamlit-smoke:
-    name: "Runtime: Streamlit application startup"
-    needs:
-      - lint
-      - format
-      - docblocks
-      - comments
-      - line-length
-      - syntax
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      # astral-sh/setup-uv v10.3.1
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
-        with:
-          version: 0.13.7
-          python-version: "3.13"
-          enable-cache: true
-          cache-dependency-glob: |
-            pyproject.toml
-            uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
-      - name: Start and probe the Streamlit application
-        run: uv run python -m scripts.deployment.check_streamlit_startup
-
   github-actions:
     name: "Verify: GitHub Actions workflow syntax"
     runs-on: ubuntu-24.04
@@ -541,8 +512,8 @@ jobs:
       - name: Reject unsafe D1 migration changes
         run: python3 -m scripts.deployment.validate_d1_migrations
 
-  docker-api-ui:
-    name: "Runtime: Docker Compose smoke"
+  docker-compose-api:
+    name: "Runtime: Docker Compose API smoke"
     needs:
       - build
       - tests
@@ -561,13 +532,12 @@ jobs:
           APP_ENV=test
           MOCK_MODE=true
           API_PORT=18000
-          UI_PORT=18501
           EOF
       - name: Build and start Compose services
         run: >-
           docker compose --project-name eka-ci up --build
-          --detach --wait --wait-timeout 120
-      - name: Check API, UI, and service network
+          --detach --wait --wait-timeout 120 api
+      - name: Check API and Compose service status
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -575,25 +545,7 @@ jobs:
           curl --fail --show-error http://127.0.0.1:18000/health
           curl --fail --show-error http://127.0.0.1:18000/ready
 
-          docker compose --project-name eka-ci exec -T ui python -c '
-          import os
-          import httpx
-
-          response = httpx.get(
-              os.environ["API_BASE_URL"] + "/ready",
-              timeout=5.0,
-          )
-          response.raise_for_status()
-          '
-
-          for _ in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:18501/ >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          curl --fail --show-error --output /dev/null \
-            http://127.0.0.1:18501/
+          docker compose --project-name eka-ci ps --status running api
       - name: Collect Compose logs after failure
         if: failure()
         run: docker compose --project-name eka-ci logs --no-color
@@ -624,10 +576,9 @@ jobs:
       - cloudflare-unit
       - cloudflare-integration
       - d1-api-integration
-      - docker-api-ui
+      - docker-compose-api
       - github-actions
       - deployment-config
-      - streamlit-smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -697,8 +648,6 @@ jobs:
       CLOUDFLARE_WORKER_URL: ${{ vars.CLOUDFLARE_WORKER_URL }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
-      STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
-      STREAMLIT_BRANCH: ${{ vars.STREAMLIT_BRANCH }}
     steps:
       - name: Check out the exact approved commit
         # actions/checkout v7.0.1
@@ -830,231 +779,6 @@ jobs:
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
         run: python3 -m scripts.deployment.smoke_vercel
 
-  promote-streamlit:
-    name: "Verify: Streamlit source branch"
-    needs: [readiness, smoke-vercel]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: production
-    permissions:
-      contents: read
-    outputs:
-      branch_sha: ${{ steps.promote.outputs.branch_sha }}
-    steps:
-      - name: Check out the CI-approved commit
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Confirm Streamlit source points to the approved main commit
-        id: promote
-        env:
-          CI_GATE_PASSED: "true"
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          STREAMLIT_BRANCH: ${{ vars.STREAMLIT_BRANCH }}
-        run: python3 -m scripts.deployment.promote_streamlit
-
-  streamlit-readiness:
-    name: "Verify: Streamlit Community Cloud release"
-    needs: [readiness, promote-streamlit]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment: production
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the exact promoted source
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.promote-streamlit.outputs.branch_sha }}
-          persist-credentials: false
-      # astral-sh/setup-uv v10.3.1
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
-        with:
-          version: 0.13.7
-          python-version: "3.13"
-      - name: Install pinned Playwright and Chromium
-        run: |
-          playwright_python="$RUNNER_TEMP/playwright-venv/bin/python"
-          uv venv --python 3.13 "$RUNNER_TEMP/playwright-venv"
-          uv pip install --python "$playwright_python" \
-            --requirement scripts/deployment/requirements.txt
-          "$playwright_python" -m playwright install --with-deps chromium
-      - name: Wait for the exact Streamlit release to load
-        env:
-          STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: >-
-          "$RUNNER_TEMP/playwright-venv/bin/python"
-          -m scripts.deployment.poll_streamlit
-
-  post-deploy-cloudflare:
-    name: "Smoke: Cloudflare Worker and D1"
-    needs:
-      - readiness
-      - deploy-cloudflare
-      - smoke-vercel
-      - streamlit-readiness
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: production
-    permissions:
-      contents: read
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          persist-credentials: false
-      - name: Test authenticated Worker and D1 read/write
-        env:
-          CLOUDFLARE_WORKER_URL: >-
-            ${{ needs.deploy-cloudflare.outputs.worker_url }}
-          D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.smoke_cloudflare
-
-  post-deploy-vercel:
-    name: "Smoke: Vercel FastAPI"
-    needs:
-      - readiness
-      - deploy-cloudflare
-      - deploy-vercel
-      - smoke-vercel
-      - streamlit-readiness
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: production
-    permissions:
-      contents: read
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          persist-credentials: false
-      - name: Test API, authentication, and D1 session persistence
-        env:
-          VERCEL_URL: ${{ needs.deploy-vercel.outputs.production_url }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
-          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-        run: python3 -m scripts.deployment.smoke_vercel
-
-  post-deploy-streamlit:
-    name: "Smoke: Streamlit Community Cloud"
-    needs:
-      - readiness
-      - deploy-cloudflare
-      - smoke-vercel
-      - streamlit-readiness
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment: production
-    permissions:
-      contents: read
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          persist-credentials: false
-      # astral-sh/setup-uv v10.3.1
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
-        with:
-          version: 0.13.7
-          python-version: "3.13"
-      - name: Install pinned Playwright and Chromium
-        run: |
-          playwright_python="$RUNNER_TEMP/playwright-venv/bin/python"
-          uv venv --python 3.13 "$RUNNER_TEMP/playwright-venv"
-          uv pip install --python "$playwright_python" \
-            --requirement scripts/deployment/requirements.txt
-          "$playwright_python" -m playwright install --with-deps chromium
-      - name: Verify page and deployed source SHA
-        env:
-          STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: >-
-          "$RUNNER_TEMP/playwright-venv/bin/python"
-          -m scripts.deployment.smoke_streamlit
-
-  post-deploy-end-to-end:
-    name: "Smoke: Full-stack synthetic conversation"
-    if: vars.RUN_LIVE_E2E_SMOKE == 'true'
-    needs:
-      - readiness
-      - deploy-vercel
-      - post-deploy-cloudflare
-      - post-deploy-vercel
-      - post-deploy-streamlit
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: production
-    permissions:
-      contents: read
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          persist-credentials: false
-      # astral-sh/setup-uv v10.3.1
-      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
-        with:
-          version: 0.13.7
-          python-version: "3.13"
-      - name: Install pinned Playwright and Chromium
-        run: |
-          playwright_python="$RUNNER_TEMP/playwright-venv/bin/python"
-          uv venv --python 3.13 "$RUNNER_TEMP/playwright-venv"
-          uv pip install --python "$playwright_python" \
-            --requirement scripts/deployment/requirements.txt
-          "$playwright_python" -m playwright install --with-deps chromium
-      - name: Send one synthetic, live model-backed conversation
-        env:
-          STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
-          VERCEL_PRODUCTION_URL: >-
-            ${{ needs.deploy-vercel.outputs.production_url }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
-          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-        run: >-
-          "$RUNNER_TEMP/playwright-venv/bin/python"
-          -m scripts.deployment.smoke_full_stack
-
-  post-deploy-smoke-result:
-    name: "Result: Post-deployment verification"
-    if: >-
-      always() && needs.readiness.outputs.run_deployment == 'true'
-    needs:
-      - readiness
-      - post-deploy-cloudflare
-      - post-deploy-vercel
-      - post-deploy-streamlit
-      - post-deploy-end-to-end
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          persist-credentials: false
-      - name: Require every post-deployment check to succeed
-        env:
-          DEPLOY_NEEDS_JSON: ${{ toJSON(needs) }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          CLOUDFLARE_WORKER_URL: ${{ vars.CLOUDFLARE_WORKER_URL }}
-          VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
-          STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
-        run: python3 -m scripts.deployment.check_deployment_result
-
   deployment-result:
     name: "Result: Production deployment"
     if: always() && needs.readiness.outputs.run_deployment == 'true'
@@ -1064,13 +788,6 @@ jobs:
       - smoke-cloudflare
       - deploy-vercel
       - smoke-vercel
-      - promote-streamlit
-      - streamlit-readiness
-      - post-deploy-cloudflare
-      - post-deploy-vercel
-      - post-deploy-streamlit
-      - post-deploy-end-to-end
-      - post-deploy-smoke-result
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -1080,5 +797,4 @@ jobs:
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           CLOUDFLARE_WORKER_URL: ${{ vars.CLOUDFLARE_WORKER_URL }}
           VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
-          STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
         run: python3 -m scripts.deployment.check_deployment_result

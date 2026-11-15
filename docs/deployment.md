@@ -298,22 +298,27 @@ users or sensitive information.
 
 Local unit, Worker, and optional Wrangler/D1 integration tests exercise the
 configured boundaries. CI runs separate Worker and local-D1 jobs alongside
-Python tests and the existing Docker Compose smoke test.
+Python tests and a Docker Compose API smoke.
 
-As of 2026-11-15, the Cloudflare Worker reports release `b5c0a09`. The Vercel
-API health and readiness endpoints return successfully in live mode, but its
-version endpoint reports no release SHA. Streamlit Community Cloud logs show
-`ModuleNotFoundError: No module named 'apps'` during startup. A repository-root
-import-path fix is included in the pending release. The full stack remains
-unverified until CI confirms the release and browser smoke checks.
+On 2026-11-15, the Vercel `/version` endpoint reported release
+`7a59e32b976213cc6c1cfaa966b31eb3b9b09087` in live mode. A synthetic Analyst
+request about `INC-2026-057` returned a cited incident summary, verifying the
+deployed OpenAI-backed chat path. The API's production settings require
+`MOCK_MODE=false` and `LLM_PROVIDER=openai`.
+
+The Streamlit source now adds the repository root to `sys.path` before its
+`apps.*` imports. Its deployed page has not been independently confirmed
+since the reported import error; an unauthenticated request currently
+redirects to Streamlit's authentication page. Per the simplified pipeline,
+CI does not start or probe Streamlit. Verify the public app in a browser
+after Community Cloud rebuilds from `main`.
 
 The single `.github/workflows/ci.yml` workflow contains automatic deployment
-and post-deployment smoke jobs. A passing CI gate on `main` triggers
-Cloudflare and Vercel release jobs. It requires production credentials,
-dedicated Cloudflare resources, a Vercel project with Git deployments
-disabled, a `main` deploy hook, and a Streamlit app following `main`. The
-paid live-model smoke is optional. See
-[CI/CD setup, secrets, and rollback](ci-cd.md).
+and API/Worker smoke jobs. A passing CI gate on `main` triggers Cloudflare
+and Vercel releases. It requires production credentials, dedicated
+Cloudflare resources, and a Vercel project with Git deployments disabled
+and a `main` deploy hook. Streamlit Community Cloud follows `main` outside
+this release gate. See [CI/CD setup, secrets, and rollback](ci-cd.md).
 
 [vercel-fastapi]: https://vercel.com/docs/frameworks/backend/fastapi
 [vercel-python]: https://vercel.com/docs/functions/runtimes/python

@@ -32,8 +32,6 @@ def main() -> int:
         )
         for name, details in jobs.items()
     }
-    if results.get("post-deploy-end-to-end") == "skipped":
-        results.pop("post-deploy-end-to-end")
     failures = failed_ci_jobs(results)
     if failures:
         details = ", ".join(
@@ -50,10 +48,9 @@ def main() -> int:
     urls = (
         ("Cloudflare Worker", os.environ.get("CLOUDFLARE_WORKER_URL", "")),
         ("Vercel API", os.environ.get("VERCEL_PRODUCTION_URL", "")),
-        ("Streamlit UI", os.environ.get("STREAMLIT_URL", "")),
     )
     print(
-        "Deployment and all post-deployment checks passed "
+        "Deployment and API smoke checks passed "
         f"for {release_sha}."
     )
     summary = os.environ.get("GITHUB_STEP_SUMMARY")

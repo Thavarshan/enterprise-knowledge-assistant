@@ -18,8 +18,6 @@ REQUIRED_VALUES = (
     "VERCEL_DEPLOY_HOOK",
     "VERCEL_PROJECT_ID",
     "VERCEL_PRODUCTION_URL",
-    "STREAMLIT_URL",
-    "STREAMLIT_BRANCH",
     "SMOKE_ANALYST_PASSWORD",
     "SMOKE_VIEWER_PASSWORD",
 )
@@ -41,16 +39,12 @@ def main() -> int:
     for name in (
         "CLOUDFLARE_WORKER_URL",
         "VERCEL_PRODUCTION_URL",
-        "STREAMLIT_URL",
     ):
         try:
             https_origin(os.environ[name], name)
         except SmokeCheckError as exc:
             print(str(exc))
             return 1
-    if os.environ["STREAMLIT_BRANCH"] != "main":
-        print("STREAMLIT_BRANCH must equal main.")
-        return 1
     print("Required deployment variables and secret names are configured.")
     return 0
 

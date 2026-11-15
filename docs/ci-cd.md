@@ -5,9 +5,8 @@
 Cloudflare and Vercel deployment starts automatically when every required CI
 job passes on `main`. Those deploys are skipped for pull requests, scheduled
 runs, stale releases, and unsuccessful CI. Streamlit Community Cloud follows
-`main` and may start rebuilding on push; CI verifies its release before
-reporting success. Provider credentials and target settings must exist in
-the `production` environment.
+`main` and rebuilds independently of CI. Provider credentials and target
+settings must exist in the `production` environment.
 
 The `.github/workflows/ci.yml` workflow owns CI and deployment. Pull requests
 and scheduled runs validate code only. A push to `main` triggers Cloudflare
@@ -18,8 +17,9 @@ manual dispatch runs those CI checks before evaluating deployment readiness.
 
 `.github/workflows/ci.yml` keeps independent jobs for lint, formatting,
 docblocks, comments, line length, syntax, package build, type checking,
-dependency audit, Python 3.12/3.13/3.14 tests, Worker/D1, Streamlit startup,
-GitHub Actions syntax, deployment configuration, and Docker Compose smoke.
+dependency audit, Python 3.12/3.13/3.14 tests, Worker/D1,
+GitHub Actions syntax, deployment configuration, and Docker Compose API
+smoke.
 The `ci-gate` job depends on all required checks and fails for any result
 other than `success`, including `cancelled` and `skipped`.
 
@@ -31,10 +31,7 @@ flowchart TD
   cf --> cfs[Cloudflare smoke]
   cfs --> vs[Vercel production deploy hook]
   vs --> vss[Vercel smoke]
-  vss --> sp[Streamlit source check]
-  sp --> sr[Streamlit readiness]
-  sr --> ps[Post-deploy smoke jobs]
-  ps --> result[Deployment result]
+  vss --> result[Deployment result]
 ```
 
 The `readiness` job uses the result of `ci-gate` from this run. Pushes to
@@ -46,8 +43,7 @@ deployment opt-in flag.
 All workflow runs use a non-cancelling concurrency group, so an in-progress
 main release is not cancelled by a newer push. Cloudflare migrations,
 Worker deployment, and Vercel hook triggering recheck release freshness
-before their remote changes. Streamlit checks verify the release loaded by
-Community Cloud.
+before their remote changes.
 
 ## Local Wrangler commands
 
@@ -84,8 +80,7 @@ state.
 
 Create a GitHub environment named `production` and restrict its deployment
 branch to `main`. Keep cloud credentials in this environment, not
-repository-wide secrets. Give the production jobs only `contents: read`; the
-Streamlit promotion job alone receives `contents: write`.
+repository-wide secrets. Production jobs receive only `contents: read`.
 
 Set these variables on the `production` environment:
 
@@ -96,11 +91,6 @@ Set these variables on the `production` environment:
 | `CLOUDFLARE_WORKER_URL` | HTTPS `workers.dev` URL for `eka-d1-gateway`. |
 | `VERCEL_PROJECT_ID` | ID of the FastAPI Vercel project. |
 | `VERCEL_PRODUCTION_URL` | Public HTTPS production API origin. |
-| `STREAMLIT_URL` | HTTPS Community Cloud app origin. |
-| `STREAMLIT_BRANCH` | Exactly `main`, the app's configured source branch. |
-
-Set the repository variable `RUN_LIVE_E2E_SMOKE` to `false` to keep the
-paid model-backed smoke disabled. This setting does not control deployment.
 
 Set these secrets on the `production` environment:
 
@@ -140,15 +130,13 @@ environment, including OpenAI, Pinecone, LangSmith, authentication,
 workflow triggers the hook and verifies the production API reports the
 approved `VERCEL_GIT_COMMIT_SHA`.
 
-For Streamlit Community Cloud, create the app manually with
+For Streamlit Community Cloud, create the app with
 `apps/ui/main.py` and the pinned dependencies in
 `apps/ui/requirements.txt`. The UI defaults to the production Vercel API;
 configure an `API_BASE_URL` override only for another target. Configure the
 app to follow `main`. Community Cloud starts its rebuild after a main-branch
-push; CI then polls for the approved SHA and checks the running page. The
-platform has no deploy hook for delaying that rebuild until CI finishes.
-The app displays its checked-out Git SHA. Actions polls for the exact release
-and checks the login, chat, and activity panel after promotion.
+push. CI does not run browser or frontend smoke checks against Community
+Cloud.
 
 This setup deploys directly to the production Vercel origin through its
 post-CI deploy hook and uses one production environment. It does not provision
@@ -165,28 +153,14 @@ accounts and resources before introducing a staging deployment lane.
 3. Vercel builds the exact main commit through its deploy hook. CI checks the
    production URL for health, readiness, version, authentication, session
    persistence, and user ownership isolation.
-4. Community Cloud rebuilds from its configured `main` branch. CI waits for
-   the approved SHA and checks the login and activity panel.
-5. Streamlit readiness waits up to fifteen bounded attempts for the exact
-   SHA. Separate post-deployment jobs then check Worker, API, UI, and one
-   full-stack synthetic conversation.
-6. The final result job reports success only if every required stage passes.
+4. The final result job reports success only if Cloudflare and Vercel deploy
+   and smoke jobs pass.
 
-The full-stack test sends one live model-backed prompt and can incur model
-usage charges. It runs only when `RUN_LIVE_E2E_SMOKE=true`; routine release
-checks use health, auth, storage, and browser checks without calling the
-model. D1 smoke records are synthetic and retained for auditability; the
-pipeline does not delete production rows.
-
-The post-deployment jobs use the release SHA and verified service URLs from
-earlier jobs in the same workflow. Their individual component checks and
-end-to-end check fail closed. The end-to-end check confirms the displayed
-API/Streamlit release, synthetic
-Analyst login, a visible response and agent activity, persisted chat history,
-the expected runbook citation and key instructions, and Viewer denial for the
-Analyst's session. Streamlit Community Cloud does not provide a deployment
-status API here; readiness is established by the visible source SHA and
-browser behavior, not by an internal platform state.
+Release smoke tests use synthetic credentials and do not send model prompts.
+D1 smoke records are synthetic and retained for auditability; the pipeline
+does not delete production rows. The Compose check starts only FastAPI and
+checks its health and readiness. Streamlit Community Cloud rebuilds from
+`main`; CI does not start or probe the frontend.
 
 ## Recovery
 

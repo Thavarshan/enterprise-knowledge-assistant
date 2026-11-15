@@ -139,12 +139,11 @@ The cloud simulation uses only synthetic hard-coded local accounts.
 Pull requests and scheduled CI runs do not receive production secrets. A
 deployment can start only after the complete `ci-gate` passes for a push to
 `main`, or after a manual run invokes the same CI workflow successfully.
-No deployment opt-in variable is required. The full-stack live end-to-end
-smoke uses real provider calls and may incur usage charges; it is separately
-controlled by `RUN_LIVE_E2E_SMOKE`. Production credentials belong to the
-GitHub `production` environment. The Cloudflare token is limited to the
-dedicated Worker and D1 resources. Deployment jobs use read-only repository
-access.
+No deployment opt-in variable is required. Deployment smoke checks use
+synthetic accounts and do not call model providers. Production credentials
+belong to the GitHub `production` environment. The Cloudflare token is
+limited to the dedicated Worker and D1 resources. Deployment jobs use
+read-only repository access.
 
 The deployment workflow serializes production releases and rechecks the
 approved Git SHA before each remote mutation. It verifies the exact Cloudflare
@@ -152,10 +151,7 @@ D1 name and ID, rejects destructive SQL migrations, and uses a temporary
 permission-restricted secret file for Wrangler. Vercel Git-triggered
 deployments are disabled; Actions triggers the production deploy hook and
 smokes the published API. Streamlit Community Cloud follows `main` and
-begins rebuilding after a main-branch push. CI then verifies the source SHA
-and running page. The live end-to-end smoke uses synthetic accounts and one
-model-backed retrieval turn only when enabled, because it can incur usage
-charges.
+rebuilds after a main-branch push; CI does not start or probe the frontend.
 
 This automation does not replace repository rules. Restrict the production
 environment to `main` and configure the secret inventory in
