@@ -154,6 +154,7 @@ def configuration_errors() -> list[str]:
         ("promote-streamlit", "smoke-vercel"),
         ("streamlit-readiness", "promote-streamlit"),
         ("post-deploy-cloudflare", "streamlit-readiness"),
+        ("post-deploy-vercel", "deploy-vercel"),
         ("post-deploy-vercel", "streamlit-readiness"),
         ("post-deploy-streamlit", "streamlit-readiness"),
         ("post-deploy-end-to-end", "post-deploy-cloudflare"),

@@ -918,6 +918,7 @@ jobs:
     needs:
       - readiness
       - deploy-cloudflare
+      - deploy-vercel
       - smoke-vercel
       - streamlit-readiness
     runs-on: ubuntu-24.04
