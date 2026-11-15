@@ -24,6 +24,9 @@ def test_health_readiness_and_bearer_identity(
     assert client.get("/version").json() == {
         "release_sha": "unknown",
         "mode": "mock",
+        "provider": "mock",
+        "model": "deterministic mock",
+        "retrieval": "fixtures",
     }
     assert client.get("/api/v1/me").status_code == 401
 

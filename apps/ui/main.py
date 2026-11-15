@@ -40,7 +40,37 @@ release_sha = resolve_release_sha(
     os.environ,
     Path(__file__).resolve().parents[2],
 )
-st.caption("Connected to the configured assistant API · LangGraph activity")
+try:
+    runtime_info = AssistantApiClient(base_url).get_version()
+except httpx.HTTPError:
+    runtime_info = {}
+
+if all(runtime_info.get(key) for key in ("provider", "model", "retrieval")):
+    provider_names = {
+        "openai": "OpenAI",
+        "mock": "Deterministic mock",
+    }
+    retrieval_names = {
+        "fixtures": "Fixture retrieval",
+        "pinecone": "Pinecone retrieval",
+    }
+    provider_name = provider_names.get(
+        runtime_info["provider"], "Unknown provider"
+    )
+    model_name = (
+        "Deterministic mock model"
+        if runtime_info["provider"] == "mock"
+        else f"{provider_name} {runtime_info['model']}"
+    )
+    retrieval_name = retrieval_names.get(
+        runtime_info["retrieval"], "Unknown retrieval"
+    )
+    st.caption(
+        f"{model_name} · {retrieval_name} · "
+        "LangGraph activity stream"
+    )
+else:
+    st.caption("Provider and model status unavailable · LangGraph activity")
 st.sidebar.caption(f"Application release: {release_sha}")
 if "access_token" not in st.session_state:
     st.session_state.access_token = ""

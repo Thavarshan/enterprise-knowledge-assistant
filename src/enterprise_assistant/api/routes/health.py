@@ -27,11 +27,11 @@ async def health() -> dict[str, str]:
 
 @router.get("/version")
 async def version(request: Request) -> dict[str, str]:
-    """Expose the immutable source revision serving this API process.
+    """Report release and selected provider configuration without secrets.
 
     Returns:
-        The validated source SHA and whether deterministic mock mode is
-        active. Local runs without release metadata report ``unknown``.
+        Release SHA, runtime mode, model provider and name, and retrieval
+        backend. Local runs without release metadata report ``unknown``.
     """
     release_sha = os.environ.get("APP_RELEASE_SHA", "").lower()
     if not _RELEASE_SHA_PATTERN.fullmatch(release_sha):
@@ -39,9 +39,17 @@ async def version(request: Request) -> dict[str, str]:
     if not _RELEASE_SHA_PATTERN.fullmatch(release_sha):
         release_sha = "unknown"
     settings: Any = request.app.state.container.settings
+    model_name = (
+        settings.openai_model
+        if settings.llm_provider == "openai"
+        else "deterministic mock"
+    )
     return {
         "release_sha": release_sha,
         "mode": "mock" if settings.mock_mode else "live",
+        "provider": settings.llm_provider,
+        "model": model_name,
+        "retrieval": "fixtures" if settings.mock_mode else "pinecone",
     }
 
 

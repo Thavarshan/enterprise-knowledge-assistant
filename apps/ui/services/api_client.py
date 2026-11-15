@@ -79,6 +79,19 @@ class AssistantApiClient:
         response.raise_for_status()
         return cast(dict[str, Any], response.json())
 
+    def get_version(self) -> dict[str, str]:
+        """Fetch the active model and retrieval configuration.
+
+        Returns:
+            Public provider, model, retrieval, mode, and release metadata.
+
+        Raises:
+            httpx.HTTPError: The API request fails or returns an error.
+        """
+        response = httpx.get(f"{self.base_url}/version", timeout=5)
+        response.raise_for_status()
+        return cast(dict[str, str], response.json())
+
     def create_session(
         self, title: str = "Demo conversation"
     ) -> dict[str, Any]:
