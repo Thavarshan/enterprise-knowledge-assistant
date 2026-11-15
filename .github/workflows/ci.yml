@@ -878,14 +878,18 @@ jobs:
           python-version: "3.13"
       - name: Install pinned Playwright and Chromium
         run: |
-          uv pip install --system \
+          playwright_python="$RUNNER_TEMP/playwright-venv/bin/python"
+          uv venv --python 3.13 "$RUNNER_TEMP/playwright-venv"
+          uv pip install --python "$playwright_python" \
             --requirement scripts/deployment/requirements.txt
-          python3 -m playwright install --with-deps chromium
+          "$playwright_python" -m playwright install --with-deps chromium
       - name: Wait for the exact Streamlit release to load
         env:
           STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.poll_streamlit
+        run: >-
+          "$RUNNER_TEMP/playwright-venv/bin/python"
+          -m scripts.deployment.poll_streamlit
 
   post-deploy-cloudflare:
     name: "Smoke: Cloudflare Worker and D1"
@@ -965,14 +969,18 @@ jobs:
           python-version: "3.13"
       - name: Install pinned Playwright and Chromium
         run: |
-          uv pip install --system \
+          playwright_python="$RUNNER_TEMP/playwright-venv/bin/python"
+          uv venv --python 3.13 "$RUNNER_TEMP/playwright-venv"
+          uv pip install --python "$playwright_python" \
             --requirement scripts/deployment/requirements.txt
-          python3 -m playwright install --with-deps chromium
+          "$playwright_python" -m playwright install --with-deps chromium
       - name: Verify page and deployed source SHA
         env:
           STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.smoke_streamlit
+        run: >-
+          "$RUNNER_TEMP/playwright-venv/bin/python"
+          -m scripts.deployment.smoke_streamlit
 
   post-deploy-end-to-end:
     name: "Smoke: Full-stack synthetic conversation"
@@ -1001,9 +1009,11 @@ jobs:
           python-version: "3.13"
       - name: Install pinned Playwright and Chromium
         run: |
-          uv pip install --system \
+          playwright_python="$RUNNER_TEMP/playwright-venv/bin/python"
+          uv venv --python 3.13 "$RUNNER_TEMP/playwright-venv"
+          uv pip install --python "$playwright_python" \
             --requirement scripts/deployment/requirements.txt
-          python3 -m playwright install --with-deps chromium
+          "$playwright_python" -m playwright install --with-deps chromium
       - name: Send one synthetic, live model-backed conversation
         env:
           STREAMLIT_URL: ${{ vars.STREAMLIT_URL }}
@@ -1012,7 +1022,9 @@ jobs:
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-        run: python3 -m scripts.deployment.smoke_full_stack
+        run: >-
+          "$RUNNER_TEMP/playwright-venv/bin/python"
+          -m scripts.deployment.smoke_full_stack
 
   post-deploy-smoke-result:
     name: "Result: Post-deployment verification"
