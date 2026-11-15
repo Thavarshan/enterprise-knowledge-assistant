@@ -1,7 +1,8 @@
 """Report an explicit blocked or ready deployment authorization state.
 
 The result is written to GitHub's job output and summary without exposing
-secrets, and blocked runs return a failing status before deployment jobs.
+secrets. A blocked deployment leaves the CI workflow successful and skips
+all optional deployment jobs.
 """
 
 import os
@@ -50,10 +51,7 @@ def main() -> int:
     blockers = deployment_blockers(
         trigger=os.environ.get("TRIGGER", ""),
         ref=os.environ.get("GITHUB_REF", ""),
-        upstream_event=os.environ.get("UPSTREAM_EVENT", ""),
-        upstream_branch=os.environ.get("UPSTREAM_BRANCH", ""),
-        upstream_conclusion=os.environ.get("UPSTREAM_CONCLUSION", ""),
-        manual_ci_result=os.environ.get("MANUAL_CI_RESULT", ""),
+        ci_result=os.environ.get("CI_RESULT", ""),
         deploy_enabled=os.environ.get("DEPLOY_ENABLED", "").lower()
         == "true",
         live_smoke_enabled=os.environ.get(
@@ -70,7 +68,7 @@ def main() -> int:
         print("Deployment BLOCKED:")
         for blocker in blockers:
             print(f"- {blocker}")
-        return 1
+        return 0
     else:
         _write_summary(
             "Deployment READY",

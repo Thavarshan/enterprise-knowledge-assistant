@@ -296,19 +296,23 @@ users or sensitive information.
 ## Verification status
 
 Local unit, Worker, and optional Wrangler/D1 integration tests exercise the
-configured boundaries. CI runs a separate Worker and local-D1 job alongside
-Python tests and the existing Docker Compose smoke test. No Vercel build or
-deployment, Streamlit Cloud app, remote Worker, or remote D1 migration has
-been run. A real provider configuration and account-specific D1 ID remain
-required before any live deployment can be verified.
+configured boundaries. CI runs separate Worker and local-D1 jobs alongside
+Python tests and the existing Docker Compose smoke test.
 
-The repository also contains a gated GitHub Actions release workflow and a
-reusable post-deployment smoke workflow. The release pipeline is not enabled
-by default. It requires protected production credentials, dedicated
-Cloudflare resources, a Vercel project with Git deployments disabled, a
-Streamlit app following `deploy/streamlit`, and explicit deployment and live
-smoke opt-ins. See [CI/CD setup, secrets, and rollback](ci-cd.md) before
-configuring or enabling it.
+As of 2026-11-15, the Cloudflare Worker and dedicated D1 database are
+deployed. Their authenticated health and D1 read/write smoke passed for
+release `b5c0a09`. The Vercel production `/health` check returned HTTP 500.
+The Streamlit app returned HTTP 200, but its page did not expose the expected
+release SHA. The full API and UI deployment therefore remains unverified.
+The gated pipeline has not run its live model-backed end-to-end smoke.
+
+The single `.github/workflows/ci.yml` workflow also contains the gated
+release and post-deployment smoke jobs. Deployment is not enabled by default.
+It requires protected production credentials, dedicated Cloudflare
+resources, a Vercel project with Git deployments disabled, a Streamlit app
+following `deploy/streamlit`, and explicit deployment and live smoke opt-ins.
+See [CI/CD setup, secrets, and rollback](ci-cd.md) before configuring or
+enabling it.
 
 [vercel-fastapi]: https://vercel.com/docs/frameworks/backend/fastapi
 [vercel-python]: https://vercel.com/docs/functions/runtimes/python

@@ -27,10 +27,7 @@ def deployment_blockers(
     *,
     trigger: str,
     ref: str,
-    upstream_event: str,
-    upstream_branch: str,
-    upstream_conclusion: str,
-    manual_ci_result: str,
+    ci_result: str,
     deploy_enabled: bool,
     live_smoke_enabled: bool,
     release_sha: str,
@@ -39,12 +36,9 @@ def deployment_blockers(
     """Return why a release is not authorized to deploy.
 
     Args:
-        trigger: Event that started the deployment workflow.
+        trigger: Event that started the consolidated CI workflow.
         ref: Git ref selected for a manual workflow run.
-        upstream_event: Event that started the completed CI workflow.
-        upstream_branch: Branch tested by the completed CI workflow.
-        upstream_conclusion: Conclusion from the completed CI workflow.
-        manual_ci_result: Result of CI invoked by a manual deployment.
+        ci_result: Result of the mandatory CI gate in this workflow run.
         deploy_enabled: Explicit repository deployment opt-in.
         live_smoke_enabled: Explicit permission for one live chat smoke.
         release_sha: Commit approved by CI.
@@ -54,18 +48,17 @@ def deployment_blockers(
         A list of blockers; an empty list authorizes deployment.
     """
     blockers: list[str] = []
-    if trigger == "workflow_run":
-        if upstream_event != "push" or upstream_branch != "main":
+    if trigger == "push":
+        if ref != "refs/heads/main":
             blockers.append("Only successful pushes to main may deploy.")
-        if upstream_conclusion != "success":
-            blockers.append("The upstream CI workflow did not succeed.")
     elif trigger == "workflow_dispatch":
         if ref != "refs/heads/main":
             blockers.append("Manual deployments must select main.")
-        if manual_ci_result != "success":
-            blockers.append("CI invoked by this manual run did not succeed.")
     else:
         blockers.append("This workflow event is not a deployment trigger.")
+
+    if ci_result != "success":
+        blockers.append("The mandatory CI gate did not succeed.")
 
     if not deploy_enabled:
         blockers.append("DEPLOY_ENABLED is not true.")

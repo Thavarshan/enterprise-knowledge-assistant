@@ -243,26 +243,23 @@ def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
     Automatic and manual paths must prove the current main SHA and CI success.
     """
     base = {
-        "trigger": "workflow_run",
+        "trigger": "push",
         "ref": "refs/heads/main",
-        "upstream_event": "push",
-        "upstream_branch": "main",
-        "upstream_conclusion": "success",
-        "manual_ci_result": "skipped",
+        "ci_result": "success",
         "deploy_enabled": True,
         "live_smoke_enabled": True,
         "release_sha": "a" * 40,
         "main_sha": "a" * 40,
     }
     assert deployment_blockers(**base) == []
-    assert "The upstream CI workflow did not succeed." in deployment_blockers(
-        **{**base, "upstream_conclusion": "cancelled"}
+    assert "The mandatory CI gate did not succeed." in deployment_blockers(
+        **{**base, "ci_result": "cancelled"}
     )
     assert "Only successful pushes to main may deploy." in deployment_blockers(
-        **{**base, "upstream_event": "pull_request"}
+        **{**base, "ref": "refs/heads/feature"}
     )
-    assert "Only successful pushes to main may deploy." in deployment_blockers(
-        **{**base, "upstream_event": "schedule"}
+    assert "This workflow event is not a deployment trigger." in (
+        deployment_blockers(**{**base, "trigger": "schedule"})
     )
     assert "DEPLOY_ENABLED is not true." in deployment_blockers(
         **{**base, "deploy_enabled": False}
@@ -270,12 +267,12 @@ def test_deployment_requires_successful_main_ci_and_explicit_opt_ins() -> None:
     assert "The CI-approved release has been superseded on main." in (
         deployment_blockers(**{**base, "main_sha": "b" * 40})
     )
-    assert "CI invoked by this manual run did not succeed." in (
+    assert "The mandatory CI gate did not succeed." in (
         deployment_blockers(
             **{
                 **base,
                 "trigger": "workflow_dispatch",
-                "manual_ci_result": "failure",
+                "ci_result": "failure",
             }
         )
     )

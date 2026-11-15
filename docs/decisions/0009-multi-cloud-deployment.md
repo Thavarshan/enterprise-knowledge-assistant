@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted for implementation preparation. No live deployment or remote
-resource has been created or verified.
+Accepted. Cloudflare Worker and D1 deployment and authenticated smoke are
+verified. Vercel and Streamlit production readiness remain unverified.
 
 ## Context
 
@@ -72,9 +72,10 @@ at another user database. Set the same high-entropy D1 service token on the
 Worker and FastAPI, and keep the JWT signing key only on FastAPI. Do not
 commit `.env`, `.dev.vars`, actual account-specific IDs, or user data.
 
-The included tests verify local boundaries only. Future deployment must
-verify the real API, UI, Worker, D1 migration, secrets, quotas, duration, and
-provider credentials before claiming live readiness.
+The included tests verify local boundaries. A Cloudflare Worker and D1
+release has also passed authenticated health and read/write smoke checks.
+Verify the API, UI, current migrations, secrets, quotas, function duration,
+and provider credentials before claiming full-stack live readiness.
 
 ## Revisit Conditions
 

@@ -8,14 +8,14 @@ configured. `DEPLOY_ENABLED` and `RUN_LIVE_E2E_SMOKE` must both be the string
 `true` before a deployment is authorized. They are currently not enabled by
 this implementation. No cloud deployment was run as part of this change.
 
-The CI workflow remains credential-free. Pull requests and scheduled runs
-validate code only. A push to `main` starts the deployment workflow only
-after the complete CI workflow finishes. A manual deployment runs the same
-CI workflow as a reusable workflow before evaluating deployment readiness.
+The `.github/workflows/ci.yml` workflow owns both CI and the gated deployment
+jobs. Pull requests and scheduled runs validate code only. A push to `main`
+can deploy only after the same run passes the complete CI gate. A manual
+dispatch runs those CI checks before evaluating deployment readiness.
 
 ## CI checks and gate
 
-`.github/workflows/ci.yaml` keeps independent jobs for lint, formatting,
+`.github/workflows/ci.yml` keeps independent jobs for lint, formatting,
 docblocks, comments, line length, syntax, package build, type checking,
 dependency audit, Python 3.12/3.13/3.14 tests, Worker/D1, Streamlit startup,
 GitHub Actions syntax, deployment configuration, and Docker Compose smoke.
@@ -25,29 +25,30 @@ other than `success`, including `cancelled` and `skipped`.
 ```mermaid
 flowchart TD
   checks[All required CI jobs] --> gate[ci-gate]
-  gate --> cf[Cloudflare Worker and D1]
+  gate --> readiness[Deployment readiness]
+  readiness --> cf[Cloudflare Worker and D1]
   cf --> cfs[Cloudflare smoke]
   cfs --> vs[Vercel staged deploy]
   vs --> vss[Vercel smoke]
   vss --> vp[Vercel production promotion]
   vp --> sp[Streamlit branch promotion]
   sp --> sr[Streamlit readiness]
-  sr --> ps[Reusable post-deploy smoke]
+  sr --> ps[Post-deploy smoke jobs]
   ps --> result[Deployment result]
 ```
 
-For automatic runs, the deployment workflow checks that CI was triggered by
-a successful push to `main`. For manual runs, it invokes `.github/workflows/
-ci.yaml` and requires that reusable workflow to succeed. Both paths check
-that the approved SHA still equals the current `main` SHA. Scheduled CI,
-pull requests, cancelled jobs, stale commits, and non-main manual runs cannot
-authorize deployment. A queued deployment is rejected if `main` advances
-while it waits or during a later mutation stage.
+The `readiness` job uses the result of `ci-gate` from this run. Pushes to
+`main` and manual dispatches on `main` are the only deployment triggers.
+Scheduled runs, pull requests, failed or cancelled CI, stale commits, and
+non-main manual runs cannot authorize deployment. A deployment is also
+skipped unless both opt-ins are true. When they are disabled, readiness
+reports the blockers in the workflow summary while the successful CI gate
+remains green.
 
-The deployment workflow has one non-cancelling production concurrency group.
-Cloudflare migrations and Worker deployment, Vercel promotion, and the
-Streamlit branch push recheck release freshness immediately before making
-their remote change.
+All workflow runs use a non-cancelling concurrency group, so an in-progress
+main release is not cancelled by a newer push. Cloudflare migrations and
+Worker deployment, Vercel promotion, and the Streamlit branch push recheck
+release freshness immediately before making their remote change.
 
 ## Local Wrangler commands
 
@@ -177,8 +178,8 @@ introducing a staging deployment lane.
 4. The verified Vercel candidate is promoted. Actions then advances
    `deploy/streamlit` with a normal fast-forward push, never force-push.
 5. Streamlit readiness waits up to fifteen bounded attempts for the exact
-   SHA. The reusable `post-deploy-smoke.yaml` then checks Worker, API, UI,
-   and one full-stack synthetic conversation.
+   SHA. Separate post-deployment jobs then check Worker, API, UI, and one
+   full-stack synthetic conversation.
 6. The final result job reports success only if every required stage passes.
 
 The end-to-end test sends one live model-backed prompt per authorized
@@ -186,9 +187,10 @@ deployment. It is intentionally gated by `RUN_LIVE_E2E_SMOKE=true`; enabling
 it can incur model usage charges. D1 smoke records are synthetic and retained
 for auditability; the pipeline does not delete production rows.
 
-The reusable post-deployment workflow accepts the release SHA and verified
-service URLs. Its individual component jobs and end-to-end job fail closed.
-The end-to-end check confirms the displayed API/Streamlit release, synthetic
+The post-deployment jobs use the release SHA and verified service URLs from
+earlier jobs in the same workflow. Their individual component checks and
+end-to-end check fail closed. The end-to-end check confirms the displayed
+API/Streamlit release, synthetic
 Analyst login, a visible response and agent activity, persisted chat history,
 the expected runbook citation and key instructions, and Viewer denial for the
 Analyst's session. Streamlit Community Cloud does not provide a deployment

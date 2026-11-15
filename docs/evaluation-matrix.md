@@ -118,7 +118,7 @@ The authoritative assignment provides these evaluation weights. They total
 
 ### Build, CI, and operations
 
-- **Implementation:** `.github/workflows/ci.yaml`, `compose.yaml`,
+- **Implementation:** `.github/workflows/ci.yml`, `compose.yaml`,
   `Dockerfile`, `Makefile`, and `uv.lock`.
 - **Tests:** Local `make check` and `make audit`; CI runs tests on Python
   3.12, 3.13, and 3.14, plus Compose smoke.
