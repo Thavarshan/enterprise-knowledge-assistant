@@ -29,7 +29,11 @@ def assert_release_current() -> None:
     if len(release_sha) != 40:
         raise RuntimeError("A full CI-approved release SHA is required.")
     subprocess.run(
-        [sys.executable, "scripts/deployment/assert_release_current.py"],
+        [
+            sys.executable,
+            "-m",
+            "scripts.deployment.assert_release_current",
+        ],
         cwd=REPOSITORY_ROOT,
         check=True,
         timeout=30,
@@ -66,7 +70,8 @@ def apply_remote_migrations() -> None:
     subprocess.run(
         [
             sys.executable,
-            "scripts/deployment/validate_d1_migrations.py",
+            "-m",
+            "scripts.deployment.validate_d1_migrations",
         ],
         cwd=REPOSITORY_ROOT,
         check=True,
