@@ -493,8 +493,7 @@ def build_graph(
                 message = "Authorized knowledge search completed."
                 resolved_type = "tool_complete"
             else:
-                message = "A research operation failed or hit its budget."
-                resolved_type = "failure"
+                return
             _stream_event(
                 writer,
                 state,
@@ -506,7 +505,7 @@ def build_graph(
             )
 
         budget = ExecutionBudget(
-            max_depth=2,
+            max_depth=1,
             max_search_calls=4,
             max_documents=20,
             timeout_seconds=30,
@@ -718,12 +717,12 @@ def build_graph(
                     agent="research",
                     node="research",
                     message=(
-                        "Some investigation branches were incomplete; "
-                        "available findings were retained."
+                        "Research was partially completed; the answer "
+                        "uses retrieved evidence."
                     ),
                     metadata={
                         "error_code": "research_partial_failure",
-                        "failure_count": len(report.failure_codes),
+                        "failure_codes": list(report.failure_codes),
                     },
                 )
             )

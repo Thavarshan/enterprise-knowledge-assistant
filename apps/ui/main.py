@@ -196,7 +196,11 @@ if prompt and client and session_id:
                     answer_parts.append(event_message)
                     answer_placeholder.markdown("".join(answer_parts))
                 elif event_type == "failure":
-                    st.error(event_message)
+                    error_code = event.get("metadata", {}).get("error_code")
+                    if error_code == "research_partial_failure":
+                        st.warning(event_message)
+                    else:
+                        st.error(event_message)
                 if event_type == "retrieval":
                     sources = event.get("metadata", {}).get("sources", [])
                     source_titles = ", ".join(source.get(
@@ -230,7 +234,13 @@ if prompt and client and session_id:
                     activity.append(
                         f"**{agent.title()} · {node}:** {event_message}")
                 elif event_type == "failure":
-                    activity.append(f"**Error:** {event_message}")
+                    error_code = event.get("metadata", {}).get("error_code")
+                    severity = (
+                        "Warning"
+                        if error_code == "research_partial_failure"
+                        else "Error"
+                    )
+                    activity.append(f"**{severity}:** {event_message}")
                 activity_placeholder.markdown(
                     f"**Current agent/node:** {current_agent} / "
                     f"{current_node}\n\n"
