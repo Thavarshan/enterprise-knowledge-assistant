@@ -791,10 +791,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Check out the approved release
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.readiness.outputs.release_sha }}
+          persist-credentials: false
       - name: Require every deployment and smoke job to succeed
         env:
           DEPLOY_NEEDS_JSON: ${{ toJSON(needs) }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          CLOUDFLARE_WORKER_URL: ${{ vars.CLOUDFLARE_WORKER_URL }}
-          VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
+          CLOUDFLARE_WORKER_URL: >-
+            ${{ needs.deploy-cloudflare.outputs.worker_url }}
+          VERCEL_PRODUCTION_URL: >-
+            ${{ needs.deploy-vercel.outputs.production_url }}
         run: python3 -m scripts.deployment.check_deployment_result
