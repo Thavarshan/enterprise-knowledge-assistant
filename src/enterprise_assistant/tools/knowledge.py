@@ -13,7 +13,10 @@ from typing import Any
 from langsmith import traceable
 
 from enterprise_assistant.domain.models import SearchResult
-from enterprise_assistant.retrieval.filters import filters_for_question
+from enterprise_assistant.retrieval.filters import (
+    filters_for_question,
+    incident_ids_in_question,
+)
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.security.authorization import Role
 
@@ -41,8 +44,9 @@ class KnowledgeSearchTool:
     """Apply role-derived access restrictions to retrieval.
 
     The graph invokes this tool only after ToolRegistry authorizes the
-    knowledge-search policy. It converts the role to allowed access labels
-    and forwards filters to the injected retriever.
+    knowledge-search policy. It converts the role to allowed access labels,
+    forwards source filters, and narrows explicit incident IDs to exact
+    matching records.
 
     Attributes:
         retriever: Adapter receiving the search and trusted filters.
@@ -82,7 +86,8 @@ class KnowledgeSearchTool:
                 department and result limit.
 
         Returns:
-            Retrieved result objects from the configured adapter.
+            Authorized results restricted to explicitly named incidents,
+            when the question names any.
 
         Raises:
             KeyError: Required query or role fields are absent.
@@ -90,9 +95,11 @@ class KnowledgeSearchTool:
             Exception: Adapter failures propagate to graph error handling.
         """
         role = Role(arguments["role"])
+        query = str(arguments["query"])
         filter_question = str(
-            arguments.get("filter_question", arguments["query"])
+            arguments.get("filter_question", query)
         )
+        incident_ids = incident_ids_in_question(filter_question)
         filters = filters_for_question(
             filter_question,
             today=self.today(),
@@ -100,9 +107,9 @@ class KnowledgeSearchTool:
         )
         # Derive scope from the authenticated role, never from a requested
         # access-level argument, before content crosses into graph state.
-        return list(
+        results = list(
             await self.retriever.search(
-                str(arguments["query"]),
+                query,
                 allowed_access_levels=allowed_access_levels(role),
                 department=filters.department,
                 document_type=filters.document_type,
@@ -111,3 +118,13 @@ class KnowledgeSearchTool:
                 limit=int(arguments.get("limit", 5)),
             )
         )
+        if not incident_ids:
+            return results
+
+        matching_results = [
+            result
+            for result in results
+            if (result.chunk.metadata.incident_id or "").upper()
+            in incident_ids
+        ]
+        return matching_results

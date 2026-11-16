@@ -20,7 +20,10 @@ from enterprise_assistant.llm.contracts import GroundedAnswer, ModelProvider
 from enterprise_assistant.llm.providers import MockModelProvider
 from enterprise_assistant.llm.small_talk import small_talk_response
 from enterprise_assistant.observability.events import ActivityEvent, EventType
-from enterprise_assistant.retrieval.filters import filters_for_question
+from enterprise_assistant.retrieval.filters import (
+    filters_for_question,
+    incident_ids_in_question,
+)
 from enterprise_assistant.retrieval.interfaces import Retriever
 from enterprise_assistant.rlm.contracts import ExecutionBudget
 from enterprise_assistant.rlm.executor import BoundedResearchExecutor
@@ -1068,6 +1071,21 @@ def build_graph(
         ]
         analysis_data = state.get("analysis_result")
         incident_analysis_data = state.get("incident_analysis_result")
+        requested_incident_ids = incident_ids_in_question(state["question"])
+        if requested_incident_ids:
+            results = [
+                result
+                for result in results
+                if (result.chunk.metadata.incident_id or "").upper()
+                in requested_incident_ids
+            ]
+            retrieved_incident_ids = frozenset(
+                (result.chunk.metadata.incident_id or "").upper()
+                for result in results
+            )
+            if retrieved_incident_ids != requested_incident_ids:
+                results = []
+                incident_analysis_data = None
         analysis_error = state.get("analysis_error")
         citations: list[SourceCitation]
         conversational_answer = None
