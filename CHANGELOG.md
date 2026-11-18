@@ -16,6 +16,12 @@ This project uses Semantic Versioning and follows the Keep a Changelog format.
   to prevent visitor chat requests from using OpenAI or Pinecone.
 - Check that production smoke runs confirm the configured mock providers.
 
+### Security
+
+- CI temporarily allows the unpatched, development-only
+  [picomatch advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf).
+  Other high and critical npm advisories continue to fail the audit.
+
 ## [1.0.0] - 2026-11-17
 
 ### Added

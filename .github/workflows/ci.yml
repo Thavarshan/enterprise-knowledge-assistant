@@ -286,9 +286,11 @@ jobs:
       - name: Install the locked Worker dependency tree
         working-directory: infra/cloudflare/d1-gateway
         run: npm ci
-      - name: Reject high and critical npm advisories
+      # The current picomatch advisory has no patched release. The checker
+      # allows only that advisory in the development-only dependency tree.
+      - name: Audit Worker dependencies and known unpatched advisory
         working-directory: infra/cloudflare/d1-gateway
-        run: npm audit --audit-level=high
+        run: python3 ../../../scripts/deployment/check_npm_audit.py
 
   cloudflare-config:
     name: "Worker: Wrangler config and bundle"
