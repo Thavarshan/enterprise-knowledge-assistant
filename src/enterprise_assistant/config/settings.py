@@ -190,7 +190,8 @@ class Settings(BaseSettings):
         """Reject incomplete or unsafe cloud deployment configuration.
 
         Cloud deployments require an explicitly selected D1 gateway,
-        stateless signing key, live AI provider, and server-side credentials.
+        stateless signing key, and server-side credentials. Production can
+        use deterministic mock mode or configured live providers.
         Local and test profiles keep their existing SQLite and mock defaults.
 
         Returns:
@@ -221,11 +222,14 @@ class Settings(BaseSettings):
         required_values = {
             "AUTH_SIGNING_SECRET": self.auth_signing_secret,
             "DEV_USERS_JSON": self.dev_users_json,
-            "OPENAI_API_KEY": self.openai_api_key,
-            "PINECONE_API_KEY": self.pinecone_api_key,
-            "PINECONE_INDEX_NAME": self.pinecone_index_name,
             "LANGSMITH_API_KEY": self.langsmith_api_key,
         }
+        if not self.mock_mode:
+            required_values.update({
+                "OPENAI_API_KEY": self.openai_api_key,
+                "PINECONE_API_KEY": self.pinecone_api_key,
+                "PINECONE_INDEX_NAME": self.pinecone_index_name,
+            })
         missing = [name for name, value in required_values.items() if not value]
         if missing:
             raise ValueError(
@@ -242,10 +246,10 @@ class Settings(BaseSettings):
             )
         if self.memory_backend != "d1":
             raise ValueError("Production requires MEMORY_BACKEND=d1.")
-        if self.mock_mode or self.llm_provider != "openai":
+        expected_provider = "mock" if self.mock_mode else "openai"
+        if self.llm_provider != expected_provider:
             raise ValueError(
-                "Production requires MOCK_MODE=false and "
-                "LLM_PROVIDER=openai."
+                "Production MOCK_MODE and LLM_PROVIDER must agree."
             )
         if not self.langsmith_tracing:
             raise ValueError("Production requires LANGSMITH_TRACING=true.")

@@ -47,10 +47,10 @@ def _login(
 
 
 def run_smoke() -> None:
-    """Check live mode, API schemas, identity, ownership, and session reads.
+    """Check mock mode, API schemas, identity, ownership, and session reads.
 
     Raises:
-        SmokeCheckError: A required live API or persistence check fails.
+        SmokeCheckError: A required API or persistence check fails.
     """
     origin = https_origin(
         os.environ.get("VERCEL_URL", ""),
@@ -105,8 +105,14 @@ def run_smoke() -> None:
         raise SmokeCheckError("The Vercel readiness response was unexpected.")
     if version.get("release_sha") != expected_sha:
         raise SmokeCheckError("The Vercel deployment serves a different SHA.")
-    if version.get("mode") != "live":
-        raise SmokeCheckError("The Vercel deployment is running in mock mode.")
+    if (
+        version.get("mode") != "mock"
+        or version.get("provider") != "mock"
+        or version.get("retrieval") != "fixtures"
+    ):
+        raise SmokeCheckError(
+            "The Vercel deployment is not using mock providers and fixtures."
+        )
 
     analyst_token = _login(
         origin,
@@ -173,7 +179,7 @@ def run_smoke() -> None:
         [
             f"URL: {origin}",
             f"Release: {expected_sha}",
-            "Health, D1 readiness, and live-mode checks passed.",
+            "Health, D1 readiness, and mock-mode checks passed.",
             "Authentication, session persistence, and owner isolation passed.",
         ],
     )

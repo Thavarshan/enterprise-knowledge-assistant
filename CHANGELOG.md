@@ -4,6 +4,18 @@ All notable changes to the Enterprise Knowledge Assistant are recorded here.
 
 This project uses Semantic Versioning and follows the Keep a Changelog format.
 
+## [1.0.1] - 2026-11-18
+
+### Changed
+
+- Allow production deployments to select deterministic mock mode without
+  requiring OpenAI or Pinecone credentials.
+- Package the synthetic fixture with the application so serverless mock
+  deployments can load it when repository data files are excluded.
+- Switch the public Vercel deployment to the mock provider and fixture search
+  to prevent visitor chat requests from using OpenAI or Pinecone.
+- Check that production smoke runs confirm the configured mock providers.
+
 ## [1.0.0] - 2026-11-17
 
 ### Added

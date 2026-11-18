@@ -31,7 +31,8 @@ D1 database. See the official [Vercel FastAPI guide][vercel-fastapi],
 |---|---|---|---|
 | Local mock | Deterministic mock | SQLite | None after setup |
 | Local live | OpenAI + Pinecone | SQLite | Provider keys; optional LangSmith |
-| Cloud | OpenAI + Pinecone | Worker + D1 | Provider and auth secrets |
+| Cloud demo | Mock fixtures | Worker + D1 | Auth and tracing |
+| Cloud live | OpenAI + Pinecone | Worker + D1 | Provider, auth, tracing |
 
 The backend reads `.env` and process variables. Local defaults remain
 `APP_ENV=development`, `MOCK_MODE=true`, `LLM_PROVIDER=mock`, and
@@ -39,12 +40,14 @@ The backend reads `.env` and process variables. Local defaults remain
 `MOCK_MODE=false`, `LLM_PROVIDER=openai`, and configure OpenAI and Pinecone
 in the API environment. LangSmith remains an explicit backend setting.
 
-Production settings fail closed unless they include a D1 Worker URL and
-service token, an authentication signing secret, inline `DEV_USERS_JSON`,
-OpenAI and Pinecone credentials, a Pinecone index name, LangSmith tracing
-and key, live OpenAI mode, and explicit HTTPS CORS origins. Use synthetic
-development accounts only. Never place backend credentials in Streamlit
-settings.
+Production settings require a D1 Worker URL and service token, an
+authentication signing secret, inline `DEV_USERS_JSON`, LangSmith tracing
+and key, and explicit HTTPS CORS origins. Set `MOCK_MODE=true` with
+`LLM_PROVIDER=mock` for the public deterministic demo. This mode uses the
+bundled synthetic fixture and does not call OpenAI or Pinecone. Set
+`MOCK_MODE=false` with `LLM_PROVIDER=openai` and configure provider
+credentials for live answers and retrieval. Use synthetic development
+accounts only. Never place backend credentials in Streamlit settings.
 
 ## Local setup
 
@@ -103,7 +106,7 @@ the Worker and its tests.
 5. Deploy only after the Cloudflare Worker and migrations are ready. Check
    `/health` for process liveness and `/ready` for D1 reachability.
 
-Set at least:
+For live cloud operation, set at least:
 
 ```dotenv
 APP_ENV=production
@@ -300,11 +303,11 @@ Local unit, Worker, and optional Wrangler/D1 integration tests exercise the
 configured boundaries. CI runs separate Worker and local-D1 jobs alongside
 Python tests and a Docker Compose API smoke.
 
-On 2026-11-15, the Vercel `/version` endpoint reported release
-`7a59e32b976213cc6c1cfaa966b31eb3b9b09087` in live mode. A synthetic Analyst
-request about `INC-2026-057` returned a cited incident summary, verifying the
-deployed OpenAI-backed chat path. The API's production settings require
-`MOCK_MODE=false` and `LLM_PROVIDER=openai`.
+On 2026-11-18, the public Vercel deployment was switched to mock mode.
+`/version` reports the mock provider and fixture retrieval, while `/ready`
+checks the D1 connection. CI verifies this configuration, which avoids
+OpenAI and Pinecone calls from public chat requests. Set `MOCK_MODE=false` and
+`LLM_PROVIDER=openai` to restore live model and Pinecone calls.
 
 The Streamlit source now adds the repository root to `sys.path` before its
 `apps.*` imports. Its deployed page has not been independently confirmed

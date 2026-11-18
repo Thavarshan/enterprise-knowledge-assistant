@@ -72,6 +72,8 @@ class InMemoryRetriever:
             ValidationError: A record violates the chunk schema.
         """
         source = path or Path.cwd() / "data" / "samples" / "documents.json"
+        if path is None and not source.is_file():
+            source = Path(__file__).parent / "data" / "documents.json"
         raw_documents: Any = json.loads(source.read_text(encoding="utf-8"))
         chunks = [
             DocumentChunk.model_validate(document)
