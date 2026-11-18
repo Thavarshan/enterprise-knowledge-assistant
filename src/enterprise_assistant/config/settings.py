@@ -68,7 +68,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Enterprise Knowledge Assistant"
+    app_name: str = "Viridian"
     app_env: str = "development"
     mock_mode: bool = True
     api_prefix: str = "/api/v1"

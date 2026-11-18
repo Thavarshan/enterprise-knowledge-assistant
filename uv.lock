@@ -266,66 +266,6 @@ wheels = [
 ]
 
 [[package]]
-name = "enterprise-knowledge-assistant"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "langgraph" },
-    { name = "langsmith" },
-    { name = "openai" },
-    { name = "pinecone" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt" },
-    { name = "python-dotenv" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-ui = [
-    { name = "streamlit" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "autopep8" },
-    { name = "mypy" },
-    { name = "pip-audit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "streamlit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115,<1.0" },
-    { name = "httpx", specifier = ">=0.28,<1.0" },
-    { name = "langgraph", specifier = ">=1.0,<2.0" },
-    { name = "langsmith", specifier = ">=0.14.9,<1.0" },
-    { name = "openai", specifier = ">=2.11,<3.0" },
-    { name = "pinecone", specifier = ">=10.3,<11.0" },
-    { name = "pydantic-settings", specifier = ">=2.7,<3.0" },
-    { name = "pyjwt", specifier = ">=2.10,<3.0" },
-    { name = "python-dotenv", specifier = ">=1.0,<2.0" },
-    { name = "streamlit", marker = "extra == 'ui'", specifier = ">=1.45,<2.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1.0" },
-]
-provides-extras = ["ui"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "autopep8", specifier = ">=2.3,<3.0" },
-    { name = "mypy", specifier = ">=1.14,<2.0" },
-    { name = "pip-audit", specifier = ">=2.10.1,<3.0" },
-    { name = "pytest", specifier = ">=9.0.3,<10.0" },
-    { name = "pytest-asyncio", specifier = ">=0.25,<2.0" },
-    { name = "ruff", specifier = ">=0.11,<1.0" },
-    { name = "streamlit", specifier = ">=1.45,<2.0" },
-]
-
-[[package]]
 name = "fastapi"
 version = "0.162.7"
 source = { registry = "https://pypi.org/simple" }
@@ -2281,6 +2221,66 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/66/0d/8686a7f0b1b2d55ebd770ba21f8e0e4ffa0cde5ab738f43ffb8264499052/uvloop-0.23.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:bbbdb8fcd5e7062e546eec1ac78c28bb21ae7df54c18f8e4b06e15a18d661a49", size = 4584963, upload-time = "2026-10-01T03:16:18.198Z" },
     { url = "https://files.pythonhosted.org/packages/78/b2/034a2d47e435ac02357c42956246887167bdc0357bdd6ad31c5f6d94497b/uvloop-0.23.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:76345f51367fb1f23e08605c6efb18374f669be5b223658fbab6b17627950507", size = 4421388, upload-time = "2026-10-01T03:16:19.953Z" },
     { url = "https://files.pythonhosted.org/packages/f0/77/131f4b583e6b4b715c404a66b51c812d701db20f25c9018b188a2b00062c/uvloop-0.23.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6c7ef4701a96553514b2688e342ef1bf2beae6cfd172d89a76c768292aabf405", size = 4402414, upload-time = "2026-10-01T03:16:21.716Z" },
+]
+
+[[package]]
+name = "viridian"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "langgraph" },
+    { name = "langsmith" },
+    { name = "openai" },
+    { name = "pinecone" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt" },
+    { name = "python-dotenv" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+ui = [
+    { name = "streamlit" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "autopep8" },
+    { name = "mypy" },
+    { name = "pip-audit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115,<1.0" },
+    { name = "httpx", specifier = ">=0.28,<1.0" },
+    { name = "langgraph", specifier = ">=1.0,<2.0" },
+    { name = "langsmith", specifier = ">=0.14.9,<1.0" },
+    { name = "openai", specifier = ">=2.11,<3.0" },
+    { name = "pinecone", specifier = ">=10.3,<11.0" },
+    { name = "pydantic-settings", specifier = ">=2.7,<3.0" },
+    { name = "pyjwt", specifier = ">=2.10,<3.0" },
+    { name = "python-dotenv", specifier = ">=1.0,<2.0" },
+    { name = "streamlit", marker = "extra == 'ui'", specifier = ">=1.45,<2.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1.0" },
+]
+provides-extras = ["ui"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "autopep8", specifier = ">=2.3,<3.0" },
+    { name = "mypy", specifier = ">=1.14,<2.0" },
+    { name = "pip-audit", specifier = ">=2.10.1,<3.0" },
+    { name = "pytest", specifier = ">=9.0.3,<10.0" },
+    { name = "pytest-asyncio", specifier = ">=0.25,<2.0" },
+    { name = "ruff", specifier = ">=0.11,<1.0" },
+    { name = "streamlit", specifier = ">=1.45,<2.0" },
 ]
 
 [[package]]

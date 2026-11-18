@@ -2,10 +2,10 @@
 
 Import both JSON files in this directory into Postman:
 
-- `enterprise-knowledge-assistant-production.postman_collection.json`
-- `enterprise-knowledge-assistant-production.postman_environment.json`
+- `viridian-production.postman_collection.json`
+- `viridian-production.postman_environment.json`
 
-Select the **Enterprise Knowledge Assistant - Production** environment.
+Select the **Viridian - Production** environment.
 The production API URL is already set. The environment defaults to the analyst
 account; copy its public demo password from the root README into the `pass`
 secret variable. The password is intentionally blank in the checked-in file.

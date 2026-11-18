@@ -29,8 +29,8 @@ from apps.ui.services.config import (  # noqa: E402
 )
 from apps.ui.services.release import resolve_release_sha  # noqa: E402
 
-st.set_page_config(page_title="Enterprise Knowledge Assistant", layout="wide")
-st.title("Enterprise Knowledge Assistant")
+st.set_page_config(page_title="Viridian", layout="wide")
+st.title("Viridian")
 try:
     streamlit_secrets: Mapping[str, object] = st.secrets
 except StreamlitSecretNotFoundError:

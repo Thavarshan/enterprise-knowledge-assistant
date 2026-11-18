@@ -65,7 +65,7 @@ This workspace uses LangSmith Cloud's agent-based observability. The app
 routes traces to the already registered agent by pairing its identifier with
 an environment:
 
-- Agent display name: `Enterprise Knowledge Assistant`
+- Registered LangSmith agent display name: `Enterprise Knowledge Assistant`
 - Agent ID: `enterprise-knowledge-assistant`
 - Environment: `local`
 - API endpoint: `https://api.smith.langchain.com`

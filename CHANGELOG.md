@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Enterprise Knowledge Assistant are recorded here.
+All notable changes to Viridian are recorded here.
 
 This project uses Semantic Versioning and follows the Keep a Changelog format.
 

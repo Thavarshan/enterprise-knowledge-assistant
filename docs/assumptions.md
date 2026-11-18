@@ -43,7 +43,7 @@ representations. Mock mode needs no provider credentials.
 
 | Variable | Default | Use and limits |
 |---|---|---|
-| APP_NAME | Enterprise Knowledge Assistant | FastAPI title. |
+| APP_NAME | Viridian | FastAPI title. |
 | APP_ENV | development | Environment label; not a production control. |
 | MOCK_MODE | true | Fixture retrieval; false selects Pinecone hybrid search. |
 | API_PREFIX | /api/v1 | Prefix for authentication and chat routes. |

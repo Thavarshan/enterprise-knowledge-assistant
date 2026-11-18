@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Enterprise Knowledge Assistant - Production API",
+    "name": "Viridian - Production API",
     "description": "Production FastAPI requests. Login stores an access token.",
     "schema":"https://schema.postman.com/json/collection/v2.1.0/collection.json"
   },

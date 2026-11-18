@@ -1,4 +1,4 @@
-# Assessment demonstration guide
+# Viridian demonstration guide
 
 This guide starts the FastAPI and Streamlit app with OpenAI, Pinecone, and
 LangSmith. It uses only the checked-in synthetic incident corpus and the

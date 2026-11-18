@@ -188,7 +188,7 @@ class ChatService:
                         if self.langsmith_address
                         else ""
                     ),
-                    "agent_name": "Enterprise Knowledge Assistant",
+                    "agent_name": "Viridian",
                     "request_id": request_id,
                     "session_id": session_id,
                     "status": "running",

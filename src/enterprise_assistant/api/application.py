@@ -203,7 +203,7 @@ def create_app(
     application = FastAPI(
         title=app_settings.app_name,
         version="0.1.0",
-        description="Explainable enterprise knowledge assistant foundation.",
+        description="Viridian's explainable AI assistant API.",
         lifespan=lifespan,
     )
     application.state.container = container

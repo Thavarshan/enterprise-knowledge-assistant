@@ -1,14 +1,14 @@
-# Enterprise Knowledge Assistant
+# Viridian
 
-An explainable assistant built as a modular Python monolith. FastAPI,
-Streamlit, LangGraph, SQLite, D1, Pinecone, OpenAI, and LangSmith are kept
-behind small internal module boundaries. Deterministic mock mode remains
+Viridian is an explainable AI assistant built as a modular Python monolith.
+FastAPI, Streamlit, LangGraph, SQLite, D1, Pinecone, OpenAI, and LangSmith are
+kept behind small internal module boundaries. Deterministic mock mode remains
 available for tests and local development.
 
 ## Live demo
 
-Open the [Enterprise Knowledge Assistant demo][live-demo]. In the sidebar,
-select a user, enter the matching password, and press **Sign in**.
+Open the [Viridian demo][live-demo]. In the sidebar, select a user, enter the
+matching password, and press **Sign in**.
 
 - Viewer (`viewer`): `viewer-demo-2026`
 - Analyst (`analyst`): `analyst-demo-2026`

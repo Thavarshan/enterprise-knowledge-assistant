@@ -3,7 +3,7 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "enterprise-knowledge-assistant"
+name = "viridian"
 version = "0.1.0"
 description = "An explainable enterprise AI assistant modular monolith."
 readme = "README.md"
