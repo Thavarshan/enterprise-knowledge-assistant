@@ -1,6 +1,5 @@
 .env
 .env.*
-uv.lock
 .venv/
 __pycache__/
 .pytest_cache/
