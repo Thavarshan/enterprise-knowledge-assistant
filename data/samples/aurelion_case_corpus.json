@@ -1,0 +1,611 @@
+[
+  {
+    "content": "Fictional ServiceNow case CS001245 for LedgerSync: the customer reports settlement records missing after a worker retry and error RECON-17. The case has no direct Jira issue link. The customer's installed LedgerSync version and build are not recorded. No cause is confirmed. Next diagnostic question: which version and build is installed?",
+    "metadata": {
+      "document_id": "CS001245",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001245: missing settlement records after worker retry",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2026-06-02",
+      "source": "sample://servicenow/cases/CS001245",
+      "incident_id": "CS001245",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-2",
+      "impact_summary": "Settlement records are missing after a worker retry; installed version is unknown."
+    }
+  },
+  {
+    "content": "Fictional earlier ServiceNow case CS001101 for LedgerSync: settlement rows were missing after a worker retry with error RECON-17. The case record contains an explicit Jira link to ENG-421. This historical link is evidence of a recorded relationship, not proof that ENG-421 caused another customer's issue. The installed build was not captured.",
+    "metadata": {
+      "document_id": "CS001101",
+      "chunk_id": "case-history",
+      "title": "ServiceNow case CS001101: LedgerSync settlement retry error RECON-17",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-01-14",
+      "source": "sample://servicenow/cases/CS001101",
+      "incident_id": "CS001101",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-2",
+      "impact_summary": "Settlement rows were missing after a retry; the record explicitly links ENG-421."
+    }
+  },
+  {
+    "content": "Fictional earlier ServiceNow case CS001118 for LedgerSync: the settlement worker retried a reconciliation task and returned RECON-17 while some records were absent. The case has an explicit Jira link to ENG-421. The record does not establish that this issue is the cause of CS001245.",
+    "metadata": {
+      "document_id": "CS001118",
+      "chunk_id": "case-history",
+      "title": "ServiceNow case CS001118: LedgerSync reconciliation retry",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-03-09",
+      "source": "sample://servicenow/cases/CS001118",
+      "incident_id": "CS001118",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-2",
+      "impact_summary": "A reconciliation retry returned RECON-17; the record explicitly links ENG-421."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001052: LedgerSync settlement reconciliation exceeded its normal processing window during month-end close. No missing rows or worker retry were reported. The case was resolved after the scheduled batch completed.",
+    "metadata": {
+      "document_id": "CS001052",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001052: LedgerSync month-end settlement delay",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2024-11-21",
+      "source": "sample://servicenow/cases/CS001052",
+      "incident_id": "CS001052",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "Month-end settlement completed late without missing records."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001067: LedgerSync rejected a settlement upload because the file used an unsupported delimiter. No worker retry or RECON-17 error was recorded. Support corrected the export format with the customer.",
+    "metadata": {
+      "document_id": "CS001067",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001067: unsupported settlement file format",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2024-12-03",
+      "source": "sample://servicenow/cases/CS001067",
+      "incident_id": "CS001067",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "A settlement upload was rejected because its delimiter was unsupported."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001073: a LedgerSync dashboard showed stale settlement totals because the reporting cache had not refreshed. The underlying settlement records were present. No retry error was involved.",
+    "metadata": {
+      "document_id": "CS001073",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001073: stale settlement dashboard totals",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-01-06",
+      "source": "sample://servicenow/cases/CS001073",
+      "incident_id": "CS001073",
+      "incident_category": "service_degradation",
+      "severity": "SEV-3",
+      "impact_summary": "Dashboard totals were stale although settlement records were present."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001089: LedgerSync's worker queue paused after a maintenance window because a worker credential expired. The case does not mention missing settlement rows or RECON-17.",
+    "metadata": {
+      "document_id": "CS001089",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001089: worker credential expired after maintenance",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-01-28",
+      "source": "sample://servicenow/cases/CS001089",
+      "incident_id": "CS001089",
+      "severity": "SEV-2",
+      "impact_summary": "A worker queue paused after a credential expired."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001094: LedgerSync settlement totals differed from the bank statement because a bank file arrived twice. The duplicate file was removed after reconciliation. No worker retry defect was identified.",
+    "metadata": {
+      "document_id": "CS001094",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001094: duplicate bank settlement file",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-02-02",
+      "source": "sample://servicenow/cases/CS001094",
+      "incident_id": "CS001094",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "A duplicated bank file caused a settlement reconciliation mismatch."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001103: LedgerSync returned RECON-12 because an account mapping was missing for a newly onboarded entity. The records were held for review, not lost during a worker retry.",
+    "metadata": {
+      "document_id": "CS001103",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001103: missing LedgerSync account mapping",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-02-17",
+      "source": "sample://servicenow/cases/CS001103",
+      "incident_id": "CS001103",
+      "severity": "SEV-3",
+      "impact_summary": "An unmapped account was held for reconciliation review."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001129: LedgerSync webhook notifications were delayed during a traffic burst. Settlement records were complete and reconciliation succeeded after the queue drained.",
+    "metadata": {
+      "document_id": "CS001129",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001129: delayed LedgerSync webhook notifications",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-03-27",
+      "source": "sample://servicenow/cases/CS001129",
+      "incident_id": "CS001129",
+      "incident_category": "webhook_delay",
+      "severity": "SEV-3",
+      "impact_summary": "Webhook notifications were delayed while settlement data remained complete."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001141: a LedgerSync reconciliation report included a transaction from the wrong business date after a timezone setting changed. No worker retry or missing record was reported.",
+    "metadata": {
+      "document_id": "CS001141",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001141: reconciliation business-date mismatch",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-04-08",
+      "source": "sample://servicenow/cases/CS001141",
+      "incident_id": "CS001141",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "A timezone change shifted a transaction into the wrong business date."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001156: LedgerSync's settlement export timed out for a large account. A manual export completed successfully and all source records were present.",
+    "metadata": {
+      "document_id": "CS001156",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001156: large settlement export timeout",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-04-29",
+      "source": "sample://servicenow/cases/CS001156",
+      "incident_id": "CS001156",
+      "incident_category": "service_degradation",
+      "severity": "SEV-3",
+      "impact_summary": "A large settlement export timed out; source records remained present."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001164: LedgerSync rejected a settlement batch with RECON-08 after a required currency code was omitted. The issue was corrected in the submitted file.",
+    "metadata": {
+      "document_id": "CS001164",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001164: settlement batch missing currency code",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-05-11",
+      "source": "sample://servicenow/cases/CS001164",
+      "incident_id": "CS001164",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "A batch was rejected because its required currency code was absent."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001179: LedgerSync retried a bank API request after a timeout, but its idempotency key prevented duplicate settlement entries. The customer reported a temporary delay, not missing rows.",
+    "metadata": {
+      "document_id": "CS001179",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001179: delayed bank API response with idempotent retry",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-05-26",
+      "source": "sample://servicenow/cases/CS001179",
+      "incident_id": "CS001179",
+      "severity": "SEV-3",
+      "impact_summary": "A bank API timeout delayed processing; idempotency prevented duplicate entries."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001187: LedgerSync produced duplicate reconciliation notifications because a customer endpoint returned HTTP 503. The ledger entries themselves were not duplicated.",
+    "metadata": {
+      "document_id": "CS001187",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001187: duplicate reconciliation notifications",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-06-04",
+      "source": "sample://servicenow/cases/CS001187",
+      "incident_id": "CS001187",
+      "severity": "SEV-3",
+      "impact_summary": "Notifications repeated after an endpoint error; ledger entries were unchanged."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001198: a LedgerSync settlement job remained queued because its worker concurrency limit was reduced during a maintenance change. Increasing the approved limit cleared the backlog.",
+    "metadata": {
+      "document_id": "CS001198",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001198: settlement job queue backlog",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-06-19",
+      "source": "sample://servicenow/cases/CS001198",
+      "incident_id": "CS001198",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-2",
+      "impact_summary": "A reduced worker concurrency limit delayed a settlement job."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001205: LedgerSync returned RECON-21 when a settlement file contained an unsupported negative adjustment. The record was quarantined for finance review.",
+    "metadata": {
+      "document_id": "CS001205",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001205: unsupported settlement adjustment",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-07-01",
+      "source": "sample://servicenow/cases/CS001205",
+      "incident_id": "CS001205",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "An unsupported adjustment was quarantined for review."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001219: LedgerSync's worker restarted during a planned node patch and resumed the queue. No reconciliation error or missing settlement record was found.",
+    "metadata": {
+      "document_id": "CS001219",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001219: worker restart during node patch",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-07-22",
+      "source": "sample://servicenow/cases/CS001219",
+      "incident_id": "CS001219",
+      "severity": "SEV-3",
+      "impact_summary": "A worker resumed normally after a planned node patch."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001226: LedgerSync marked one settlement item pending because a downstream bank acknowledgement had not arrived. The item appeared after the acknowledgement was replayed.",
+    "metadata": {
+      "document_id": "CS001226",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001226: pending settlement acknowledgement",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-08-05",
+      "source": "sample://servicenow/cases/CS001226",
+      "incident_id": "CS001226",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "A settlement item remained pending until a bank acknowledgement arrived."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001233: LedgerSync reconciliation displayed a rounding difference after a currency precision setting changed. The difference was below the configured tolerance and no rows were missing.",
+    "metadata": {
+      "document_id": "CS001233",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001233: currency precision reconciliation difference",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-08-19",
+      "source": "sample://servicenow/cases/CS001233",
+      "incident_id": "CS001233",
+      "severity": "SEV-4",
+      "impact_summary": "A currency precision change caused a small reconciliation difference."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001241: LedgerSync's nightly reconciliation was delayed because a database maintenance window overlapped the settlement batch. The batch completed after maintenance ended.",
+    "metadata": {
+      "document_id": "CS001241",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001241: reconciliation delayed by database maintenance",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-09-02",
+      "source": "sample://servicenow/cases/CS001241",
+      "incident_id": "CS001241",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-3",
+      "impact_summary": "A maintenance window delayed the nightly reconciliation batch."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001252: LedgerSync's reconciliation worker reported RECON-31 because an archived account was still included in an active settlement mapping. Removing the stale mapping resolved the error.",
+    "metadata": {
+      "document_id": "CS001252",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001252: stale settlement account mapping",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-09-18",
+      "source": "sample://servicenow/cases/CS001252",
+      "incident_id": "CS001252",
+      "severity": "SEV-3",
+      "impact_summary": "A stale mapping for an archived account caused a reconciliation error."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001288: LedgerSync settlement processing returned RECON-17 during a worker retry, but the customer confirmed the installed build was 5.8.3. The record is marked unresolved and does not link to ENG-421; do not assume the listed fix explains this symptom.",
+    "metadata": {
+      "document_id": "CS001288",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001288: RECON-17 reported on LedgerSync 5.8.3",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-11-04",
+      "source": "sample://servicenow/cases/CS001288",
+      "incident_id": "CS001288",
+      "incident_category": "settlement_delay",
+      "severity": "SEV-2",
+      "impact_summary": "RECON-17 was reported on build 5.8.3; the cause remains unresolved."
+    }
+  },
+  {
+    "content": "Fictional ServiceNow case CS001297: a LedgerSync worker retry took longer after a customer-side proxy closed idle connections. The case records delayed processing, not missing settlement records or error RECON-17.",
+    "metadata": {
+      "document_id": "CS001297",
+      "chunk_id": "case-summary",
+      "title": "ServiceNow case CS001297: delayed worker retry after proxy timeout",
+      "department": "payments",
+      "document_type": "incident_report",
+      "access_level": "viewer",
+      "created_date": "2025-11-19",
+      "source": "sample://servicenow/cases/CS001297",
+      "incident_id": "CS001297",
+      "incident_category": "service_degradation",
+      "severity": "SEV-3",
+      "impact_summary": "A customer proxy timeout slowed a worker retry."
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-421 for LedgerSync: settlement reconciliation may omit records when a worker retry resumes from a stale cursor. Affected versions are 5.8.0, 5.8.1, and 5.8.2. Fix version is 5.8.3. Check the customer's installed build and compare the symptoms before treating this issue as applicable; CS001245 has no direct link to this Jira issue.",
+    "metadata": {
+      "document_id": "ENG-421",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-421: missing settlement records after worker retry",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2026-04-22",
+      "source": "sample://jira/issues/ENG-421"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-388 for LedgerSync: webhook delivery slows when worker concurrency is configured below peak traffic. The affected component is notification delivery, not settlement reconciliation or RECON-17.",
+    "metadata": {
+      "document_id": "ENG-388",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-388: webhook worker concurrency under peak traffic",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2025-10-08",
+      "source": "sample://jira/issues/ENG-388"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-397 for LedgerSync: reconciliation totals can differ when a currency precision setting is changed without rebuilding a report. It does not describe missing rows after a worker retry.",
+    "metadata": {
+      "document_id": "ENG-397",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-397: report totals after currency precision change",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2025-11-16",
+      "source": "sample://jira/issues/ENG-397"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-405 for LedgerSync: synchronized retries can amplify temporary bank API throttling. The proposed mitigation is randomized backoff. This issue concerns outbound bank requests and does not establish the cause of RECON-17.",
+    "metadata": {
+      "document_id": "ENG-405",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-405: randomized backoff for bank API throttling",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2025-12-02",
+      "source": "sample://jira/issues/ENG-405"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-409 for LedgerSync: overlapping month-end batches can hold ledger locks longer than the settlement window. The symptom is a late batch, not records disappearing after worker retry.",
+    "metadata": {
+      "document_id": "ENG-409",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-409: ledger lock contention during month-end close",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2026-01-12",
+      "source": "sample://jira/issues/ENG-409"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-427 for LedgerSync: settlement export fails when an account reference is null. The issue is a data validation defect and has no documented relationship to ENG-421.",
+    "metadata": {
+      "document_id": "ENG-427",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-427: null account reference in settlement export",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2026-03-06",
+      "source": "sample://jira/issues/ENG-427"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-433 for LedgerSync: a worker can retain an expired queue lease after a process restart, delaying subsequent tasks. The issue does not list missing settlement rows or error RECON-17 as confirmed symptoms.",
+    "metadata": {
+      "document_id": "ENG-433",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-433: expired queue lease after worker restart",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2026-05-02",
+      "source": "sample://jira/issues/ENG-433"
+    }
+  },
+  {
+    "content": "Fictional Jira issue ENG-449 for LedgerSync: an operator replay can duplicate a completed import if the source idempotency key is absent. This issue is separate from the stale-cursor behavior recorded in ENG-421.",
+    "metadata": {
+      "document_id": "ENG-449",
+      "chunk_id": "issue-details",
+      "title": "Jira ENG-449: duplicate import on manual replay",
+      "department": "payments",
+      "document_type": "jira_issue",
+      "access_level": "viewer",
+      "created_date": "2026-06-14",
+      "source": "sample://jira/issues/ENG-449"
+    }
+  },
+  {
+    "content": "Fictional LedgerSync release note RN-5.8.3, released 2026-05-18: includes the fix for ENG-421, which addresses settlement records omitted when a worker retry resumes from a stale cursor. The release note does not identify the version currently installed for any customer.",
+    "metadata": {
+      "document_id": "release-RN-5-8-3",
+      "chunk_id": "release-details",
+      "title": "Release note RN-5.8.3: ENG-421 settlement retry fix",
+      "department": "payments",
+      "document_type": "release_note",
+      "access_level": "viewer",
+      "created_date": "2026-05-18",
+      "source": "sample://sharepoint/release-notes/RN-5.8.3"
+    }
+  },
+  {
+    "content": "Fictional LedgerSync release note RN-5.8.2: improves settlement batch logging and adds a reconciliation cursor diagnostic. It does not contain the ENG-421 fix; Jira lists that fix for version 5.8.3.",
+    "metadata": {
+      "document_id": "release-RN-5-8-2",
+      "chunk_id": "release-details",
+      "title": "Release note RN-5.8.2: settlement batch diagnostics",
+      "department": "payments",
+      "document_type": "release_note",
+      "access_level": "viewer",
+      "created_date": "2026-02-12",
+      "source": "sample://sharepoint/release-notes/RN-5.8.2"
+    }
+  },
+  {
+    "content": "Fictional LedgerSync release note RN-5.8.4: includes follow-up monitoring for reconciliation retries and a corrected queue-age metric. The release note does not change ENG-421's stated fixed version of 5.8.3.",
+    "metadata": {
+      "document_id": "release-RN-5-8-4",
+      "chunk_id": "release-details",
+      "title": "Release note RN-5.8.4: reconciliation retry monitoring",
+      "department": "payments",
+      "document_type": "release_note",
+      "access_level": "viewer",
+      "created_date": "2026-06-21",
+      "source": "sample://sharepoint/release-notes/RN-5.8.4"
+    }
+  },
+  {
+    "content": "Fictional LedgerSync release note RN-5.9.0: introduces a new settlement dashboard and configuration reporting. It contains no statement that CS001245 is caused by ENG-421.",
+    "metadata": {
+      "document_id": "release-RN-5-9-0",
+      "chunk_id": "release-details",
+      "title": "Release note RN-5.9.0: settlement dashboard and configuration reporting",
+      "department": "payments",
+      "document_type": "release_note",
+      "access_level": "viewer",
+      "created_date": "2026-08-03",
+      "source": "sample://sharepoint/release-notes/RN-5.9.0"
+    }
+  },
+  {
+    "content": "Fictional knowledge article KB-017, LedgerSync worker restart guide: this document is superseded and must not be used as current operational advice. It predates the current retry handling guidance. Check the current approved knowledge article before recommending a restart.",
+    "metadata": {
+      "document_id": "KB-017",
+      "chunk_id": "status-and-scope",
+      "title": "KB-017: LedgerSync worker restart guide (superseded)",
+      "department": "payments",
+      "document_type": "runbook",
+      "access_level": "viewer",
+      "created_date": "2024-10-01",
+      "source": "sample://sharepoint/knowledge/KB-017"
+    }
+  },
+  {
+    "content": "Fictional current knowledge article KB-024, LedgerSync reconciliation triage: capture the case ID, exact RECON error, UTC time, worker attempt ID, and installed version/build. Compare the reported symptom with a Jira issue and release note. Do not recommend a restart solely because a similar historical case exists; follow the approved service procedure and escalate if the evidence conflicts.",
+    "metadata": {
+      "document_id": "KB-024",
+      "chunk_id": "current-triage",
+      "title": "KB-024: current LedgerSync reconciliation triage",
+      "department": "payments",
+      "document_type": "runbook",
+      "access_level": "viewer",
+      "created_date": "2026-05-22",
+      "source": "sample://sharepoint/knowledge/KB-024"
+    }
+  },
+  {
+    "content": "Fictional knowledge article KB-031, LedgerSync queue health checks: review queue age, active worker count, last successful cursor, and retry attempt history. Record observations before changing concurrency or replaying a batch. These checks provide diagnostic evidence; they do not prove the cause of a reconciliation error.",
+    "metadata": {
+      "document_id": "KB-031",
+      "chunk_id": "queue-checks",
+      "title": "KB-031: LedgerSync queue health checks",
+      "department": "payments",
+      "document_type": "runbook",
+      "access_level": "viewer",
+      "created_date": "2026-04-09",
+      "source": "sample://sharepoint/knowledge/KB-031"
+    }
+  },
+  {
+    "content": "Fictional knowledge article KB-042, finding a LedgerSync build: ask the customer to provide the version and build displayed on the application About page or deployment manifest. Preserve the exact value, including patch number. A reported version is an observation and does not by itself confirm that a bug caused the customer's symptoms.",
+    "metadata": {
+      "document_id": "KB-042",
+      "chunk_id": "version-check",
+      "title": "KB-042: how to confirm the installed LedgerSync version and build",
+      "department": "payments",
+      "document_type": "runbook",
+      "access_level": "viewer",
+      "created_date": "2026-05-25",
+      "source": "sample://sharepoint/knowledge/KB-042"
+    }
+  }
+]

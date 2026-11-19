@@ -59,8 +59,10 @@ The authoritative assignment provides these evaluation weights. They total
   `scripts/ingest_pinecone.py`, `scripts/evaluate_retrieval.py`.
 - **Tests:** `tests/unit/test_pinecone.py`,
   `tests/unit/test_retrieval_evaluation.py`, and the live workflow suite.
-- **Method/result:** Existing index; 18 synthetic records; dense, BM25, and
-  RRF checked for exact IDs, semantic retrieval, filters, and empty results.
+- **Method/result:** Existing index; historical live checks used 18 generic
+  synthetic records. The hosted assessment namespace now contains 40
+  fictional Aurelion records; the earlier dense, BM25, and RRF measurements
+  do not evaluate this updated corpus.
 - **Limit:** Four evaluation queries; ingestion accepts pre-chunked JSON.
 
 ### Recursive Research and incident analysis

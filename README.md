@@ -94,11 +94,13 @@ provider configuration. See [CI/CD operations](docs/ci-cd.md) and the
 
 ## Limits
 
-The checked-in corpus is synthetic. Ingestion accepts pre-chunked JSON rather
-than arbitrary PDF or DOCX documents. The labeled retrieval evaluation has
-four cases. Prompt-injection checks are defense in depth. Production identity,
-distributed rate limits, semantic memory, and a human approval flow are not
-implemented.
+The hosted assessment namespace contains 40 fictional Aurelion records across
+cases, Jira issues, release notes, and knowledge articles. Ingestion accepts
+pre-chunked JSON rather than arbitrary PDF or DOCX documents. The existing
+four-query retrieval measurements apply to an earlier synthetic corpus and
+do not establish relevance on this Aurelion set. Prompt-injection checks are
+defense in depth. Production identity, distributed rate limits, semantic
+memory, and a human approval flow are not implemented.
 
 ## Guides
 

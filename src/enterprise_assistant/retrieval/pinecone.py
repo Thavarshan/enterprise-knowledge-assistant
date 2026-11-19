@@ -180,6 +180,52 @@ class PineconeRetriever:
             ) from exc
         return len(documents)
 
+    async def delete_documents(self, document_ids: Sequence[str]) -> int:
+        """Delete explicitly named source records from the configured namespace.
+
+        Args:
+            document_ids: Exact Pinecone document IDs to remove. This adapter
+                accepts no wildcard or delete-all operation.
+
+        Returns:
+            Number of deletion requests accepted for the supplied IDs.
+
+        Raises:
+            ValueError: The list contains blank or repeated IDs.
+            PineconeNotConfigured: Required connection settings are absent.
+            PineconeRequestError: A request or schema check fails.
+        """
+        ids = tuple(document_ids)
+        if any(not document_id.strip() for document_id in ids):
+            raise ValueError("Document IDs must not be blank.")
+        if len(ids) != len(set(ids)):
+            raise ValueError("Document IDs must be unique.")
+        if not ids:
+            return 0
+
+        self._require_configuration()
+        try:
+            async with asyncio.timeout(self.config.timeout_seconds):
+                index = await self._ensure_index()
+                await asyncio.to_thread(self._delete_documents, index, ids)
+        except asyncio.CancelledError:
+            raise
+        except TimeoutError as exc:
+            raise PineconeRequestError(
+                "Pinecone document deletion timed out."
+            ) from exc
+        except (PineconeNotConfigured, PineconeRequestError):
+            raise
+        except Exception as exc:
+            logger.warning(
+                "Pinecone document deletion failed",
+                extra={"error_type": type(exc).__name__},
+            )
+            raise PineconeRequestError(
+                "Pinecone document deletion failed."
+            ) from exc
+        return len(ids)
+
     async def search(
         self,
         query: str,
@@ -413,6 +459,19 @@ class PineconeRetriever:
         index.documents.upsert(
             namespace=self.config.namespace,
             documents=[self._document(chunk) for chunk in chunks],
+            timeout=float(self.config.timeout_seconds),
+        )
+
+    def _delete_documents(self, index: Any, document_ids: Sequence[str]) -> None:
+        """Delete an exact list of document IDs from the selected namespace.
+
+        Args:
+            index: SDK handle for the validated existing document index.
+            document_ids: Stable Pinecone document IDs to remove.
+        """
+        index.documents.delete(
+            namespace=self.config.namespace,
+            ids=list(document_ids),
             timeout=float(self.config.timeout_seconds),
         )
 

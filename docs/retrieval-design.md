@@ -20,20 +20,26 @@ chunk_text using llama-text-embed-v2 and English full-text search on
 chunk_text and title. The Documents API is required for this schema. The
 adapter validates the existing schema and never creates or changes an index.
 
-The checked-in incident corpus contains 18 synthetic payment incidents with
-stable document and chunk IDs. Records vary by date, root cause, incident
-category, severity, and viewer, analyst, or administrator access. Some
-incidents are older than the rolling-year window; analyst/admin records test
-authorization boundaries. No real customer information is used.
+The repository keeps an 18-record generic incident corpus for the existing
+retrieval smoke set. The hosted assessment namespace uses the separate
+`data/samples/aurelion_case_corpus.json` corpus: 40 fictional records across
+24 ServiceNow-style cases, 8 Jira-style issues, 4 release notes, and 4
+knowledge articles. Its anchor case CS001245, earlier cases CS001101 and
+CS001118, issue ENG-421, release note RN-5.8.3, and superseded article KB-017
+preserve the Aurelion POC scenario. No real customer information is used.
 
 Ingestion is explicit and idempotent:
 
-    uv run --env-file .env python scripts/ingest_pinecone.py
+    uv run --env-file .env python scripts/ingest_pinecone.py \
+      --source data/samples/aurelion_case_corpus.json \
+      --delete-source data/samples/incident_corpus.json
 
 The source JSON already contains one chunk per record. IDs are stable across
 re-ingestion; raw PDF, DOCX, and arbitrary source splitting are not
 implemented. The command writes only to the configured existing index and
-namespace. It does not delete records or create an index.
+namespace. With `--delete-source`, it removes only IDs found in that prior
+corpus and absent from the new corpus, after the upsert succeeds. It never
+deletes a namespace or creates an index.
 
 The live workflow verification upserts only this synthetic corpus to the
 configured namespace before testing. It does not change schema or delete
@@ -89,7 +95,7 @@ case, and a date-filtered empty-result case. Run:
 
 The script requires the configured Pinecone index and namespace. It reports
 dense, BM25, and hybrid RRF metrics separately and emits IDs, not source
-content. On 2026-11-15, the configured assessment namespace produced:
+content. On 2026-11-15, the previous 18-record generic corpus produced:
 
 | Mode | Recall@5 | MRR | Source attribution | Access leakage | Empty accuracy |
 |---|---:|---:|---:|---:|---:|
@@ -105,9 +111,11 @@ accuracy uses only cases with a labeled empty or non-empty outcome; the
 Viewer boundary case measures leakage without assuming other accessible
 results are absent.
 
-Four synthetic queries are a smoke evaluation, not evidence of production
-relevance. The dense embedding and BM25 index may change over time. The
-scores must not be generalized to an approved enterprise corpus.
+Those scores describe the earlier corpus and do not measure the current
+40-record Aurelion demo corpus. Four synthetic queries are a smoke evaluation,
+not evidence of production relevance. The dense embedding and BM25 index may
+change over time. The scores must not be generalized to an approved
+enterprise corpus.
 
 ## Timeouts, failures, and evidence
 

@@ -167,10 +167,11 @@ role and department filters first, and ranks by lexical overlap. It remains a
 deterministic mock score. In Pinecone mode, the configured document schema
 provides an embedding query and BM25 full-text query. Both rankings are
 filtered and merged by reciprocal rank fusion. `scripts/ingest_pinecone.py`
-upserts eighteen synthetic incident chunks under stable document/chunk IDs.
-Live checks cover semantic paraphrase, exact incident-ID lookup, Viewer
-filtering, and a four-case labeled evaluation. See
-`docs/retrieval-design.md` for schema, metrics, and limits.
+upserts the configured synthetic corpus under stable document/chunk IDs. The
+hosted assessment namespace uses forty fictional Aurelion records across
+ServiceNow-style cases, Jira-style issues, release notes, and knowledge
+articles. Earlier live checks covered the separate generic incident corpus.
+See `docs/retrieval-design.md` for schema, metrics, and limits.
 
 ## Process, configuration, and operations
 

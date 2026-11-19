@@ -49,6 +49,11 @@ run `make cloud-sim`. It does not write to the production D1 database.
 
 ## Example questions
 
+- “Investigate CS001245. Settlement records go missing when the worker
+  retries.”
+- Follow up with “The customer reports LedgerSync version 5.8.1.” Then try
+  “The customer reports version 5.8.3.” Keep each reported version as a
+  conversation observation; neither version alone confirms the cause.
 - “What caused the payment webhook delay, and how was it resolved?”
 - “Compare the recovery steps for delayed settlement and duplicate
   notifications.”
@@ -69,3 +74,9 @@ chain-of-thought.
 
 The corpus is synthetic and intentionally small. The demo is an assessment
 application, not a production identity or data-isolation service.
+
+The hosted Pinecone assessment namespace uses a separate 40-record fictional
+Aurelion corpus: 24 ServiceNow-style cases, 8 Jira-style issues, 4 release
+notes, and 4 knowledge articles. Its anchor case has no direct Jira link;
+two earlier cases do link to ENG-421. The version and root cause for the
+anchor case remain unknown until the user supplies more evidence.
