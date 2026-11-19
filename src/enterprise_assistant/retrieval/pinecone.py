@@ -462,7 +462,9 @@ class PineconeRetriever:
             timeout=float(self.config.timeout_seconds),
         )
 
-    def _delete_documents(self, index: Any, document_ids: Sequence[str]) -> None:
+    def _delete_documents(
+        self, index: Any, document_ids: Sequence[str]
+    ) -> None:
         """Delete an exact list of document IDs from the selected namespace.
 
         Args:
