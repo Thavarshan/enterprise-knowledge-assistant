@@ -61,10 +61,11 @@ MCP has no executable handler.
 
 ## Agent-based destination
 
-LangSmith is an optional integration for local experiments. The hosted
-Cloudflare Worker sets `LANGSMITH_TRACING=false` and does not send traces to
-LangSmith. Its logical agent ID is `viridian`; configure an accessible
-LangSmith destination and credentials locally before enabling tracing.
+The FastAPI service enables LangSmith tracing in its Vercel production
+environment when the agent destination and credentials are configured. The
+Cloudflare D1 gateway does not run the agent and does not send traces. The
+logical LangSmith agent ID is `viridian`; its production environment is
+`production`.
 
 The Python SDK requirement is `langsmith>=0.14.9`; `uv.lock` fixes the
 resolved version used by this repository. The SDK receives an explicit
@@ -87,8 +88,11 @@ LANGSMITH_AGENT_ENVIRONMENT=local
 
 Keep the API key in local `.env`; it is loaded by `Settings` and passed only
 to the backend SDK client. The API configures LangSmith before it constructs
-the client or LangGraph workflow. Test settings and the Cloudflare
-production deployment disable tracing and need no key.
+the client or LangGraph workflow. Test settings and the Cloudflare D1
+gateway disable tracing and need no key. Production CI runs the synthetic
+connectivity verifier against Vercel's production environment before API
+deployment; it confirms trace submission and remote readback without sending
+user data or calling OpenAI or Pinecone.
 
 Agent-based addressing replaces the older project destination. The setup
 removes `LANGSMITH_PROJECT`, `LANGCHAIN_PROJECT`, and `LANGCHAIN_SESSION`

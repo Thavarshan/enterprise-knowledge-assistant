@@ -39,15 +39,18 @@ Set these secrets:
 | `VERCEL_TOKEN` | Lets the production job pull, build, and deploy. |
 
 Provider and authentication credentials stay in Vercel's production
-environment; GitHub Actions never downloads or prints them. Keep the
-Cloudflare token limited to the Viridian Worker and D1 resources.
+environment. GitHub Actions passes them directly to the synthetic LangSmith
+verifier through the Vercel CLI; it does not print or persist their values.
+That check submits and reads back a redacted trace without calling OpenAI or
+Pinecone. Keep the Cloudflare token limited to the Viridian Worker and D1
+resources.
 
 ## What the workflow checks
 
 The required gate includes lint, formatting, package build, Python tests and
 type checking, Python and npm dependency audits, D1 Worker checks, Docker
 Compose API smoke, workflow syntax, and deployment configuration. The Python
-matrix covers 3.12–3.14; the Vercel build uses Python 3.13 and the locked
+matrix covers 3.12–3.14; the Vercel build uses Python 3.12 and the locked
 dependency set.
 
 After CI passes, readiness confirms the approved SHA is still the tip of
@@ -56,8 +59,9 @@ migrations, applies reviewed forward-only migrations, and deploys the
 authenticated gateway. Its smoke verifies authentication and D1 read/write.
 Only then does the workflow build and deploy the FastAPI project to Vercel.
 The Vercel smoke checks health, D1 readiness, and the configured OpenAI and
-Pinecone providers. A final job fails the release if any deployment or smoke
-step did not succeed.
+Pinecone providers. The deployment job also verifies LangSmith trace
+submission and remote readback using synthetic data. A final job fails the
+release if any deployment or smoke step did not succeed.
 
 `vercel.json` disables Vercel's automatic Git deployments so a push cannot
 bypass `ci-gate`. The CI job uses a pinned Vercel CLI version and the exact
