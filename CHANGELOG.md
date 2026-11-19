@@ -4,6 +4,27 @@ All notable changes to Viridian are recorded here.
 
 This project uses Semantic Versioning and follows the Keep a Changelog format.
 
+## [1.1.0] - 2026-11-19
+
+### Added
+
+- Add a Cloudflare Workers API, D1-backed conversation storage, and web client,
+  with production deployment gated by CI.
+- Add a 40-record synthetic Aurelion support investigation corpus and a live
+  walkthrough covering evidence, citations, and role-based access.
+
+### Changed
+
+- Expand LangSmith traces with graph execution, retrieval, tool, citation, and
+  validation details.
+- Rebrand the application and project documentation as Viridian.
+
+### Fixed
+
+- Support exact case-number retrieval while preserving metadata authorization
+  filters.
+- Correct Cloudflare first-deploy setup and Vercel build/runtime packaging.
+
 ## [1.0.1] - 2026-11-18
 
 ### Changed
