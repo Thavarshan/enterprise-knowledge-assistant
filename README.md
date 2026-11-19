@@ -1,4 +1,4 @@
-# Viridian
+# 🍃 Viridian
 
 Viridian is an explainable enterprise knowledge assistant. The hosted
 platform uses Streamlit Cloud for the UI, Vercel for the FastAPI backend,
@@ -6,8 +6,9 @@ and Cloudflare D1 for session storage through an authenticated gateway.
 
 ## Live demo
 
-Open the active Streamlit Cloud app for the UI. The FastAPI health endpoint
-is [viridian-api.vercel.app/health](https://viridian-api.vercel.app/health).
+Open the [Viridian live demo](https://viridian.streamlit.app/). The FastAPI
+health endpoint is
+[viridian-api.vercel.app/health](https://viridian-api.vercel.app/health).
 The public demo accounts use synthetic data; do not reuse their passwords.
 
 | Account | Password |
@@ -18,6 +19,33 @@ The public demo accounts use synthetic data; do not reuse their passwords.
 
 Streamlit Cloud deploys UI changes from its configured Git branch. GitHub
 Actions gates the D1 gateway and Vercel API deployments on `ci-gate`.
+
+### Aurelion case-intelligence walkthrough
+
+The hosted Pinecone namespace contains 40 fictional records spanning
+ServiceNow-style cases, Jira issues, release notes, and knowledge articles.
+Try the main investigation prompt:
+
+> Investigate CS001245. Settlement records go missing when the worker retries.
+
+The answer should treat ENG-421 as a candidate, cite the two earlier cases
+and release note, and ask which LedgerSync version and build is installed.
+Follow up with “The customer reports LedgerSync version 5.8.1,” then try
+5.8.3. A reported version is an observation; it does not prove the cause.
+
+To demonstrate document authorization, use a fresh conversation for each
+role:
+
+1. As Viewer, ask “What does case CS001288 say?” It should not return that
+   Analyst-only case.
+2. As Analyst, ask the same question. CS001288 should be available with a
+   source citation.
+3. As Analyst, ask “What does case CS001297 say?” It should remain
+   unavailable.
+4. As Administrator, ask the same question to retrieve CS001297.
+
+All Aurelion example records are synthetic and pre-seeded. The demo does not
+connect to live ServiceNow, Jira, or SharePoint systems.
 
 ## Architecture
 
