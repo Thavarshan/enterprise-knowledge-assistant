@@ -21,6 +21,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 API_WRANGLER_CONFIG = REPOSITORY_ROOT / "wrangler.jsonc"
 API_ENTRYPOINT = REPOSITORY_ROOT / "src/worker_entry.py"
 VERCEL_CONFIG = REPOSITORY_ROOT / "vercel.json"
+VERCEL_INSTALL_SCRIPT = REPOSITORY_ROOT / "vercel-install.sh"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/ci.yml"
 WORKFLOW_DIRECTORY = REPOSITORY_ROOT / ".github/workflows"
 
@@ -60,6 +61,7 @@ def configuration_errors() -> list[str]:
     )
     api_worker = json.loads(API_WRANGLER_CONFIG.read_text(encoding="utf-8"))
     vercel = json.loads(VERCEL_CONFIG.read_text(encoding="utf-8"))
+    vercel_install = VERCEL_INSTALL_SCRIPT.read_text(encoding="utf-8")
     worker_pin = package.get("devDependencies", {}).get("wrangler")
     locked_pin = lock.get("packages", {}).get("node_modules/wrangler", {})
     if not worker_pin or worker_pin != locked_pin.get("version"):
@@ -105,9 +107,10 @@ def configuration_errors() -> list[str]:
             "and static asset routing."
         )
     if (
-        "uv sync --frozen" not in vercel.get("installCommand", "")
-        or "--extra agents" not in vercel.get("installCommand", "")
-        or "--extra providers" not in vercel.get("installCommand", "")
+        vercel.get("installCommand") != "bash vercel-install.sh"
+        or "uv sync --frozen --no-default-groups" not in vercel_install
+        or "--extra agents" not in vercel_install
+        or "--extra providers" not in vercel_install
         or vercel.get("functions", {}).get("app.py", {}).get("maxDuration", 0)
         < 60
         or vercel.get("git", {}).get("deploymentEnabled") is not False

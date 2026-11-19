@@ -5,8 +5,8 @@ Viridian uses three hosted components:
 | Component | Host | Role |
 |---|---|---|
 | User interface | Streamlit Cloud | Streamlit presentation app. |
-| FastAPI | Vercel | OpenAI, Pinecone, LangGraph, and LangSmith integration. |
-| Session storage | Cloudflare D1 | D1 database accessed through an authenticated Worker gateway. |
+| FastAPI | Vercel | API runtime and AI integrations. |
+| Session storage | Cloudflare D1 | Private Worker gateway to D1. |
 
 The API origin is `https://viridian-api.vercel.app`. The D1 gateway is
 `https://viridian-d1-gateway.thavarshan.workers.dev`; the database is named
@@ -45,7 +45,7 @@ Create a `production` environment restricted to `main`. Set these variables:
 |---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account that owns the gateway. |
 | `CLOUDFLARE_D1_DATABASE_ID` | UUID for `viridian-sessions`. |
-| `CLOUDFLARE_D1_GATEWAY_URL` | `https://viridian-d1-gateway.thavarshan.workers.dev`. |
+| `CLOUDFLARE_D1_GATEWAY_URL` | D1 gateway origin. |
 | `VERCEL_ORG_ID` | Vercel team ID. |
 | `VERCEL_PROJECT_ID` | Vercel project ID. |
 | `VERCEL_API_URL` | `https://viridian-api.vercel.app`. |

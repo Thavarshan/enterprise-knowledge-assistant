@@ -25,7 +25,7 @@ Set these variables:
 |---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Account that owns the D1 gateway. |
 | `CLOUDFLARE_D1_DATABASE_ID` | UUID for `viridian-sessions`. |
-| `CLOUDFLARE_D1_GATEWAY_URL` | `https://viridian-d1-gateway.thavarshan.workers.dev`. |
+| `CLOUDFLARE_D1_GATEWAY_URL` | D1 gateway origin. |
 | `VERCEL_ORG_ID` | Vercel team ID for Viridian. |
 | `VERCEL_PROJECT_ID` | Vercel project ID for Viridian. |
 | `VERCEL_API_URL` | `https://viridian-api.vercel.app`. |
@@ -36,7 +36,7 @@ Set these secrets:
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | Deploy the D1 gateway and apply D1 migrations. |
 | `D1_SERVICE_TOKEN` | Shared service credential used by the API and gateway. |
-| `VERCEL_TOKEN` | Lets the production job pull settings, build, and deploy the Vercel project. |
+| `VERCEL_TOKEN` | Lets the production job pull, build, and deploy. |
 
 Provider and authentication credentials stay in Vercel's production
 environment; GitHub Actions never downloads or prints them. Keep the

@@ -763,11 +763,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-            echo "::error::Add VERCEL_TOKEN to the GitHub production environment."
+            echo "::error::Add VERCEL_TOKEN to the GitHub" \
+              "production environment."
             exit 1
           fi
           if [[ -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
-            echo "::error::Set VERCEL_ORG_ID and VERCEL_PROJECT_ID in the GitHub production environment."
+            echo "::error::Set VERCEL_ORG_ID and VERCEL_PROJECT_ID in the" \
+              "GitHub production environment."
             exit 1
           fi
       - name: Install pinned Vercel CLI
@@ -802,7 +804,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ -z "${VERCEL_API_URL:-}" ]]; then
-            echo "::error::Set VERCEL_API_URL in the GitHub production environment."
+            echo "::error::Set VERCEL_API_URL in the GitHub" \
+              "production environment."
             exit 1
           fi
           curl --fail --silent --show-error --retry 6 --retry-delay 5 \
@@ -812,9 +815,11 @@ jobs:
           version="$(curl --fail --silent --show-error \
             --retry 6 --retry-delay 5 --retry-all-errors \
             "$VERCEL_API_URL/version")"
-          printf '%s' "$version" | jq --exit-status \
-            '.mode == "live" and .provider == "openai" and .retrieval == "pinecone"' \
-            >/dev/null
+          printf '%s' "$version" | jq --exit-status '
+            .mode == "live" and
+            .provider == "openai" and
+            .retrieval == "pinecone"
+          ' >/dev/null
           echo "Vercel API is healthy for release $RELEASE_SHA."
 
   deployment-result:
