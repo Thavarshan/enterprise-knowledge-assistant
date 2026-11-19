@@ -251,14 +251,14 @@
     }
   },
   {
-    "content": "Fictional ServiceNow case CS001198: a LedgerSync settlement job remained queued because its worker concurrency limit was reduced during a maintenance change. Increasing the approved limit cleared the backlog.",
+    "content": "Fictional ServiceNow case CS001198, Analyst-only internal notes: a LedgerSync settlement job remained queued because its worker concurrency limit was reduced during a maintenance change. Increasing the approved limit cleared the backlog. The role restriction models an internal support note; it contains no real customer data.",
     "metadata": {
       "document_id": "CS001198",
       "chunk_id": "case-summary",
-      "title": "ServiceNow case CS001198: settlement job queue backlog",
+      "title": "ServiceNow case CS001198: Analyst-restricted settlement queue notes",
       "department": "payments",
       "document_type": "incident_report",
-      "access_level": "viewer",
+      "access_level": "analyst",
       "created_date": "2025-06-19",
       "source": "sample://servicenow/cases/CS001198",
       "incident_id": "CS001198",
@@ -367,14 +367,14 @@
     }
   },
   {
-    "content": "Fictional ServiceNow case CS001288: LedgerSync settlement processing returned RECON-17 during a worker retry, but the customer confirmed the installed build was 5.8.3. The record is marked unresolved and does not link to ENG-421; do not assume the listed fix explains this symptom.",
+    "content": "Fictional ServiceNow case CS001288, Analyst-only internal investigation: LedgerSync settlement processing returned RECON-17 during a worker retry, but the customer confirmed the installed build was 5.8.3. The record is unresolved and does not link to ENG-421; do not assume the listed fix explains this symptom. The role restriction models internal investigation notes; it contains no real customer data.",
     "metadata": {
       "document_id": "CS001288",
       "chunk_id": "case-summary",
-      "title": "ServiceNow case CS001288: RECON-17 reported on LedgerSync 5.8.3",
+      "title": "ServiceNow case CS001288: Analyst-restricted RECON-17 investigation",
       "department": "payments",
       "document_type": "incident_report",
-      "access_level": "viewer",
+      "access_level": "analyst",
       "created_date": "2025-11-04",
       "source": "sample://servicenow/cases/CS001288",
       "incident_id": "CS001288",
@@ -384,14 +384,14 @@
     }
   },
   {
-    "content": "Fictional ServiceNow case CS001297: a LedgerSync worker retry took longer after a customer-side proxy closed idle connections. The case records delayed processing, not missing settlement records or error RECON-17.",
+    "content": "Fictional ServiceNow case CS001297, Administrator-only operational notes: a LedgerSync worker retry took longer after a customer-side proxy closed idle connections. A restricted gateway configuration change restored service. The case records delayed processing, not missing settlement records or error RECON-17. The role restriction models privileged operations notes; it contains no real customer data.",
     "metadata": {
       "document_id": "CS001297",
       "chunk_id": "case-summary",
-      "title": "ServiceNow case CS001297: delayed worker retry after proxy timeout",
+      "title": "ServiceNow case CS001297: Administrator-restricted proxy and gateway notes",
       "department": "payments",
       "document_type": "incident_report",
-      "access_level": "viewer",
+      "access_level": "administrator",
       "created_date": "2025-11-19",
       "source": "sample://servicenow/cases/CS001297",
       "incident_id": "CS001297",

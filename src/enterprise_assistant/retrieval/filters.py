@@ -25,17 +25,22 @@ _DEPARTMENT_TERMS = (
     ("product", r"products?"),
     ("security", r"security"),
 )
-_INCIDENT_ID_PATTERN = re.compile(r"\bINC-\d{4}-\d{3}\b", re.IGNORECASE)
+_INCIDENT_ID_PATTERN = re.compile(
+    r"\b(?:INC-\d{4}-\d{3}|CS\d{6})\b",
+    re.IGNORECASE,
+)
 
 
 def incident_ids_in_question(question: str) -> frozenset[str]:
-    """Return the normalized incident IDs explicitly named in a question.
+    """Return normalized ServiceNow case or incident IDs named in a question.
+
+    This recognizes `CS` followed by six digits and `INC-YYYY-NNN` IDs.
 
     Args:
         question: Original user question or research objective.
 
     Returns:
-        Uppercase incident IDs, or an empty set when none are named.
+        Uppercase source record IDs, or an empty set when none are named.
     """
     return frozenset(
         incident_id.upper()

@@ -60,6 +60,21 @@ run `make cloud-sim`. It does not write to the production D1 database.
 - “How many incidents were caused by certificate expiry?”
 - “What should a viewer know about the incident reports?”
 
+## Authorization demonstration
+
+Use the same query under each role to show that the backend filters evidence
+before the model sees it:
+
+1. As Viewer, ask “What does case CS001288 say?” The restricted case should
+   not appear in results or citations.
+2. As Analyst, ask the same question. CS001288 is available with a source
+   citation because its access level is `analyst`.
+3. As Viewer or Analyst, ask “What does case CS001297 say?” It should remain
+   unavailable. As Administrator, it is available because its access level
+   is `administrator`.
+4. Return to “Investigate CS001245. Settlement records go missing when the
+   worker retries.” The six core Aurelion records remain Viewer-accessible.
+
 The activity panel shows structured graph transitions, retrieval, tool use,
 validation, and response status. It does not expose private model
 chain-of-thought.

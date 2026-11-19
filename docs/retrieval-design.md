@@ -68,6 +68,10 @@ year", and "last 12 months" mean a rolling calendar-year window ending on
 the injected current date. On 2026-11-15, the range is 2025-11-15 through
 2026-11-15, inclusive.
 
+Explicit ServiceNow case IDs (`CS` followed by six digits) and incident IDs
+(`INC-YYYY-NNN`) narrow returned evidence to the matching source record,
+after the authenticated role filter is applied.
+
 The index stores created_date_ordinal as a numeric metadata field so
 Pinecone can apply date bounds in provider filters. The adapter also checks
 the returned ISO date, department, type, and access label before it returns
