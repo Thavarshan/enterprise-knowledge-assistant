@@ -82,7 +82,7 @@ def apply_remote_migrations() -> None:
         "d1",
         "migrations",
         "list",
-        "eka-sessions",
+        "viridian-sessions",
         "--remote",
         "--config",
         config,
@@ -92,7 +92,7 @@ def apply_remote_migrations() -> None:
         "d1",
         "migrations",
         "apply",
-        "eka-sessions",
+        "viridian-sessions",
         "--remote",
         "--config",
         config,
@@ -118,7 +118,7 @@ def deploy_worker() -> None:
     assert_release_current()
 
     descriptor, secret_path = tempfile.mkstemp(
-        prefix="eka-worker-secret-", suffix=".json"
+        prefix="viridian-worker-secret-", suffix=".json"
     )
     try:
         os.fchmod(descriptor, 0o600)

@@ -22,7 +22,8 @@ verified.
 | 0006 | Logs, graph events, and optional LangSmith tracing | Accepted |
 | 0007 | Async API boundaries with local and remote adapters | Accepted |
 | 0008 | Structured Research executor with shared budgets | Accepted |
-| 0009 | Multi-cloud modular monolith: Vercel, Streamlit, D1 | Accepted |
+| 0009 | Multi-cloud modular monolith: Vercel, Streamlit, D1 | Superseded |
+| 0010 | Cloudflare Workers, static frontend, and D1 | Accepted |
 
 ## Record template
 

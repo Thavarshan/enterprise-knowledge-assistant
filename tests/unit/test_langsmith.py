@@ -36,7 +36,7 @@ def _settings(**overrides: Any) -> Settings:
         "langsmith_tracing": True,
         "langsmith_api_key": "synthetic-test-key",
         "langsmith_endpoint": "https://api.smith.langchain.com",
-        "langsmith_agent_id": "enterprise-knowledge-assistant",
+        "langsmith_agent_id": "viridian",
         "langsmith_agent_environment": "local",
     }
     values.update(overrides)
@@ -58,7 +58,7 @@ def test_settings_load_agent_configuration_from_environment(
     )
     monkeypatch.setenv(
         "LANGSMITH_AGENT_ID",
-        "enterprise-knowledge-assistant",
+        "viridian",
     )
     monkeypatch.setenv("LANGSMITH_AGENT_ENVIRONMENT", "local")
 
@@ -66,7 +66,7 @@ def test_settings_load_agent_configuration_from_environment(
 
     assert settings.langsmith_tracing
     assert settings.langsmith_endpoint == "https://api.smith.langchain.com"
-    assert settings.langsmith_agent_id == "enterprise-knowledge-assistant"
+    assert settings.langsmith_agent_id == "viridian"
     assert settings.langsmith_agent_environment == "local"
     assert "synthetic-test-key" not in repr(settings)
 
@@ -168,10 +168,10 @@ def test_sdk_client_hides_content_and_sanitizes_metadata_and_errors() -> None:
         ) == {}
         assert client._hide_run_metadata(
             {
-                "agent_id": "enterprise-knowledge-assistant",
+                "agent_id": "viridian",
                 "question": "private prompt",
             }
-        ) == {"agent_id": "enterprise-knowledge-assistant"}
+        ) == {"agent_id": "viridian"}
         assert client._hide_run_error("private provider response") == (
             "[REDACTED]"
         )
@@ -208,7 +208,7 @@ def test_metadata_allowlist_and_error_redaction() -> None:
         {
             "request_id": request_id,
             "session_id": session_id,
-            "agent_id": "enterprise-knowledge-assistant",
+            "agent_id": "viridian",
             "agent_environment": "local",
             "langgraph_node": "retrieval",
             "tool_name": "knowledge_search",
@@ -221,7 +221,7 @@ def test_metadata_allowlist_and_error_redaction() -> None:
     assert safe == {
         "request_id": request_id,
         "session_id": session_id,
-        "agent_id": "enterprise-knowledge-assistant",
+        "agent_id": "viridian",
         "agent_environment": "local",
         "langgraph_node": "retrieval",
         "tool_name": "knowledge_search",
@@ -234,10 +234,10 @@ def test_metadata_allowlist_and_error_redaction() -> None:
     ) == {"error": "[REDACTED]"}
     assert langsmith.sanitize_trace_payload(
         {
-            "agent_id": "enterprise-knowledge-assistant",
+            "agent_id": "viridian",
             "question": "private prompt",
         }
-    ) == {"agent_id": "enterprise-knowledge-assistant"}
+    ) == {"agent_id": "viridian"}
     assert langsmith.sanitize_trace_payload(
         {"error": "private provider response"}
     ) == {"error": "[REDACTED]"}
@@ -391,7 +391,7 @@ async def test_chat_service_propagates_agent_context_across_graph(
 
     monkeypatch.setattr(chat_service_module, "trace", fake_trace)
     address: AgentAddress = agent_address(
-        "enterprise-knowledge-assistant",
+        "viridian",
         "local",
     )
     memory = MemoryStub()

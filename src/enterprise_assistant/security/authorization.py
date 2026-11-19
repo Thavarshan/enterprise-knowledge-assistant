@@ -22,3 +22,14 @@ class Role(StrEnum):
     VIEWER = "viewer"
     ANALYST = "analyst"
     ADMINISTRATOR = "administrator"
+
+
+def allowed_access_levels(role: Role) -> frozenset[str]:
+    """Map a trusted role to the document access labels it can search."""
+    return {
+        Role.VIEWER: frozenset({"viewer"}),
+        Role.ANALYST: frozenset({"viewer", "analyst"}),
+        Role.ADMINISTRATOR: frozenset(
+            {"viewer", "analyst", "administrator"}
+        ),
+    }[role]

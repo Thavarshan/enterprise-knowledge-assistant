@@ -23,8 +23,8 @@ def run_smoke() -> None:
         SmokeCheckError: A required endpoint, authorization, or D1 check fails.
     """
     worker_url = https_origin(
-        os.environ.get("CLOUDFLARE_WORKER_URL", ""),
-        "CLOUDFLARE_WORKER_URL",
+        os.environ.get("CLOUDFLARE_D1_GATEWAY_URL", ""),
+        "CLOUDFLARE_D1_GATEWAY_URL",
     )
     token = os.environ.get("D1_SERVICE_TOKEN", "")
     release_sha = os.environ.get("RELEASE_SHA", "").lower()

@@ -17,7 +17,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://enterprise-knowledge-assistant-omega.vercel.app",
+      "value": "https://viridian.thavarshan.workers.dev",
       "type": "string"
     }
   ],
@@ -35,9 +35,10 @@
               "raw": "{{baseUrl}}/health",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "health"
@@ -71,9 +72,10 @@
               "raw": "{{baseUrl}}/version",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "version"
@@ -107,9 +109,10 @@
               "raw": "{{baseUrl}}/ready",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "ready"
@@ -153,9 +156,10 @@
               "raw": "{{baseUrl}}/api/v1/auth/token",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "api",
@@ -205,9 +209,10 @@
               "raw": "{{baseUrl}}/api/v1/me",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "api",
@@ -245,9 +250,10 @@
               "raw": "{{baseUrl}}/api/v1/chat/sessions",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "api",
@@ -293,9 +299,10 @@
               "raw": "{{baseUrl}}/api/v1/chat/sessions",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "api",
@@ -339,9 +346,10 @@
               "raw": "{{baseUrl}}/api/v1/chat/sessions/{{sid}}",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "api",
@@ -381,9 +389,10 @@
               "raw": "{{baseUrl}}/api/v1/chat/stream",
               "protocol": "https",
               "host": [
-                "enterprise-knowledge-assistant-omega",
-                "vercel",
-                "app"
+                "viridian",
+                "thavarshan",
+                "workers",
+                "dev"
               ],
               "path": [
                 "api",

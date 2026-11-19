@@ -94,6 +94,7 @@ class D1SessionStore:
         timeout_seconds: int = 5,
         *,
         client: httpx.AsyncClient | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """Create a D1 adapter and configure request timeouts.
 
@@ -104,6 +105,8 @@ class D1SessionStore:
             timeout_seconds: Total request timeout; connect time is capped
                 at three seconds.
             client: Optional injected client for deterministic tests.
+            transport: Optional HTTPX transport for runtimes that provide
+                fetch through a platform API instead of Python sockets.
         """
         self.api_url = api_url.rstrip("/")
         self._service_token = service_token
@@ -114,6 +117,7 @@ class D1SessionStore:
                 timeout_seconds,
                 connect=min(timeout_seconds, 3),
             ),
+            transport=transport,
             headers={
                 "Authorization": f"Bearer {service_token}",
                 "Accept": "application/json",

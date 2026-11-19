@@ -93,8 +93,8 @@ class AuthService:
         configured_users_json: str,
         *,
         signing_secret: str | None = None,
-        issuer: str = "enterprise-knowledge-assistant",
-        audience: str = "enterprise-knowledge-assistant-api",
+        issuer: str = "viridian",
+        audience: str = "viridian-api",
         token_ttl_seconds: int = 900,
     ) -> None:
         """Load account configuration and token verification settings.

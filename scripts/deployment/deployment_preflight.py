@@ -14,12 +14,12 @@ REQUIRED_VALUES = (
     "CLOUDFLARE_D1_DATABASE_ID",
     "CLOUDFLARE_API_TOKEN",
     "D1_SERVICE_TOKEN",
-    "CLOUDFLARE_WORKER_URL",
-    "VERCEL_DEPLOY_HOOK",
-    "VERCEL_PROJECT_ID",
-    "VERCEL_PRODUCTION_URL",
+    "CLOUDFLARE_D1_GATEWAY_URL",
+    "CLOUDFLARE_API_URL",
+    "AUTH_SIGNING_SECRET",
     "SMOKE_ANALYST_PASSWORD",
     "SMOKE_VIEWER_PASSWORD",
+    "SMOKE_ADMIN_PASSWORD",
 )
 
 
@@ -37,8 +37,8 @@ def main() -> int:
         print("D1_SERVICE_TOKEN must contain at least 32 characters.")
         return 1
     for name in (
-        "CLOUDFLARE_WORKER_URL",
-        "VERCEL_PRODUCTION_URL",
+        "CLOUDFLARE_D1_GATEWAY_URL",
+        "CLOUDFLARE_API_URL",
     ):
         try:
             https_origin(os.environ[name], name)

@@ -105,7 +105,7 @@ only after it verifies the user's bearer token.
 The Cloudflare Worker checks the service token before accessing D1. It
 validates the owner ID and payload, uses prepared SQL statements, and scopes
 every session read and append by both session and owner. Missing and foreign
-sessions both return 404. D1 credentials are never sent to Streamlit. Worker
+sessions both return 404. D1 credentials are never sent to the browser. Worker
 errors are reduced to safe 4xx/5xx responses; D1 does not provide a general
 SQL route. The local simulation uses a separate disposable D1 database.
 
@@ -147,11 +147,13 @@ read-only repository access.
 
 The deployment workflow serializes production releases and rechecks the
 approved Git SHA before each remote mutation. It verifies the exact Cloudflare
-D1 name and ID, rejects destructive SQL migrations, and uses a temporary
-permission-restricted secret file for Wrangler. Vercel Git-triggered
-deployments are disabled; Actions triggers the production deploy hook and
-smokes the published API. Streamlit Community Cloud follows `main` and
-rebuilds after a main-branch push; CI does not start or probe the frontend.
+D1 name and ID, rejects destructive SQL migrations, and uses temporary
+permission-restricted secret input for Wrangler. GitHub Actions deploys both
+Viridian Workers and the static frontend, then exercises health, login,
+ownership, chat streaming, and D1 persistence with synthetic accounts. The
+Cloudflare production configuration disables LangSmith tracing and uses mock
+providers, so release smokes do not send requests to model or tracing
+services.
 
 This automation does not replace repository rules. Restrict the production
 environment to `main` and configure the secret inventory in

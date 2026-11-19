@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted. Cloudflare Worker and D1 deployment and authenticated smoke are
-verified. Vercel and Streamlit production readiness remain unverified.
+Superseded by [ADR-0010](0010-cloudflare-workers-deployment.md). This record
+documents the earlier Vercel API and Streamlit UI proposal and is retained
+for decision history.
 
 ## Context
 

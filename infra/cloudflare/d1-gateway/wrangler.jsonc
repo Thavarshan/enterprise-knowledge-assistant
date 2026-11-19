@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "eka-d1-gateway",
+  "name": "viridian-d1-gateway",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-13",
   "workers_dev": true,
@@ -10,7 +10,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "eka-sessions",
+      "database_name": "viridian-sessions",
       "database_id": "00000000-0000-0000-0000-000000000001",
       "migrations_dir": "migrations"
     }

@@ -4,11 +4,11 @@
 	verify-langsmith verify-live evaluate-retrieval
 
 setup:
-	uv sync --all-groups --extra ui
+	uv sync --all-groups --all-extras
 	uv run python scripts/bootstrap_dev_env.py
 
 dev:
-	uv sync --all-groups --extra ui
+	uv sync --all-groups --all-extras
 	uv run python scripts/run_dev.py
 
 api:
@@ -61,7 +61,7 @@ syntax-check:
 	uv run python -m compileall -q src apps scripts tests
 
 audit:
-	uv sync --locked --all-groups --extra ui
+	uv sync --locked --all-groups --all-extras
 	uv pip install --python .venv/bin/python \
 		--requirement apps/ui/requirements.txt
 	uv run --no-sync pip-audit --local --skip-editable --progress-spinner off

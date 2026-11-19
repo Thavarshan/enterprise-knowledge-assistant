@@ -11,12 +11,12 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --locked --no-dev --extra ui --no-install-project
+RUN uv sync --locked --no-dev --all-extras --no-install-project
 
 COPY src ./src
 COPY apps ./apps
 COPY data ./data
-RUN uv sync --locked --no-dev --extra ui
+RUN uv sync --locked --no-dev --all-extras
 
 EXPOSE 8000 8501
 

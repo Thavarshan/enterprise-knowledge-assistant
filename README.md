@@ -1,142 +1,106 @@
-# 🌿 Viridian
+# Viridian
 
-Viridian is an explainable AI assistant built as a modular Python monolith.
-FastAPI, Streamlit, LangGraph, SQLite, D1, Pinecone, OpenAI, and LangSmith are
-kept behind small internal module boundaries. Deterministic mock mode remains
-available for tests and local development.
+Viridian is an explainable enterprise knowledge assistant. Its canonical
+demo runs on Cloudflare Workers: a Python FastAPI API, static web
+frontend, authenticated D1 gateway, and D1 session database. The hosted demo
+uses only deterministic mock providers and synthetic data; it does not call
+OpenAI, Pinecone, or LangSmith.
 
 ## Live demo
 
-Open the [Viridian demo](https://viridian.streamlit.app/). In the sidebar, select a user, enter the
-matching password, and press **Sign in**.
+Open [Viridian](https://viridian.thavarshan.workers.dev/). The public demo
+accounts are synthetic. Do not reuse their passwords.
 
-- Viewer (`viewer`): `viewer-demo-2026`
-- Analyst (`analyst`): `analyst-demo-2026`
-- Administrator (`admin`): `admin-demo-2026`
+| Account | Password |
+|---|---|
+| Viewer (`viewer`) | `viewer-demo-2026` |
+| Analyst (`analyst`) | `analyst-demo-2026` |
+| Administrator (`admin`) | `admin-demo-2026` |
 
-These public demo accounts use synthetic data. Do not reuse their passwords.
+The pre-existing Streamlit Cloud deployment remains active outside this
+release pipeline, by request. Cloudflare is the canonical Viridian demo.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    UI[Streamlit] -->|HTTP and SSE| API[FastAPI]
+    B[Browser] -->|Static assets and API| W[Cloudflare Worker: viridian]
+    W --> API[FastAPI on Python Workers]
     API --> AUTH[Authentication and RBAC]
-  API --> MEM[(SQLite or D1 sessions)]
-  MEM -->|D1 mode| WORKER[Authenticated Cloudflare Worker]
-  WORKER --> D1[(Cloudflare D1)]
-    API --> GRAPH[LangGraph]
-    GRAPH --> SUP[Model supervisor or deterministic mock]
-    SUP -->|greeting| SMALL[Small talk]
-    SUP -->|direct question| RET[Retrieval]
-    SUP -->|investigation| RES[Bounded Research]
-    SUP -->|numeric calculation| ANA[Python analysis]
-    RET --> TOOL[Authorized knowledge search]
-    RES --> TOOL
-    RES --> IANA[Structured incident analysis]
-    TOOL --> FIXTURE[Local fixtures]
-    TOOL --> HYBRID[Pinecone dense and BM25]
-    HYBRID --> RRF[Reciprocal rank fusion]
-    FIXTURE --> RESP[Grounded Response]
-    RRF --> RESP
-    IANA --> RESP
-    ANA --> RESP
-    RESP --> VALIDATE[Citation validation]
-    GRAPH -. optional tracing .-> LS[LangSmith]
+    API --> CHAT[Role-filtered fixture chat]
+    CHAT --> RET[Extractive synthetic evidence]
+    API -->|Authenticated HTTPS| G[Cloudflare Worker: viridian-d1-gateway]
+    G --> D1[(Cloudflare D1: viridian-sessions)]
 ```
 
-## Quick start
+The Cloudflare production profile is configured for the Free plan: Workers,
+Workers Static Assets, and D1 only. No paid Cloudflare feature or external
+paid provider is enabled. The static frontend and API share one origin. The
+D1 gateway is the only component with a D1 binding; the API reaches it with a
+server-side service token.
+
+## Local development
 
 Requirements: Python 3.12–3.14, `uv`, and GNU Make. Docker Compose is
 optional.
 
 ```bash
-uv sync --all-groups --extra ui
+uv sync --all-groups --all-extras
 make setup
 make dev
 ```
 
-`make setup` creates local demo users only when no user file exists. It prints
-generated passwords once; they are stored in the ignored
-`data/users/default.json`. Open <http://localhost:8501> and sign in. The UI
-uses FastAPI for authentication, sessions, chat, and event streaming.
+`make setup` creates local demo users if no user file exists. It prints
+generated passwords once and stores them in ignored
+`data/users/default.json`. The local Streamlit client uses the local FastAPI
+service. Run `docker compose up --build` to use containers instead.
 
-For deterministic mock mode, use `MOCK_MODE=true` and
-`LLM_PROVIDER=mock`. For live model answers and Pinecone retrieval, configure
-local `.env` credentials, set `MOCK_MODE=false` and `LLM_PROVIDER=openai`,
-then start the services again. The application does not silently fall back
-to mock output when a live provider fails.
-
-Docker Compose startup:
-
-```bash
-docker compose up --build
-```
-
-The API and UI use the same image. SQLite and local data are mounted under
-`data/`.
-
-For a local cloud-style simulation with a Wrangler Worker and disposable D1
-state, use `make cloud-sim`. Stop it with `make cloud-sim-down`; its named
-local database volume remains available. See the
-[multi-cloud deployment guide](docs/deployment.md) for setup and test details.
+Local OpenAI, Pinecone, and LangSmith integrations are optional. They are
+disabled by default and are not used by the Cloudflare demo. For local
+Cloudflare-style D1 development, use `make cloud-sim`; the simulation uses a
+disposable local D1 database.
 
 ## Verification
 
 ```bash
 make check
 make audit
-make verify-langsmith
-make verify-live
-make evaluate-retrieval
 ```
 
-`make verify-live` is opt-in and requires working OpenAI, Pinecone, and
-LangSmith credentials. It writes the checked-in synthetic incident corpus
-to the configured existing Pinecone namespace, sends a small set of model
-requests, and requires remote LangSmith read access. It does not create an
-index or delete records. `make evaluate-retrieval` runs a separate four-case
-synthetic evaluation. Neither result predicts quality on production data.
+`make verify-live` and `make verify-langsmith` explicitly contact optional
+external providers and are not required for the Cloudflare deployment.
+Review their configuration and account usage before running them.
 
-CI runs separate quality, build, test, type, Python and npm dependency,
-Worker/D1, GitHub Actions syntax, deployment configuration, and
-Docker Compose API checks. Python tests cover 3.12 through 3.14. The required
-`ci-gate` fails if any check fails, is cancelled, or is skipped. Production
-Cloudflare and Vercel deployment runs automatically after the full CI gate
-passes on `main`, followed by API and Worker smoke checks. Streamlit
-Community Cloud follows `main` and rebuilds on a push; CI does not probe its
-frontend. See [CI/CD operations](docs/ci-cd.md).
+GitHub Actions runs lint, formatting, package build, tests, type checks,
+dependency audits, D1 Worker checks, and deployment configuration checks.
+After the full CI gate passes on `main`, it deploys both Viridian Workers,
+applies forward-only migrations to `viridian-sessions`, and smoke-checks the
+frontend, API, chat stream, authentication, ownership boundaries, and D1
+persistence. See [CI/CD operations](docs/ci-cd.md) and the
+[Cloudflare deployment guide](docs/deployment.md).
 
 ## Implemented behavior
 
 - Server-assigned Viewer, Analyst, and Administrator roles protect tools and
-  document access. User and model input cannot grant permissions.
-- LangGraph routes greetings, direct knowledge questions, multi-step
-  investigations, and supported numeric calculations.
-- OpenAI structured output handles live routing, research decomposition,
-  and cited response claims. Deterministic mock behavior is separately
-  tested.
-- Bounded Research performs multiple authorized searches, retains full
-  source identity, and can aggregate explicit incident metadata with trusted
-  Python.
-- Pinecone dense and BM25 full-text searches use trusted metadata filters
-  and reciprocal rank fusion. A synthetic 18-incident corpus demonstrates
-  retrieval, date filtering, and source-backed cause counts.
-- SQLite stores owner-scoped conversation history; recent turns are passed
-  to the model as bounded context.
-- SSE events report graph and tool activity. Answer chunks are emitted only
-  after source identity validation.
-- LangSmith tracing redacts run inputs and outputs and filters metadata.
-  Live tests read back model-backed workflow traces and check their hierarchy.
+  document access.
+- Local Python runs use LangGraph to route greetings, knowledge questions,
+  bounded investigations, and supported numeric calculations.
+- The Cloudflare demo uses role-filtered fixture search and extractive
+  answers. OpenAI and Pinecone adapters remain optional for local work.
+- Server-sent events report workflow and tool activity without exposing
+  private chain-of-thought.
+- D1 stores owner-scoped conversation history. The API holds the D1 gateway
+  credential; browser requests never receive it.
+- Optional LangSmith tracing redacts inputs and outputs. It is disabled in
+  the Cloudflare production configuration.
 
 ## Limits
 
-The checked-in data is synthetic. Ingestion accepts pre-chunked JSON rather
+The checked-in corpus is synthetic. Ingestion accepts pre-chunked JSON rather
 than arbitrary PDF or DOCX documents. The labeled retrieval evaluation has
-four cases. The input guardrail detects selected obvious patterns, not every
-prompt injection. MCP, semantic memory, production identity, distributed
-rate limits, and a human approval flow are not implemented. SQLite, users,
-and rate limits are local demonstration components. No recording is included.
+four cases. Prompt-injection checks are defense in depth. Production identity,
+distributed rate limits, semantic memory, and a human approval flow are not
+implemented.
 
 ## Guides
 
@@ -148,12 +112,10 @@ and rate limits are local demonstration components. No recording is included.
 - [Security](docs/security.md),
   [observability](docs/observability.md), and
   [evaluation matrix](docs/evaluation-matrix.md)
-- [Multi-cloud deployment guide](docs/deployment.md)
+- [Cloudflare deployment](docs/deployment.md)
 - [CI/CD and release operations](docs/ci-cd.md)
 - [Demonstration guide](docs/demo-guide.md) and
   [architecture decisions](docs/decisions/README.md)
 
 The authoritative assessment is `docs/assignment.md`. Planning files are
 kept local and ignored by Git.
-
-[live-demo]: https://enterprise-knowledge-assistant-g6qo3szfwp33c9yqdp2t2o.streamlit.app/

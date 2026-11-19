@@ -12,7 +12,6 @@ from collections.abc import Sequence
 from typing import Any, TypeVar
 
 from langsmith import traceable
-from openai import APIError, AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 
 from enterprise_assistant.config.settings import Settings
@@ -205,6 +204,12 @@ class OpenAIModelProvider:
             raise LLMConfigurationError(
                 "OpenAI requires OPENAI_API_KEY and OPENAI_MODEL."
             )
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as exc:
+            raise LLMConfigurationError(
+                "Install the provider extra to use OpenAI."
+            ) from exc
         self.model = model
         self.timeout_seconds = timeout_seconds
         self._client = AsyncOpenAI(
@@ -336,7 +341,7 @@ class OpenAIModelProvider:
                 )
         except asyncio.CancelledError:
             raise
-        except (APIError, TimeoutError, ValidationError) as exc:
+        except (TimeoutError, ValidationError) as exc:
             logger.warning(
                 "OpenAI structured request failed",
                 extra={"task": task, "error_type": type(exc).__name__},

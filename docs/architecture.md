@@ -2,11 +2,11 @@
 
 ## Overview
 
-The repository is a modular Python monolith with separate FastAPI and
-Streamlit processes. They share backend contracts and a Python lockfile; the
-UI has a small standalone dependency file. Domain, API, retrieval, memory,
-security, tools, agents, and observability remain in the monolith. The
-Cloudflare Worker is a narrow persistence adapter, not another business API.
+The repository is a modular Python monolith with a FastAPI backend and a
+Streamlit client for local development. The Cloudflare deployment serves a
+static browser client and the FastAPI routes from one Python Worker, with a
+separate authenticated Worker for D1 access. Domain, API, retrieval, memory,
+security, tools, agents, and observability remain in the Python package.
 
 Mock mode remains deterministic. With `LLM_PROVIDER=openai`, the structured
 OpenAI adapter routes messages, decomposes research, and generates grounded
@@ -17,19 +17,28 @@ filters, and RRF were verified against the configured schema and synthetic
 corpus. LangSmith readback verified seven model-backed and failure trace
 trees. This evidence covers synthetic assessment data only.
 
+The free Cloudflare Worker runs the FastAPI routes and uses role-filtered,
+extractive fixture chat. It omits LangGraph because the required `ormsgpack`
+package has no compatible Pyodide wheel. Local Python deployments retain the
+full graph; live model, vector database, and tracing integrations are not
+enabled in the hosted Worker.
+
 ## Component and execution map
 
 ```mermaid
 flowchart TB
-  Browser --> UI[Streamlit UI]
+  Browser --> UI[Cloudflare static UI]
   UI -->|HTTP and SSE| API[FastAPI]
+  LocalBrowser --> Streamlit[Local Streamlit client]
+  Streamlit -->|HTTP and SSE| API
   API --> Auth[Development AuthService]
   API --> Owner[Owner-scoped session store]
-  Owner -->|D1 backend| Worker[Authenticated Cloudflare Worker]
+  Owner -->|D1 backend| Worker[Authenticated D1 gateway Worker]
   Worker --> D1[(Cloudflare D1)]
   API --> Limit[Per-user token bucket]
-  API --> Chat[ChatService]
-  Chat --> Graph[Compiled LangGraph]
+  API --> Chat[Chat service]
+  Chat --> Graph[Local compiled LangGraph]
+  Chat --> WorkerChat[Cloudflare extractive chat]
   Graph --> Supervisor[Structured model supervisor or mock]
   Supervisor -->|greeting| SmallTalk[Fixed small-talk response]
   Supervisor -->|direct route| Retrieval[Retrieval node]
@@ -177,8 +186,10 @@ Docker Compose builds the same image for the API and UI. The UI waits for the
 API readiness check; the API mounts local `data/` for SQLite and fixture
 files. The readiness endpoint checks the session store only. It does not
 test Pinecone or LangSmith. `MEMORY_BACKEND=sqlite` is the default. Cloud
-deployment selects `MEMORY_BACKEND=d1`, and FastAPI calls the dedicated
-Worker over HTTPS with a service token. Only the Worker holds a D1 binding.
+deployment selects `MEMORY_BACKEND=d1`, and the Python Worker calls the
+dedicated Viridian D1 gateway over HTTPS with a service token. Only the
+gateway holds a D1 binding. The same `viridian` Worker serves the static
+browser frontend and FastAPI routes.
 
 `make setup` prepares local credentials and `make dev` starts both local
 processes. `make check` runs local lint, comment, line-length, formatting,
@@ -197,12 +208,12 @@ Compose job runs `docker compose up` for FastAPI, then checks API health and
 readiness. CI does not start or probe Streamlit. An explicit `ci-gate` fails
 for any required job that fails, is cancelled, or is skipped.
 
-The same workflow deploys Cloudflare and Vercel after the full CI gate and
-smokes both services. A non-cancelling concurrency group serializes runs,
-and every mutation checks that the approved SHA still matches `main`.
-Streamlit Community Cloud follows `main` and rebuilds on push, but CI does
-not wait for or probe that frontend. Release smokes do not invoke the model.
-See [CI/CD operations](ci-cd.md).
+After the full CI gate, the same workflow deploys the Viridian D1 gateway,
+then the Python API and static frontend, and probes both deployments. A
+non-cancelling concurrency group serializes releases, and each remote
+mutation checks that the approved SHA still matches `main`. Production
+smokes use synthetic data and do not invoke paid model providers. See
+[CI/CD operations](ci-cd.md).
 
 Environment variable names and defaults are described in
 `docs/assumptions.md` and `.env.example`. Secret values
@@ -291,6 +302,6 @@ retention, and tracing policy.
 - `docs/agent-design.md`: nodes, state, routing, and RLM scope.
 - `docs/retrieval-design.md`: metadata, scoring, and citations.
 - `docs/security.md`: trust boundaries and limitations.
-- `docs/deployment.md`: Vercel, Streamlit, and Cloudflare setup.
+- `docs/deployment.md`: Cloudflare Workers, static assets, and D1 setup.
 - `docs/observability.md`: logs, events, and LangSmith behavior.
 - `docs/decisions/`: recorded architectural decisions.

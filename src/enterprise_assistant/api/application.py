@@ -10,9 +10,11 @@ exercise request behavior without external providers.
 """
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -23,25 +25,15 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from enterprise_assistant.api.errors import APIError
 from enterprise_assistant.api.middleware import RequestIdMiddleware
 from enterprise_assistant.api.routes import auth, chat, health
-from enterprise_assistant.chat.service import ChatService
 from enterprise_assistant.config.settings import Settings, get_settings
 from enterprise_assistant.llm.contracts import ModelProvider
-from enterprise_assistant.llm.providers import create_model_provider
 from enterprise_assistant.memory.d1 import SessionStoreUnavailable
 from enterprise_assistant.memory.factory import create_session_store
 from enterprise_assistant.memory.interfaces import SessionStore
-from enterprise_assistant.observability.langsmith import (
-    create_langsmith_address,
-    create_langsmith_client,
-)
 from enterprise_assistant.observability.logging import configure_logging
 from enterprise_assistant.retrieval.hybrid import HybridRetriever
 from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 from enterprise_assistant.retrieval.interfaces import Retriever
-from enterprise_assistant.retrieval.pinecone import (
-    PineconeConfig,
-    PineconeRetriever,
-)
 from enterprise_assistant.security.authentication import AuthService
 from enterprise_assistant.security.guardrails import PromptInjectionGuardrail
 from enterprise_assistant.security.rate_limiting import TokenBucketRateLimiter
@@ -77,8 +69,8 @@ class AppContainer:
     tool_registry: ToolRegistry
     input_guardrail: PromptInjectionGuardrail
     rate_limiter: TokenBucketRateLimiter
-    model_provider: ModelProvider
-    chat_service: ChatService
+    model_provider: ModelProvider | None
+    chat_service: Any
 
 
 def create_app(
@@ -110,20 +102,47 @@ def create_app(
     """
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)
-    model_provider = create_model_provider(app_settings)
-    langsmith_client = create_langsmith_client(app_settings)
+    cloudflare_worker = os.environ.get("CLOUDFLARE_WORKER") == "true"
+    if cloudflare_worker:
+        model_provider = None
+        langsmith_client = None
+        langsmith_address = None
+    else:
+        from enterprise_assistant.llm.providers import create_model_provider
+        from enterprise_assistant.observability.langsmith import (
+            create_langsmith_address,
+            create_langsmith_client,
+        )
+
+        model_provider = create_model_provider(app_settings)
+        langsmith_client = create_langsmith_client(app_settings)
+        langsmith_address = (
+            create_langsmith_address(app_settings)
+            if langsmith_client is not None
+            else None
+        )
     tracing_enabled = langsmith_client is not None
-    langsmith_address = (
-        create_langsmith_address(app_settings)
-        if tracing_enabled
-        else None
-    )
     session_store = memory or create_session_store(app_settings)
     if retriever is not None:
         document_retriever = retriever
+    elif cloudflare_worker:
+        if not app_settings.mock_mode:
+            raise ValueError("The Cloudflare Worker requires mock mode.")
+        from enterprise_assistant.retrieval.cloudflare_fixtures import (
+            WORKER_DOCUMENTS,
+        )
+
+        document_retriever = InMemoryRetriever.from_records(
+            WORKER_DOCUMENTS
+        )
     elif app_settings.mock_mode:
         document_retriever = InMemoryRetriever.from_json()
     else:
+        from enterprise_assistant.retrieval.pinecone import (
+            PineconeConfig,
+            PineconeRetriever,
+        )
+
         pinecone_retriever = PineconeRetriever(
             PineconeConfig(
                 api_key=app_settings.pinecone_api_key,
@@ -141,6 +160,26 @@ def create_app(
             pinecone_retriever,
         )
     registry = ToolRegistry()
+    if cloudflare_worker:
+        from enterprise_assistant.chat.workers_service import (
+            WorkersMockChatService,
+        )
+
+        chat_service = WorkersMockChatService(
+            document_retriever,
+            session_store,
+        )
+    else:
+        from enterprise_assistant.chat.service import ChatService
+
+        chat_service = ChatService(
+            document_retriever,
+            session_store,
+            registry,
+            langsmith_client=langsmith_client,
+            langsmith_address=langsmith_address,
+            model_provider=model_provider,
+        )
     container = AppContainer(
         settings=app_settings,
         auth=AuthService(
@@ -159,14 +198,7 @@ def create_app(
             app_settings.rate_limit_refill_per_second,
         ),
         model_provider=model_provider,
-        chat_service=ChatService(
-            document_retriever,
-            session_store,
-            registry,
-            langsmith_client=langsmith_client,
-            langsmith_address=langsmith_address,
-            model_provider=model_provider,
-        ),
+        chat_service=chat_service,
     )
 
     @asynccontextmanager
@@ -198,7 +230,8 @@ def create_app(
                 await close_store()
             if langsmith_client is not None:
                 langsmith_client.close(timeout=5)
-            await model_provider.aclose()
+            if model_provider is not None:
+                await model_provider.aclose()
 
     application = FastAPI(
         title=app_settings.app_name,

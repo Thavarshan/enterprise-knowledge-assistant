@@ -76,7 +76,7 @@ def request_json(
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     request_headers = {
         "Accept": "application/json",
-        "User-Agent": "EnterpriseKnowledgeAssistant-smoke/1.0",
+        "User-Agent": "Viridian-smoke/1.0",
     }
     if headers:
         request_headers.update(headers)

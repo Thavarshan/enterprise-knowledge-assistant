@@ -46,8 +46,14 @@ def main() -> int:
         return 1
     release_sha = os.environ.get("RELEASE_SHA", "unknown")
     urls = (
-        ("Cloudflare Worker", os.environ.get("CLOUDFLARE_WORKER_URL", "")),
-        ("Vercel API", os.environ.get("VERCEL_PRODUCTION_URL", "")),
+        (
+            "Viridian API and frontend",
+            os.environ.get("CLOUDFLARE_API_URL", ""),
+        ),
+        (
+            "Viridian D1 gateway",
+            os.environ.get("CLOUDFLARE_D1_GATEWAY_URL", ""),
+        ),
     )
     print(
         "Deployment and API smoke checks passed "

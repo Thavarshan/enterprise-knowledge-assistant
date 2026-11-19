@@ -75,6 +75,21 @@ class InMemoryRetriever:
         if path is None and not source.is_file():
             source = Path(__file__).parent / "data" / "documents.json"
         raw_documents: Any = json.loads(source.read_text(encoding="utf-8"))
+        return cls.from_records(raw_documents)
+
+    @classmethod
+    def from_records(
+        cls,
+        raw_documents: list[dict[str, Any]],
+    ) -> "InMemoryRetriever":
+        """Build the retriever from already-loaded fixture records.
+
+        Args:
+            raw_documents: JSON-shaped document records.
+
+        Returns:
+            A retriever containing validated document chunks.
+        """
         chunks = [
             DocumentChunk.model_validate(document)
             for document in raw_documents

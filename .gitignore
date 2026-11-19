@@ -16,10 +16,16 @@ docs/assignment.md
 docs/plan.md
 dist/
 build/
+pylock.toml
+python_modules/
+.venv-workers/
 *.egg-info/
 .DS_Store
 .vercel
 infra/cloudflare/d1-gateway/wrangler.deploy.jsonc
+wrangler.deploy.jsonc
+infra/cloudflare/viridian-api/.secrets.json
+src/enterprise_assistant/retrieval/cloudflare_fixtures.py
 !.env.cloud-sim.example
 **/.dev.vars*
 !infra/cloudflare/d1-gateway/.dev.vars.example

@@ -92,7 +92,7 @@ def _start_worker(
             "d1",
             "migrations",
             "apply",
-            "eka-sessions",
+            "viridian-sessions",
             "--local",
             "--persist-to",
             str(persist_path),

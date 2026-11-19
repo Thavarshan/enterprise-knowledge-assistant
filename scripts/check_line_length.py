@@ -34,7 +34,6 @@ CHECKED_NAMES = {
     ".gitignore",
     "Dockerfile",
     "Makefile",
-    ".vercelignore",
     "secrets.toml.example",
 }
 EXCLUDED_PARTS = {
@@ -42,18 +41,21 @@ EXCLUDED_PARTS = {
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
-    ".vercel",
     ".venv",
+    ".venv-workers",
     "__pycache__",
     "build",
     "data",
     "dist",
     "node_modules",
+    "python_modules",
+    ".vercel",
 }
 EXCLUDED_FILES = {
     "docs/assignment.md",
     "docs/plan.md",
     "infra/cloudflare/d1-gateway/package-lock.json",
+    "pylock.toml",
     ".streamlit/secrets.toml",
     "uv.lock",
 }

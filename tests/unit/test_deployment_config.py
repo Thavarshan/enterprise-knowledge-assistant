@@ -4,13 +4,11 @@ These tests check provider wiring without connecting to deployed services.
 """
 
 import asyncio
-import importlib.util
 import json
 from pathlib import Path
 
 import pytest
 from apps.ui.services.config import resolve_api_base_url
-from fastapi import FastAPI
 from scripts.deployment.check_ci_gate import main as run_ci_gate
 from scripts.deployment.cloudflare_config import database_matches
 from scripts.deployment.policy import (
@@ -42,7 +40,7 @@ def test_api_base_url_reads_environment_before_streamlit_secrets() -> None:
         {"API_BASE_URL": "https://secret.example/"},
     ) == "https://secret.example"
     assert resolve_api_base_url({}, {}) == (
-        "https://enterprise-knowledge-assistant-omega.vercel.app"
+        "https://viridian.thavarshan.workers.dev"
     )
 
 
@@ -126,78 +124,24 @@ def test_cloud_factory_selects_d1_without_creating_local_storage(
     asyncio.run(store.aclose())
 
 
-def test_vercel_entrypoint_imports_shared_fastapi_app(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Import root entrypoint with cloud storage and no local SQLite writes.
-
-    The isolated working directory ensures deployment import behavior does
-    not depend on the developer's local environment file or account file.
-    """
-    from enterprise_assistant.config.settings import get_settings
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("MOCK_MODE", "false")
-    monkeypatch.setenv("LLM_PROVIDER", "mock")
-    monkeypatch.setenv("MEMORY_BACKEND", "d1")
-    monkeypatch.setenv("D1_API_URL", "https://worker.example")
-    monkeypatch.setenv(
-        "D1_SERVICE_TOKEN",
-        "local-test-token-with-at-least-32-characters",
-    )
-    monkeypatch.setenv(
-        "DEV_USERS_JSON",
-        json.dumps({
-            "analyst": {
-                "password": "synthetic-password",
-                "role": "analyst",
-            }
-        }),
-    )
-    monkeypatch.setenv("LANGSMITH_TRACING", "false")
-    get_settings.cache_clear()
-
+def test_cloudflare_python_worker_uses_viridian_assets_and_mock_mode() -> None:
+    """Keep the Cloudflare API bound to the static Viridian frontend."""
     repository_root = Path(__file__).resolve().parents[2]
-    entrypoint = repository_root / "app.py"
-    spec = importlib.util.spec_from_file_location(
-        "vercel_fastapi_entrypoint",
-        entrypoint,
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    config = json.loads((repository_root / "wrangler.jsonc").read_text())
+    entrypoint = (
+        repository_root / "infra/cloudflare/viridian-api/entry.py"
+    ).read_text()
 
-    assert isinstance(module.app, FastAPI)
-    assert isinstance(module.app.state.container.memory, D1SessionStore)
-    assert not (tmp_path / "data").exists()
-    asyncio.run(module.app.state.container.memory.aclose())
-    get_settings.cache_clear()
-
-
-def test_vercel_config_limits_duration_and_excludes_non_runtime_files() -> None:
-    """Keep the Vercel Function bounded and its bundle focused.
-
-    The runtime should include the shared FastAPI entrypoint and source while
-    excluding UI, tests, fixtures, documentation, and infrastructure.
-    """
-    repository_root = Path(__file__).resolve().parents[2]
-    config = json.loads((repository_root / "vercel.json").read_text())
-    ignored_paths = set(
-        (repository_root / ".vercelignore").read_text().splitlines()
-    )
-
-    assert config["functions"]["app.py"]["maxDuration"] == 60
-    assert config["git"]["deploymentEnabled"] is False
-    assert {
-        "tests/**",
-        "docs/**",
-        "infra/**",
-        "data/**",
-        "scripts/**",
-        "apps/ui/**",
-        "apps/api/**",
-    } <= ignored_paths
+    assert config["name"] == "viridian"
+    assert config["compatibility_flags"] == ["python_workers"]
+    assert config["vars"]["MOCK_MODE"] == "true"
+    assert config["vars"]["LLM_PROVIDER"] == "mock"
+    assert config["vars"]["LANGSMITH_TRACING"] == "false"
+    assert config["assets"]["binding"] == "ASSETS"
+    assert "/api/*" in config["assets"]["run_worker_first"]
+    assert "from workers import asgi, env" in entrypoint
+    assert "Default = asgi.entrypoint(app)" in entrypoint
+    assert not (repository_root / "vercel.json").exists()
 
 
 def test_ci_gate_fails_for_failed_cancelled_or_skipped_jobs() -> None:
@@ -300,19 +244,19 @@ def test_cloudflare_identity_must_match_name_and_complete_id() -> None:
     payload = {
         "success": True,
         "result": [{
-            "name": "eka-sessions",
+            "name": "viridian-sessions",
             "uuid": "12345678-1234-1234-1234-123456789abc",
         }],
     }
 
     assert database_matches(
         payload,
-        "eka-sessions",
+        "viridian-sessions",
         "12345678-1234-1234-1234-123456789abc",
     )
     assert not database_matches(
         payload,
-        "eka-sessions",
+        "viridian-sessions",
         "12345678-1234-1234-1234-123456789abd",
     )
     assert not database_matches(

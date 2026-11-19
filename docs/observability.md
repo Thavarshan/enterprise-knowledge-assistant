@@ -61,45 +61,34 @@ MCP has no executable handler.
 
 ## Agent-based destination
 
-This workspace uses LangSmith Cloud's agent-based observability. The app
-routes traces to the already registered agent by pairing its identifier with
-an environment:
-
-- Registered LangSmith agent display name: `Enterprise Knowledge Assistant`
-- Agent ID: `enterprise-knowledge-assistant`
-- Environment: `local`
-- API endpoint: `https://api.smith.langchain.com`
-
-The **Agent ID** is the registered identifier, not the display name. Agent
-addressing is `agent ID + environment`. It is neither a tracing project ID
-nor a workspace ID. Do not create a replacement agent or tracing project.
-`LANGSMITH_WORKSPACE_ID` is omitted unless a credential's scope requires an
-explicit workspace selector.
+LangSmith is an optional integration for local experiments. The hosted
+Cloudflare Worker sets `LANGSMITH_TRACING=false` and does not send traces to
+LangSmith. Its logical agent ID is `viridian`; configure an accessible
+LangSmith destination and credentials locally before enabling tracing.
 
 The Python SDK requirement is `langsmith>=0.14.9`; `uv.lock` fixes the
-resolved version used by this repository. The SDK's agent-addressing API
-receives the explicit agent address for each trace. The environment
-variables are also set before the client and compiled graph are created so
-SDK integrations in the API process share the same destination.
+resolved version used by this repository. The SDK receives an explicit
+agent address when tracing is enabled. The environment variables are set
+before the client and compiled graph are created so SDK integrations in the
+API process share the same destination.
 
 ## Configuration and local setup
 
-Copy `.env.example` to the ignored local `.env`, then set the LangSmith key.
-The required values are:
+Copy `.env.example` to the ignored local `.env` only if you intend to use
+LangSmith locally. Set `LANGSMITH_TRACING=true` and provide a key:
 
 ```dotenv
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=<your-secret-key>
-LANGSMITH_AGENT_ID=enterprise-knowledge-assistant
+LANGSMITH_AGENT_ID=viridian
 LANGSMITH_AGENT_ENVIRONMENT=local
 ```
 
-Keep the API key in local `.env` or the deployment secret store. It is
-loaded by `Settings`, passed only to the backend SDK client, and never sent
-to the Streamlit process. The API loads settings and configures LangSmith
-before it constructs the client or LangGraph workflow. Test settings disable
-tracing and need no key.
+Keep the API key in local `.env`; it is loaded by `Settings` and passed only
+to the backend SDK client. The API configures LangSmith before it constructs
+the client or LangGraph workflow. Test settings and the Cloudflare
+production deployment disable tracing and need no key.
 
 Agent-based addressing replaces the older project destination. The setup
 removes `LANGSMITH_PROJECT`, `LANGCHAIN_PROJECT`, and `LANGCHAIN_SESSION`
@@ -164,7 +153,7 @@ Results have distinct meanings:
 
 The command never prints the API key, question payload, evidence, or answer.
 It prints a unique verification ID. In LangSmith Cloud, open the
-`Enterprise Knowledge Assistant` agent, select the `Local` environment, and
+`Viridian` agent, select the `Local` environment, and
 find the trace with that ID. If submission passed but readback is BLOCKED,
 use the UI to inspect that verification ID; do not call it verified until
 the remote trace is visible and its payload is checked.

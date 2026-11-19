@@ -18,26 +18,10 @@ from enterprise_assistant.retrieval.filters import (
     incident_ids_in_question,
 )
 from enterprise_assistant.retrieval.interfaces import Retriever
-from enterprise_assistant.security.authorization import Role
-
-
-def allowed_access_levels(role: Role) -> frozenset[str]:
-    """Map the authenticated role to searchable access labels.
-
-    Viewer results include viewer-level material; analysts also include
-    analyst material; administrators include all three labels.
-
-    Args:
-        role: Server-resolved role from authenticated graph state.
-
-    Returns:
-        Immutable set of access labels for the retrieval filter.
-    """
-    return {
-        Role.VIEWER: frozenset({"viewer"}),
-        Role.ANALYST: frozenset({"viewer", "analyst"}),
-        Role.ADMINISTRATOR: frozenset({"viewer", "analyst", "administrator"}),
-    }[role]
+from enterprise_assistant.security.authorization import (
+    Role,
+    allowed_access_levels,
+)
 
 
 class KnowledgeSearchTool:

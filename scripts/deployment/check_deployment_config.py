@@ -18,6 +18,8 @@ from scripts.deployment.cloudflare_config import (
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+API_WRANGLER_CONFIG = REPOSITORY_ROOT / "wrangler.jsonc"
+API_ENTRYPOINT = REPOSITORY_ROOT / "src/worker_entry.py"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/ci.yml"
 WORKFLOW_DIRECTORY = REPOSITORY_ROOT / ".github/workflows"
 
@@ -55,8 +57,8 @@ def configuration_errors() -> list[str]:
     wrangler = json.loads(
         (WORKER_ROOT / "wrangler.jsonc").read_text(encoding="utf-8")
     )
-    vercel = json.loads(
-        (REPOSITORY_ROOT / "vercel.json").read_text(encoding="utf-8")
+    api_worker = json.loads(
+        API_WRANGLER_CONFIG.read_text(encoding="utf-8")
     )
     worker_pin = package.get("devDependencies", {}).get("wrangler")
     locked_pin = lock.get("packages", {}).get("node_modules/wrangler", {})
@@ -88,9 +90,25 @@ def configuration_errors() -> list[str]:
         errors.append(
             "Wrangler must keep the dedicated local placeholder config."
         )
-    if vercel.get("git", {}).get("deploymentEnabled") is not False:
-        errors.append("Vercel Git auto-deployments must be disabled.")
+    if (
+        api_worker.get("name") != "viridian"
+        or api_worker.get("compatibility_flags") != ["python_workers"]
+        or api_worker.get("vars", {}).get("MOCK_MODE") != "true"
+        or api_worker.get("vars", {}).get("LLM_PROVIDER") != "mock"
+        or api_worker.get("vars", {}).get("LANGSMITH_TRACING") != "false"
+        or api_worker.get("assets", {}).get("binding") != "ASSETS"
+        or "/api/*"
+        not in api_worker.get("assets", {}).get("run_worker_first", [])
+    ):
+        errors.append(
+            "Viridian must keep its free Python Worker, mock providers, "
+            "and static asset routing."
+        )
+    if (REPOSITORY_ROOT / "vercel.json").exists():
+        errors.append("The retired Vercel deployment config must be removed.")
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
+    if "VERCEL_" in ci:
+        errors.append("The production workflow must not deploy through Vercel.")
     workflow_files = {
         path.name for path in WORKFLOW_DIRECTORY.glob("*.yml")
     } | {path.name for path in WORKFLOW_DIRECTORY.glob("*.yaml")}
@@ -131,9 +149,9 @@ def configuration_errors() -> list[str]:
         ("readiness", "ci-gate"),
         ("deploy-cloudflare", "readiness"),
         ("smoke-cloudflare", "deploy-cloudflare"),
-        ("deploy-vercel", "smoke-cloudflare"),
-        ("smoke-vercel", "deploy-vercel"),
-        ("deployment-result", "smoke-vercel"),
+        ("deploy-cloudflare-api", "smoke-cloudflare"),
+        ("smoke-cloudflare-api", "deploy-cloudflare-api"),
+        ("deployment-result", "smoke-cloudflare-api"),
     )
     for job_name, required_dependency in sequence:
         block = _needs_text(ci, job_name)
@@ -145,15 +163,15 @@ def configuration_errors() -> list[str]:
     for required_job in (
         "deploy-cloudflare",
         "smoke-cloudflare",
-        "deploy-vercel",
-        "smoke-vercel",
+        "deploy-cloudflare-api",
+        "smoke-cloudflare-api",
         "deployment-result",
     ):
         if not _needs_text(ci, required_job):
             errors.append(f"ci.yml is missing deployment job {required_job}.")
     for protected_smoke_job in (
         "smoke-cloudflare",
-        "smoke-vercel",
+        "smoke-cloudflare-api",
     ):
         block = _needs_text(ci, protected_smoke_job)
         if not re.search(r"(?m)^    environment: production$", block):
@@ -171,6 +189,8 @@ def configuration_errors() -> list[str]:
     worker_source = (WORKER_ROOT / "src/index.ts").read_text(
         encoding="utf-8"
     )
+    if not API_ENTRYPOINT.exists():
+        errors.append("The Viridian Python Worker entrypoint is missing.")
     cloudflare_smoke = (
         REPOSITORY_ROOT / "scripts/deployment/smoke_cloudflare.py"
     ).read_text(encoding="utf-8")

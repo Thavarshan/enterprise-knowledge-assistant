@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         api_host: Stored bind setting; current launch commands bind directly.
         api_port: Stored field; the launcher reads API_PORT from the process.
         ui_port: Stored field; the launcher reads UI_PORT from the process.
-        api_base_url: Default API URL; Streamlit reads its process environment.
+        api_base_url: Default API URL for browser clients.
         memory_backend: Local SQLite or remote D1 gateway.
         sqlite_path: Local session database path.
         d1_api_url: HTTPS origin for the dedicated D1 Worker.
@@ -82,8 +82,8 @@ class Settings(BaseSettings):
     d1_service_token: str = Field(default="", repr=False)
     d1_timeout_seconds: int = Field(default=5, ge=1, le=30)
     auth_signing_secret: str = Field(default="", repr=False)
-    auth_issuer: str = "enterprise-knowledge-assistant"
-    auth_audience: str = "enterprise-knowledge-assistant-api"
+    auth_issuer: str = "viridian"
+    auth_audience: str = "viridian-api"
     auth_token_ttl_seconds: int = Field(default=900, ge=60, le=86400)
     cors_origins: list[str] = Field(default_factory=lambda: [
                                     "http://localhost:8501"])
@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     langsmith_tracing: bool = False
     langsmith_api_key: str = Field(default="", repr=False)
     langsmith_endpoint: str = "https://api.smith.langchain.com"
-    langsmith_agent_id: str = "enterprise-knowledge-assistant"
+    langsmith_agent_id: str = "viridian"
     langsmith_agent_environment: str = "local"
     llm_provider: Literal["mock", "openai"] = "mock"
     openai_api_key: str = Field(default="", repr=False)
@@ -222,8 +222,9 @@ class Settings(BaseSettings):
         required_values = {
             "AUTH_SIGNING_SECRET": self.auth_signing_secret,
             "DEV_USERS_JSON": self.dev_users_json,
-            "LANGSMITH_API_KEY": self.langsmith_api_key,
         }
+        if self.langsmith_tracing:
+            required_values["LANGSMITH_API_KEY"] = self.langsmith_api_key
         if not self.mock_mode:
             required_values.update({
                 "OPENAI_API_KEY": self.openai_api_key,
@@ -251,8 +252,6 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Production MOCK_MODE and LLM_PROVIDER must agree."
             )
-        if not self.langsmith_tracing:
-            raise ValueError("Production requires LANGSMITH_TRACING=true.")
         if not self.cors_origins or "*" in self.cors_origins:
             raise ValueError(
                 "Production CORS_ORIGINS must contain explicit origins."

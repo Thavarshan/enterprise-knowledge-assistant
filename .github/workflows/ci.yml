@@ -36,7 +36,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make lint
 
   format:
@@ -57,7 +57,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make format-check
 
   build:
@@ -117,7 +117,7 @@ jobs:
             pyproject.toml
             uv.lock
       - run: >-
-          uv sync --locked --all-groups --extra ui --python
+          uv sync --locked --all-groups --all-extras --python
           "${{ matrix.python-version }}"
       - run: make test
 
@@ -139,7 +139,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make docs-check
 
   comments:
@@ -160,7 +160,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make comments-check
 
   line-length:
@@ -181,7 +181,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make line-length-check
 
   syntax:
@@ -202,7 +202,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make syntax-check
 
   typecheck:
@@ -230,7 +230,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make typecheck
 
   dependency-audit:
@@ -258,7 +258,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - run: make audit
 
   npm-audit:
@@ -471,7 +471,7 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - run: uv sync --locked --all-groups --extra ui --python 3.13
+      - run: uv sync --locked --all-groups --all-extras --python 3.13
       - name: Test FastAPI through Wrangler and local D1
         run: make cloud-sim-test
 
@@ -632,7 +632,7 @@ jobs:
           python3 -m scripts.deployment.readiness
 
   deploy-cloudflare:
-    name: "Deploy: Cloudflare Worker and D1"
+    name: "Deploy: Viridian D1 gateway and database"
     needs: [readiness]
     if: needs.readiness.outputs.run_deployment == 'true'
     runs-on: ubuntu-24.04
@@ -641,15 +641,14 @@ jobs:
     permissions:
       contents: read
     outputs:
-      worker_url: ${{ vars.CLOUDFLARE_WORKER_URL }}
+      worker_url: ${{ vars.CLOUDFLARE_D1_GATEWAY_URL }}
     env:
       CI_GATE_PASSED: "true"
       RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
-      CLOUDFLARE_WORKER_URL: ${{ vars.CLOUDFLARE_WORKER_URL }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
+      CLOUDFLARE_D1_GATEWAY_URL: ${{ vars.CLOUDFLARE_D1_GATEWAY_URL }}
+      CLOUDFLARE_API_URL: ${{ vars.CLOUDFLARE_API_URL }}
     steps:
       - name: Check out the exact approved commit
         # actions/checkout v7.0.1
@@ -671,9 +670,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
-          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          AUTH_SIGNING_SECRET: ${{ secrets.AUTH_SIGNING_SECRET }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
+          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
         run: python3 -m scripts.deployment.deployment_preflight
       - name: Validate local Wrangler config and bundle
         working-directory: infra/cloudflare/d1-gateway
@@ -697,7 +697,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npm run migrate:remote
-      - name: Deploy Worker with its service token
+      - name: Deploy Viridian D1 gateway
         working-directory: infra/cloudflare/d1-gateway
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -705,7 +705,7 @@ jobs:
         run: npm run deploy
 
   smoke-cloudflare:
-    name: "Smoke: Cloudflare Worker and D1"
+    name: "Smoke: Viridian D1 gateway and database"
     needs: [readiness, deploy-cloudflare]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -721,48 +721,73 @@ jobs:
           persist-credentials: false
       - name: Verify service authentication and D1 read/write
         env:
-          CLOUDFLARE_WORKER_URL: >-
+          CLOUDFLARE_D1_GATEWAY_URL: >-
             ${{ needs.deploy-cloudflare.outputs.worker_url }}
           D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
         run: python3 -m scripts.deployment.smoke_cloudflare
 
-  deploy-vercel:
-    name: "Deploy: Vercel FastAPI"
+  deploy-cloudflare-api:
+    name: "Deploy: Viridian API and frontend"
     needs: [readiness, smoke-cloudflare]
+    if: needs.readiness.outputs.run_deployment == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production
     permissions:
       contents: read
     outputs:
-      production_url: ${{ steps.trigger.outputs.production_url }}
+      api_url: ${{ vars.CLOUDFLARE_API_URL }}
+    env:
+      CI_GATE_PASSED: "true"
+      RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+      CLOUDFLARE_D1_GATEWAY_URL: ${{ vars.CLOUDFLARE_D1_GATEWAY_URL }}
+      CLOUDFLARE_API_URL: ${{ vars.CLOUDFLARE_API_URL }}
     steps:
-      - name: Check out the CI-approved commit
+      - name: Check out the exact approved commit
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.readiness.outputs.release_sha }}
           fetch-depth: 0
           persist-credentials: true
-      - name: Confirm the approved release is still current
+      # astral-sh/setup-uv v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
+        with:
+          version: 0.13.7
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - name: Install locked Python Worker toolchain
+        run: uv sync --locked --all-groups --all-extras --python 3.13
+      - name: Verify deployment targets and credentials
         env:
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.assert_release_current
-      - name: Trigger the Vercel production deploy hook
-        id: trigger
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
+          AUTH_SIGNING_SECRET: ${{ secrets.AUTH_SIGNING_SECRET }}
+          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
+          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
+          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: python3 -m scripts.deployment.deployment_preflight
+      - name: Deploy Viridian Python API and static frontend
         env:
-          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-        run: python3 -m scripts.deployment.trigger_vercel_hook
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
+          AUTH_SIGNING_SECRET: ${{ secrets.AUTH_SIGNING_SECRET }}
+          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
+          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
+          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: python3 -m scripts.deployment.deploy_cloudflare_api
 
-  smoke-vercel:
-    name: "Smoke: Vercel FastAPI"
-    needs: [readiness, deploy-vercel]
+  smoke-cloudflare-api:
+    name: "Smoke: Viridian frontend and API"
+    needs: [readiness, deploy-cloudflare-api]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment: production
     permissions:
       contents: read
@@ -773,13 +798,13 @@ jobs:
         with:
           ref: ${{ needs.readiness.outputs.release_sha }}
           persist-credentials: false
-      - name: Wait for release and check API, identity, and sessions
+      - name: Verify frontend, API, chat stream, and D1 persistence
         env:
-          VERCEL_URL: ${{ needs.deploy-vercel.outputs.production_url }}
+          CLOUDFLARE_API_URL: ${{ needs.deploy-cloudflare-api.outputs.api_url }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
           SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-        run: python3 -m scripts.deployment.smoke_vercel
+        run: python3 -m scripts.deployment.smoke_cloudflare_api
 
   deployment-result:
     name: "Result: Production deployment"
@@ -788,8 +813,8 @@ jobs:
       - readiness
       - deploy-cloudflare
       - smoke-cloudflare
-      - deploy-vercel
-      - smoke-vercel
+      - deploy-cloudflare-api
+      - smoke-cloudflare-api
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -803,8 +828,7 @@ jobs:
         env:
           DEPLOY_NEEDS_JSON: ${{ toJSON(needs) }}
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          CLOUDFLARE_WORKER_URL: >-
+          CLOUDFLARE_D1_GATEWAY_URL: >-
             ${{ needs.deploy-cloudflare.outputs.worker_url }}
-          VERCEL_PRODUCTION_URL: >-
-            ${{ needs.deploy-vercel.outputs.production_url }}
+          CLOUDFLARE_API_URL: ${{ needs.deploy-cloudflare-api.outputs.api_url }}
         run: python3 -m scripts.deployment.check_deployment_result

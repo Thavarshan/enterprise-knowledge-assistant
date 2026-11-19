@@ -32,8 +32,10 @@
   in the event loop; the Streamlit client is synchronous.
 - Stateless bearer tokens work across API instances with the same signing
   configuration. They cannot be revoked individually before expiration.
-- No live Vercel, Streamlit Cloud, Worker, or remote D1 resource has been
-  created or verified for this deployment preparation.
+- The fresh `viridian-sessions` D1 database is empty until the deployment
+  workflow applies its initial migration. The `viridian` and
+  `viridian-d1-gateway` Workers are created and smoke-checked by the release
+  workflow.
 
 ## Configuration reference
 
@@ -50,15 +52,15 @@ representations. Mock mode needs no provider credentials.
 | API_HOST | 0.0.0.0 | Settings field; launcher currently binds directly. |
 | API_PORT | 8000 | Launcher and Compose host-port mapping. |
 | UI_PORT | 8501 | Launcher and Compose host-port mapping. |
-| API_BASE_URL | localhost:8000 | Local override; hosted UI uses Vercel. |
+| API_BASE_URL | localhost:8000 | Streamlit client API origin. |
 | MEMORY_BACKEND | sqlite | `sqlite` locally or `d1` via the Worker. |
 | SQLITE_PATH | data/sessions.sqlite3 | Local SQLite database path. |
 | D1_API_URL | empty | Dedicated Worker origin; HTTPS in production. |
 | D1_SERVICE_TOKEN | empty | Shared backend/Worker secret; minimum 32 chars. |
 | D1_TIMEOUT_SECONDS | 5 | D1 request timeout between 1 and 30 seconds. |
 | AUTH_SIGNING_SECRET | empty | Shared JWT key; production requires 32+ chars. |
-| AUTH_ISSUER | enterprise-knowledge-assistant | Expected token issuer. |
-| AUTH_AUDIENCE | enterprise-knowledge-assistant-api | JWT audience check. |
+| AUTH_ISSUER | viridian | Expected token issuer. |
+| AUTH_AUDIENCE | viridian-api | JWT audience check. |
 | AUTH_TOKEN_TTL_SECONDS | 900 | Token lifetime from 60 to 86400 seconds. |
 | CORS_ORIGINS | http://localhost:8501 | Browser origin allowlist. |
 | LOG_LEVEL | INFO | Root application log level. |
@@ -72,7 +74,7 @@ representations. Mock mode needs no provider credentials.
 | LANGSMITH_TRACING | false | Optional; see observability guide. |
 | LANGSMITH_ENDPOINT | api.smith.langchain.com | LangSmith Cloud API endpoint. |
 | LANGSMITH_API_KEY | empty | Secret required when tracing is enabled. |
-| LANGSMITH_AGENT_ID | enterprise-knowledge-assistant | Existing agent ID. |
+| LANGSMITH_AGENT_ID | viridian | Optional local agent destination. |
 | LANGSMITH_AGENT_ENVIRONMENT | local | Agent destination environment. |
 | PINECONE_API_KEY | empty | Secret used by the Documents API adapter. |
 | PINECONE_INDEX_NAME | empty | Existing index; the app never creates it. |
@@ -82,15 +84,15 @@ representations. Mock mode needs no provider credentials.
 | PINECONE_TIMEOUT_SECONDS | 15 | Pinecone SDK operation deadline. |
 | PINECONE_DOCUMENTS_PATH | data/samples/incident_corpus.json | Ingest source. |
 
-`make setup` creates `data/users/default.json` when it is missing. The UI
-reads `API_BASE_URL` from its process environment or Streamlit secrets and
-defaults to the deployed Vercel API. Local `.env` and Compose override that
-default; Compose supplies the internal UI URL as `http://api:8000`. The local
-launcher reads ports from the process environment; Compose also uses them for
-host-port mappings. The API's `API_HOST` and `api_port` fields do not
-currently control Uvicorn's bind address or port.
+`make setup` creates `data/users/default.json` when it is missing. The local
+Streamlit client reads `API_BASE_URL` from its process environment or
+Streamlit secrets and defaults to the Viridian Cloudflare API. Local `.env`
+and Compose override that default; Compose supplies `http://api:8000`. The
+production browser frontend is served as static assets by the Viridian
+Cloudflare Worker. The existing Streamlit Cloud deployment remains active by
+request and is outside the Cloudflare release workflow.
 
-The API and UI can use different configuration sources. API Settings reads
-`.env`; the launcher reads process environment variables; the UI reads its
-own `API_BASE_URL`. Check the effective environment when changing local
-ports or starting the processes outside Compose.
+The local API and UI can use different configuration sources. API Settings
+reads `.env`; the launcher reads process environment variables; the local UI
+reads its own `API_BASE_URL`. Check the effective environment when changing
+local ports or starting the processes outside Compose.
