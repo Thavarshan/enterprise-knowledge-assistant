@@ -23,6 +23,7 @@ API_ENTRYPOINT = REPOSITORY_ROOT / "src/worker_entry.py"
 VERCEL_CONFIG = REPOSITORY_ROOT / "vercel.json"
 VERCEL_INSTALL_SCRIPT = REPOSITORY_ROOT / "vercel-install.sh"
 VERCEL_IGNORE_FILE = REPOSITORY_ROOT / ".vercelignore"
+PYTHON_VERSION_FILE = REPOSITORY_ROOT / ".python-version"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/ci.yml"
 WORKFLOW_DIRECTORY = REPOSITORY_ROOT / ".github/workflows"
 
@@ -110,6 +111,8 @@ def configuration_errors() -> list[str]:
     if (
         vercel.get("installCommand") != "bash vercel-install.sh"
         or "uv sync --frozen --no-default-groups" not in vercel_install
+        or "--python 3.12" not in vercel_install
+        or PYTHON_VERSION_FILE.read_text(encoding="utf-8").strip() != "3.12"
         or "--extra agents" not in vercel_install
         or "--extra providers" not in vercel_install
         or vercel.get("functions", {}).get("app.py", {}).get("maxDuration", 0)
