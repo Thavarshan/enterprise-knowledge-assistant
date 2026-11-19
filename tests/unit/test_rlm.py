@@ -21,8 +21,7 @@ from enterprise_assistant.rlm.executor import BoundedResearchExecutor
 
 
 @pytest.mark.asyncio
-async def test_incident_investigation_executes_multiple_attributed_subtasks(
-) -> None:
+async def test_incident_investigation_runs_attributed_subtasks() -> None:
     """Verify incident research performs and fuses multiple searches.
 
     The deterministic provider decomposes the question into symptoms,
@@ -71,8 +70,7 @@ async def test_incident_investigation_executes_multiple_attributed_subtasks(
         for result in report.results
     )
     assert all(
-        result.chunk.metadata.document_id
-        and result.chunk.metadata.chunk_id
+        result.chunk.metadata.document_id and result.chunk.metadata.chunk_id
         for finding in report.findings
         for result in finding.results
     )
@@ -225,8 +223,9 @@ async def test_executor_retains_partial_results_when_a_branch_fails() -> None:
 
 
 @pytest.mark.asyncio
-async def test_executor_times_out_a_slow_search_within_wall_clock_budget(
-) -> None:
+async def test_executor_times_out_a_slow_search_within_wall_clock_budget() -> (
+    None
+):
     """Verify the total investigation deadline cancels a slow leaf search.
 
     The executor records a safe timeout code and returns a partial report

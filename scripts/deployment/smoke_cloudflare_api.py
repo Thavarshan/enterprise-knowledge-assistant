@@ -1,4 +1,7 @@
-"""Check the Viridian frontend, FastAPI routes, chat, and D1 persistence."""
+"""Check the Viridian frontend, FastAPI routes, chat, and D1 persistence.
+
+The smoke sends synthetic messages and verifies that a response is stored.
+"""
 
 import json
 import os
@@ -20,6 +23,14 @@ USER_AGENT = "Viridian-smoke/1.0"
 
 
 def _request_headers(token: str = "") -> dict[str, str]:
+    """Build request headers with an optional bearer token.
+
+    Args:
+        token: Access token to include when authenticating the request.
+
+    Returns:
+        Headers containing the smoke user agent and optional authorization.
+    """
     headers = {"User-Agent": USER_AGENT}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -27,6 +38,15 @@ def _request_headers(token: str = "") -> dict[str, str]:
 
 
 def _check_static_asset(url: str, expected_text: str) -> None:
+    """Fetch an asset and confirm it contains an expected marker.
+
+    Args:
+        url: Deployed asset URL to request.
+        expected_text: Text that must appear in the decoded response body.
+
+    Raises:
+        SmokeCheckError: The asset is unavailable or contains unexpected data.
+    """
     request = urllib.request.Request(
         url,
         headers={"User-Agent": USER_AGENT},
@@ -43,6 +63,16 @@ def _check_static_asset(url: str, expected_text: str) -> None:
 
 
 def _check_chat_stream(url: str, token: str, payload: dict[str, str]) -> None:
+    """Consume a chat event stream and require a completed turn.
+
+    Args:
+        url: Chat streaming endpoint URL.
+        token: Analyst access token.
+        payload: Session ID and synthetic user message.
+
+    Raises:
+        SmokeCheckError: The stream fails or omits its completion event.
+    """
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -82,7 +112,11 @@ def _check_chat_stream(url: str, token: str, payload: dict[str, str]) -> None:
 
 
 def run_smoke() -> None:
-    """Exercise the deployed UI/API and persist one synthetic chat turn."""
+    """Exercise the deployed UI/API and persist one synthetic chat turn.
+
+    Raises:
+        SmokeCheckError: Any remote check or persistence assertion fails.
+    """
     api_url = https_origin(
         os.environ.get("CLOUDFLARE_API_URL", ""),
         "CLOUDFLARE_API_URL",
@@ -202,7 +236,11 @@ def run_smoke() -> None:
 
 
 def main() -> int:
-    """Run the API smoke checks with concise, safe diagnostics."""
+    """Run API smoke checks with concise, safe diagnostics.
+
+    Returns:
+        Zero when every remote check passes, otherwise one.
+    """
     try:
         run_smoke()
     except SmokeCheckError as exc:

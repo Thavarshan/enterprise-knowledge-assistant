@@ -17,9 +17,7 @@ def failed_ci_jobs(results: Mapping[str, str]) -> dict[str, str]:
         Job names and their non-success results.
     """
     return {
-        name: result
-        for name, result in results.items()
-        if result != "success"
+        name: result for name, result in results.items() if result != "success"
     }
 
 

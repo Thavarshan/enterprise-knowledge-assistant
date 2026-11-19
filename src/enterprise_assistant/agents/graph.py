@@ -149,10 +149,7 @@ def validate_citations(
     }
     if not markers:
         return not citations
-    return (
-        markers == allowed_markers
-        and len(allowed_markers) == len(citations)
-    )
+    return markers == allowed_markers and len(allowed_markers) == len(citations)
 
 
 def render_grounded_answer(
@@ -424,9 +421,7 @@ def build_graph(
             message="Research started.",
         )
         role = Role(state["role"])
-        incident_question = is_incident_analysis_question(
-            state["question"]
-        )
+        incident_question = is_incident_analysis_question(state["question"])
         if incident_question:
             try:
                 tool_registry.authorize("incident_analysis", role)
@@ -552,7 +547,7 @@ def build_graph(
                 today=today(),
             )
             record_batches = [
-                records[offset:offset + 5]
+                records[offset: offset + 5]
                 for offset in range(0, len(records), 5)
             ]
             batch_summaries: list[IncidentAnalysisResult] = []
@@ -1090,9 +1085,7 @@ def build_graph(
         citations: list[SourceCitation]
         conversational_answer = None
         if state.get("route") == "small_talk":
-            conversational_answer = small_talk_response(
-                state["question"]
-            ) or (
+            conversational_answer = small_talk_response(state["question"]) or (
                 "Hello! I can search accessible company knowledge, "
                 "investigate multi-part questions, and, if your role "
                 "allows it, help with supported calculations. What would "
@@ -1126,15 +1119,12 @@ def build_graph(
                 failure_codes,
             )
         elif analysis_error == "incident_analysis_forbidden":
-            answer = (
-                "This account is not authorized to analyze incidents."
-            )
+            answer = "This account is not authorized to analyze incidents."
             citations = []
             grounded = True
         elif analysis_error == "incident_analysis_failed":
             answer = (
-                "I could not complete the incident analysis. "
-                "Please try again."
+                "I could not complete the incident analysis. Please try again."
             )
             citations = []
             grounded = True
@@ -1194,9 +1184,7 @@ def build_graph(
         elif analysis_data:
             response_message = "Returned a validated Python analysis result."
         elif incident_analysis_data:
-            response_message = (
-                "Returned a source-attributed incident analysis."
-            )
+            response_message = "Returned a source-attributed incident analysis."
         elif analysis_error:
             response_message = "Returned a safe Python analysis rejection."
         else:
@@ -1267,13 +1255,10 @@ def build_graph(
             for result in state.get("results", [])
             for parsed in [SearchResult.model_validate(result)]
         )
-        valid = (
-            state.get("answer_grounded", True)
-            and validate_citations(
-                state.get("response", ""),
-                citations,
-                retrieved_identities,
-            )
+        valid = state.get("answer_grounded", True) and validate_citations(
+            state.get("response", ""),
+            citations,
+            retrieved_identities,
         )
         answer = state.get("response", "")
         if not valid:

@@ -74,8 +74,9 @@ class AssistantApiClient:
         Raises:
             httpx.HTTPError: The API request fails or is unauthorized.
         """
-        response = httpx.get(f"{self.base_url}/api/v1/me",
-                             headers=self.headers, timeout=10)
+        response = httpx.get(
+            f"{self.base_url}/api/v1/me", headers=self.headers, timeout=10
+        )
         response.raise_for_status()
         return cast(dict[str, Any], response.json())
 

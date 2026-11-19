@@ -21,9 +21,7 @@ from enterprise_assistant.rlm.contracts import (
     interpret_search_plan,
 )
 
-type SearchFunction = Callable[
-    [str, int], Awaitable[Sequence[SearchResult]]
-]
+type SearchFunction = Callable[[str, int], Awaitable[Sequence[SearchResult]]]
 type ProgressFunction = Callable[[str, dict[str, int | str]], None]
 
 
@@ -205,10 +203,7 @@ class BoundedResearchExecutor:
             ]
 
         children = await asyncio.gather(
-            *(
-                self._investigate(query, depth=depth + 1)
-                for query in queries
-            ),
+            *(self._investigate(query, depth=depth + 1) for query in queries),
             return_exceptions=True,
         )
         findings: list[InvestigationFinding] = []

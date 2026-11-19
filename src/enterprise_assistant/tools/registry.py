@@ -37,6 +37,7 @@ class ToolPolicy:
         name: Stable registry key for the tool.
         allowed_roles: Immutable set checked before handler dispatch.
     """
+
     name: str
     allowed_roles: frozenset[Role]
 
@@ -88,7 +89,8 @@ class ToolRegistry:
             raise ToolNotFoundError(tool_name)
         if role not in policy.allowed_roles:
             raise ToolAuthorizationError(
-                f"Role '{role.value}' cannot use '{tool_name}'.")
+                f"Role '{role.value}' cannot use '{tool_name}'."
+            )
         return policy
 
     async def execute(

@@ -269,8 +269,7 @@ def _verify_remote_trace(
         sort_keys=True,
     )
     payloads_are_hidden = all(
-        run.inputs in (None, {}) and run.outputs in (None, {})
-        for run in runs
+        run.inputs in (None, {}) and run.outputs in (None, {}) for run in runs
     )
     if sentinel in serialized or not payloads_are_hidden:
         return "FAILED", "remote trace payload redaction check failed"
@@ -291,8 +290,7 @@ def _verify_remote_trace(
             child_name in observed_spans
             and parent_name in observed_spans
             and any(
-                run.name == child_name
-                and run.parent_run_id == parent.id
+                run.name == child_name and run.parent_run_id == parent.id
                 for run in runs
                 for parent in runs_by_id.values()
                 if parent.name == parent_name
@@ -388,9 +386,7 @@ def main() -> int:
         submission_passed = not monitor.error_types and pending_runs == 0
         if not submission_passed:
             trace_failure_type = (
-                monitor.error_types[0]
-                if monitor.error_types
-                else "Timeout"
+                monitor.error_types[0] if monitor.error_types else "Timeout"
             )
             print(f"Trace submission: FAILED ({trace_failure_type})")
         else:
@@ -414,8 +410,7 @@ def main() -> int:
         else:
             remote_status = "BLOCKED"
             remote_detail = (
-                "remote readback unavailable "
-                f"({trace_failure_type})"
+                f"remote readback unavailable ({trace_failure_type})"
             )
             print(f"Remote verification: {remote_status} ({remote_detail})")
     finally:

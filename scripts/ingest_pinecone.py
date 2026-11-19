@@ -24,9 +24,7 @@ async def main() -> None:
         PineconeRequestError: Indexing or embedding fails.
     """
     settings = get_settings()
-    corpus = InMemoryRetriever.from_json(
-        Path(settings.pinecone_documents_path)
-    )
+    corpus = InMemoryRetriever.from_json(Path(settings.pinecone_documents_path))
     retriever = PineconeRetriever(
         PineconeConfig(
             api_key=settings.pinecone_api_key,

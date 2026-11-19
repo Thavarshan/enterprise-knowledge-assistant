@@ -234,9 +234,7 @@ async def test_pinecone_ingestion_uses_stable_ids_and_namespace() -> None:
     documents = index.documents.upsert.call_args.kwargs["documents"]
 
     assert count == 1
-    assert documents[0]["_id"] == (
-        "incident-2026-057::incident-2026-057-001"
-    )
+    assert documents[0]["_id"] == ("incident-2026-057::incident-2026-057-001")
     assert documents[0]["chunk_text"] == chunk.content
     assert documents[0]["created_date_ordinal"] == (
         chunk.metadata.created_date.toordinal()

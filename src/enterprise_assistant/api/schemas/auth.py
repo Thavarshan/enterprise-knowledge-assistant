@@ -20,6 +20,7 @@ class TokenRequest(BaseModel):
         username: Configured development account name.
         password: Secret supplied for login; do not log or echo it.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     username: str = Field(min_length=1, max_length=80)
@@ -34,6 +35,7 @@ class TokenResponse(BaseModel):
         token_type: HTTP authorization scheme, normally bearer.
         expires_in: Token lifetime in seconds.
     """
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int
@@ -49,5 +51,6 @@ class UserResponse(BaseModel):
         user_id: Stable configured username for this development account.
         role: Backend-assigned application role.
     """
+
     user_id: str
     role: Role

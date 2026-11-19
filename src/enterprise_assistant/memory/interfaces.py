@@ -44,9 +44,7 @@ class SessionStore(Protocol):
         """
         ...
 
-    async def list_sessions(
-        self, owner_id: str
-    ) -> list[ChatSession]:
+    async def list_sessions(self, owner_id: str) -> list[ChatSession]:
         """List the most recent conversations owned by one user.
 
         Args:

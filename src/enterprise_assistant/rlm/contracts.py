@@ -21,6 +21,7 @@ class TaskDecomposition(BaseModel):
         subtasks: One to four proposed subtask strings, each at most 500
             characters.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     objective: str = Field(min_length=1, max_length=1000)
@@ -75,6 +76,7 @@ class SearchPlan(BaseModel):
         queries: One to four query strings, each at most 500 characters.
         max_depth: Requested depth bounded from zero to two.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     queries: list[str] = Field(min_length=1, max_length=4)
@@ -112,6 +114,7 @@ class ExecutionBudget(BaseModel):
         max_documents: Total retrieved chunks from one to twenty.
         timeout_seconds: Wall-clock limit for the full investigation.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     max_depth: int = Field(default=1, ge=0, le=2)

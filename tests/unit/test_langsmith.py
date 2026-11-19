@@ -160,12 +160,8 @@ def test_sdk_client_hides_content_and_sanitizes_metadata_and_errors() -> None:
         anonymizer=langsmith.sanitize_trace_payload,
     )
     try:
-        assert client._hide_run_inputs(
-            {"question": "private prompt"}
-        ) == {}
-        assert client._hide_run_outputs(
-            {"response": "private answer"}
-        ) == {}
+        assert client._hide_run_inputs({"question": "private prompt"}) == {}
+        assert client._hide_run_outputs({"response": "private answer"}) == {}
         assert client._hide_run_metadata(
             {
                 "agent_id": "viridian",
@@ -226,9 +222,12 @@ def test_metadata_allowlist_and_error_redaction() -> None:
         "langgraph_node": "retrieval",
         "tool_name": "knowledge_search",
     }
-    assert langsmith.sanitize_trace_metadata(
-        {"request_id": "synthetic-private-token"}
-    ) == {}
+    assert (
+        langsmith.sanitize_trace_metadata(
+            {"request_id": "synthetic-private-token"}
+        )
+        == {}
+    )
     assert langsmith.redact_trace_error(
         {"error": "contains private response text"}
     ) == {"error": "[REDACTED]"}
@@ -251,6 +250,7 @@ def test_client_initialization_error_is_safe_and_nonfatal(
 
     A credential-like exception message must not reach the logs.
     """
+
     class FailingClient:
         """Raise a credential-like message to check it is never logged.
 

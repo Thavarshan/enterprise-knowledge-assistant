@@ -141,8 +141,7 @@ def _check_report(report: dict[str, Any]) -> list[str]:
                 raise RuntimeError("npm audit returned an invalid advisory.")
 
         if package_name == "picomatch" and not any(
-            isinstance(source, dict)
-            and source.get("url") == ADVISORY_URL
+            isinstance(source, dict) and source.get("url") == ADVISORY_URL
             for source in via
         ):
             raise RuntimeError("The expected picomatch advisory was not found.")

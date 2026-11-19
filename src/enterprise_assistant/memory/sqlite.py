@@ -129,8 +129,12 @@ class SQLiteSessionStore:
                 "INSERT INTO sessions("
                 "session_id, owner_id, title, created_at"
                 ") VALUES (?, ?, ?, ?)",
-                (session.session_id, session.owner_id,
-                 session.title, session.created_at),
+                (
+                    session.session_id,
+                    session.owner_id,
+                    session.title,
+                    session.created_at,
+                ),
             )
         return session
 
@@ -244,7 +248,8 @@ class SQLiteSessionStore:
             )
             if cursor.lastrowid is None:
                 raise RuntimeError(
-                    "SQLite did not return the inserted message ID.")
+                    "SQLite did not return the inserted message ID."
+                )
             message_id = cursor.lastrowid
         return ChatMessage(
             message_id=message_id,

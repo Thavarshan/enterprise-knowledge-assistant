@@ -1,4 +1,7 @@
-"""Write Worker secrets to a private one-shot Wrangler input file."""
+"""Write Worker secrets to a private one-shot Wrangler input file.
+
+The generated file is ignored by Git and deleted after the release command.
+"""
 
 import json
 import os
@@ -7,9 +10,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SECRETS_PATH = (
-    REPOSITORY_ROOT
-    / "infra/cloudflare/viridian-api"
-    / ".secrets.json"
+    REPOSITORY_ROOT / "infra/cloudflare/viridian-api" / ".secrets.json"
 )
 
 
@@ -62,7 +63,11 @@ def render_secrets() -> Path:
 
 
 def main() -> int:
-    """Write secrets without displaying their values."""
+    """Write secrets without displaying their values.
+
+    Returns:
+        Zero when secret input is prepared, otherwise one.
+    """
     try:
         path = render_secrets()
     except (OSError, ValueError) as exc:

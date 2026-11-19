@@ -65,10 +65,7 @@ if all(runtime_info.get(key) for key in ("provider", "model", "retrieval")):
     retrieval_name = retrieval_names.get(
         runtime_info["retrieval"], "Unknown retrieval"
     )
-    st.caption(
-        f"{model_name} · {retrieval_name} · "
-        "LangGraph activity stream"
-    )
+    st.caption(f"{model_name} · {retrieval_name} · LangGraph activity stream")
 else:
     st.caption("Provider and model status unavailable · LangGraph activity")
 st.sidebar.caption(f"Application release: {release_sha}")
@@ -82,7 +79,8 @@ if "current_session_id" not in st.session_state:
 with st.sidebar:
     st.header("Demo access")
     st.caption(
-        "Choose a server-configured demo user; the backend assigns the role.")
+        "Choose a server-configured demo user; the backend assigns the role."
+    )
     if not st.session_state.access_token:
         if base_url == PUBLIC_API_BASE_URL:
             st.markdown(
@@ -105,8 +103,7 @@ with st.sidebar:
                 identity = signed_in_client.get_identity()
                 sessions = signed_in_client.list_sessions()
                 session_ids = [
-                    str(session["session_id"])
-                    for session in sessions
+                    str(session["session_id"]) for session in sessions
                 ]
                 if not session_ids:
                     session = signed_in_client.create_session()
@@ -132,7 +129,8 @@ with st.sidebar:
             st.rerun()
 
         sidebar_client = AssistantApiClient(
-            base_url, st.session_state.access_token)
+            base_url, st.session_state.access_token
+        )
         if st.button("New session"):
             try:
                 session = sidebar_client.create_session()
@@ -158,7 +156,8 @@ with st.sidebar:
 
 st.sidebar.subheader("Agent activity")
 st.sidebar.caption(
-    "Current graph node, retrieval, tools, validation, and errors.")
+    "Current graph node, retrieval, tools, validation, and errors."
+)
 activity_placeholder = st.sidebar.empty()
 activity_placeholder.info("Activity will appear while a chat turn is running.")
 
@@ -211,8 +210,9 @@ if prompt and client and session_id:
                         st.error(event_message)
                 if event_type == "retrieval":
                     sources = event.get("metadata", {}).get("sources", [])
-                    source_titles = ", ".join(source.get(
-                        "title", "source") for source in sources)
+                    source_titles = ", ".join(
+                        source.get("title", "source") for source in sources
+                    )
                     activity.append(
                         f"**Retrieval:** {len(sources)} source(s) "
                         f"{source_titles}"
@@ -223,24 +223,22 @@ if prompt and client and session_id:
                         if event_type == "agent_start"
                         else "completed"
                     )
-                    activity.append(
-                        f"**{agent.title()} · {node}:** {phase}"
-                    )
+                    activity.append(f"**{agent.title()} · {node}:** {phase}")
                 elif event_type in {"tool_start", "tool_complete"}:
                     tool = event.get("metadata", {}).get("tool", "tool")
                     phase = (
-                        "started"
-                        if event_type == "tool_start"
-                        else "completed"
+                        "started" if event_type == "tool_start" else "completed"
                     )
                     activity.append(f"**Tool:** {tool} {phase}")
                 elif event_type == "validation":
                     valid = event.get("metadata", {}).get("valid", False)
                     activity.append(
-                        f"**Validation:** {'passed' if valid else 'failed'}")
+                        f"**Validation:** {'passed' if valid else 'failed'}"
+                    )
                 elif event_type == "agent_transition":
                     activity.append(
-                        f"**{agent.title()} · {node}:** {event_message}")
+                        f"**{agent.title()} · {node}:** {event_message}"
+                    )
                 elif event_type == "failure":
                     error_code = event.get("metadata", {}).get("error_code")
                     severity = (
@@ -251,8 +249,7 @@ if prompt and client and session_id:
                     activity.append(f"**{severity}:** {event_message}")
                 activity_placeholder.markdown(
                     f"**Current agent/node:** {current_agent} / "
-                    f"{current_node}\n\n"
-                    + "\n\n".join(activity[-12:])
+                    f"{current_node}\n\n" + "\n\n".join(activity[-12:])
                 )
             if not answer_parts:
                 answer_placeholder.info("The stream ended without a response.")

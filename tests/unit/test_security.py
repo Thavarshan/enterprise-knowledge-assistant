@@ -25,15 +25,19 @@ def test_tool_registry_rejects_viewer_before_handler_runs() -> None:
     restricted to analyst and administrator roles.
     """
     registry = ToolRegistry()
-    assert registry.authorize(
-        "knowledge_search", Role.VIEWER).name == "knowledge_search"
+    assert (
+        registry.authorize("knowledge_search", Role.VIEWER).name
+        == "knowledge_search"
+    )
     with pytest.raises(ToolAuthorizationError):
         registry.authorize("python_analysis", Role.VIEWER)
     with pytest.raises(ToolAuthorizationError):
         registry.authorize("incident_analysis", Role.VIEWER)
     assert registry.authorize("mcp", Role.ANALYST).name == "mcp"
-    assert registry.authorize(
-        "python_analysis", Role.ADMINISTRATOR).name == "python_analysis"
+    assert (
+        registry.authorize("python_analysis", Role.ADMINISTRATOR).name
+        == "python_analysis"
+    )
 
 
 def test_token_bucket_refills_per_user() -> None:
@@ -56,8 +60,7 @@ def test_token_bucket_refills_per_user() -> None:
 
 
 @pytest.mark.asyncio
-async def test_input_guardrail_blocks_instruction_override_and_secret_requests(
-) -> None:
+async def test_input_guardrail_blocks_overrides_and_secret_requests() -> None:
     """Reject representative override and credential-exfiltration variants.
 
     Decisions contain stable codes and a generic message without repeating

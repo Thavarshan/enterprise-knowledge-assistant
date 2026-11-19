@@ -15,10 +15,13 @@ def test_release_sha_uses_validated_runtime_value() -> None:
     """
     expected = "A" * 40
 
-    assert resolve_release_sha(
-        {"APP_RELEASE_SHA": expected},
-        Path("/missing/repository"),
-    ) == expected.lower()
+    assert (
+        resolve_release_sha(
+            {"APP_RELEASE_SHA": expected},
+            Path("/missing/repository"),
+        )
+        == expected.lower()
+    )
 
 
 def test_release_sha_reports_unavailable_without_git_metadata(
@@ -28,7 +31,10 @@ def test_release_sha_reports_unavailable_without_git_metadata(
 
     Invalid input stays unavailable when the checkout has no Git metadata.
     """
-    assert resolve_release_sha(
-        {"APP_RELEASE_SHA": "release-latest"},
-        tmp_path,
-    ) == "unavailable"
+    assert (
+        resolve_release_sha(
+            {"APP_RELEASE_SHA": "release-latest"},
+            tmp_path,
+        )
+        == "unavailable"
+    )

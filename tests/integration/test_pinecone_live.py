@@ -37,9 +37,7 @@ async def test_live_pinecone_ingestion_and_hybrid_quality() -> None:
     ):
         pytest.skip("Pinecone credentials, index, or namespace are missing.")
 
-    corpus = InMemoryRetriever.from_json(
-        Path(settings.pinecone_documents_path)
-    )
+    corpus = InMemoryRetriever.from_json(Path(settings.pinecone_documents_path))
     dense = PineconeRetriever(
         PineconeConfig(
             api_key=settings.pinecone_api_key,
@@ -81,6 +79,5 @@ async def test_live_pinecone_ingestion_and_hybrid_quality() -> None:
     assert exact_results
     assert exact_results[0].chunk.metadata.document_id == "incident-2026-099"
     assert all(
-        item.chunk.metadata.access_level == "viewer"
-        for item in viewer_results
+        item.chunk.metadata.access_level == "viewer" for item in viewer_results
     )

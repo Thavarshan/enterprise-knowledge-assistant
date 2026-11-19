@@ -106,9 +106,7 @@ def _start_worker(
     )
     if migration.returncode != 0:
         pytest.fail(
-            "Local D1 migration failed:\n"
-            + migration.stdout
-            + migration.stderr
+            "Local D1 migration failed:\n" + migration.stdout + migration.stderr
         )
 
     log_path = project / "wrangler.log"

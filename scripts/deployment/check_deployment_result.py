@@ -55,10 +55,7 @@ def main() -> int:
             os.environ.get("CLOUDFLARE_D1_GATEWAY_URL", ""),
         ),
     )
-    print(
-        "Deployment and API smoke checks passed "
-        f"for {release_sha}."
-    )
+    print(f"Deployment and API smoke checks passed for {release_sha}.")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with Path(summary).open("a", encoding="utf-8") as file:

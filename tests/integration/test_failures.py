@@ -78,14 +78,16 @@ def test_retrieval_failure_is_streamed_without_exception_details(
         sqlite_path=str(tmp_path / "failed.sqlite3"),
         cors_origins=[],
         dev_users_json=json.dumps(
-            {"viewer": {"password": "pw", "role": "viewer"}}),
+            {"viewer": {"password": "pw", "role": "viewer"}}
+        ),
     )
     failing_retriever: Retriever = FailingRetriever()
     with TestClient(
         create_app(settings, retriever=failing_retriever)
     ) as client:
-        token = client.post("/api/v1/auth/token",
-                            json={"username": "viewer", "password": "pw"})
+        token = client.post(
+            "/api/v1/auth/token", json={"username": "viewer", "password": "pw"}
+        )
         headers = {"Authorization": f"Bearer {token.json()['access_token']}"}
         session_id = client.post(
             "/api/v1/chat/sessions", headers=headers, json={}
@@ -103,5 +105,6 @@ def test_retrieval_failure_is_streamed_without_exception_details(
             "knowledge_search_failed"
         )
         detail = client.get(
-            f"/api/v1/chat/sessions/{session_id}", headers=headers).json()
+            f"/api/v1/chat/sessions/{session_id}", headers=headers
+        ).json()
         assert [message["role"] for message in detail["messages"]] == ["user"]

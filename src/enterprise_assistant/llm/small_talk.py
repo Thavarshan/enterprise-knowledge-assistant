@@ -87,8 +87,7 @@ def small_talk_response(question: str) -> str | None:
         )
     if normalized in _FAREWELL:
         return (
-            "Goodbye! Come back whenever you need help with company "
-            "knowledge."
+            "Goodbye! Come back whenever you need help with company knowledge."
         )
     if normalized in _CAPABILITIES:
         return (

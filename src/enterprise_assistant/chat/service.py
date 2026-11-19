@@ -138,10 +138,13 @@ class ChatService:
             The graph run uses LangGraph update streaming. The configured
             thread ID is metadata only because no checkpointer is supplied.
         """
-        messages = await self.memory.list_messages(
-            session_id,
-            user.user_id,
-        ) or []
+        messages = (
+            await self.memory.list_messages(
+                session_id,
+                user.user_id,
+            )
+            or []
+        )
         if (
             messages
             and messages[-1].role == "user"
@@ -244,8 +247,10 @@ class ChatService:
             if phase == "persistence":
                 logger.error(
                     "Assistant turn persistence failed",
-                    extra={"request_id": request_id,
-                           "error_type": type(exc).__name__},
+                    extra={
+                        "request_id": request_id,
+                        "error_type": type(exc).__name__,
+                    },
                 )
                 yield ActivityEvent(
                     event_type="failure",
@@ -259,8 +264,10 @@ class ChatService:
                 return
             logger.error(
                 "Agent graph failed",
-                extra={"request_id": request_id,
-                       "error_type": type(exc).__name__},
+                extra={
+                    "request_id": request_id,
+                    "error_type": type(exc).__name__,
+                },
             )
             yield ActivityEvent(
                 event_type="failure",

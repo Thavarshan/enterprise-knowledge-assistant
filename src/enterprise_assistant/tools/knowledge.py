@@ -80,9 +80,7 @@ class KnowledgeSearchTool:
         """
         role = Role(arguments["role"])
         query = str(arguments["query"])
-        filter_question = str(
-            arguments.get("filter_question", query)
-        )
+        filter_question = str(arguments.get("filter_question", query))
         incident_ids = incident_ids_in_question(filter_question)
         filters = filters_for_question(
             filter_question,
@@ -108,7 +106,6 @@ class KnowledgeSearchTool:
         matching_results = [
             result
             for result in results
-            if (result.chunk.metadata.incident_id or "").upper()
-            in incident_ids
+            if (result.chunk.metadata.incident_id or "").upper() in incident_ids
         ]
         return matching_results

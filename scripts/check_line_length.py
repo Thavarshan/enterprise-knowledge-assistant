@@ -106,11 +106,13 @@ def main() -> int:
                 continue
             if _is_long_markdown_url(line, path):
                 continue
-            violations.append((
-                path.relative_to(root).as_posix(),
-                line_number,
-                len(line),
-            ))
+            violations.append(
+                (
+                    path.relative_to(root).as_posix(),
+                    line_number,
+                    len(line),
+                )
+            )
 
     for relative_path, line_number, line_length in violations:
         print(f"{relative_path}:{line_number}: {line_length} characters")

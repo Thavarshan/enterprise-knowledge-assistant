@@ -22,8 +22,9 @@ from enterprise_assistant.retrieval.in_memory import InMemoryRetriever
 
 
 @pytest.mark.asyncio
-async def test_retrieval_applies_access_filter_before_returning_chunks(
-) -> None:
+async def test_retrieval_applies_access_filter_before_returning_chunks() -> (
+    None
+):
     """Verify role-derived access filtering precedes fixture result exposure.
 
     Viewer results contain only viewer-labeled chunks, while an analyst can
@@ -39,8 +40,10 @@ async def test_retrieval_applies_access_filter_before_returning_chunks(
         allowed_access_levels=frozenset({"viewer", "analyst"}),
     )
     assert viewer_results
-    assert all(result.chunk.metadata.access_level ==
-               "viewer" for result in viewer_results)
+    assert all(
+        result.chunk.metadata.access_level == "viewer"
+        for result in viewer_results
+    )
     assert len(analyst_results) > len(viewer_results)
 
 
@@ -97,10 +100,10 @@ def test_reciprocal_rank_fusion_keeps_complete_chunk_identities() -> None:
     fused = reciprocal_rank_fusion([results, list(reversed(results))])
 
     assert len(fused) == 2
-    assert {
-        result.chunk.metadata.document_id
-        for result in fused
-    } == {"document-a", "document-b"}
+    assert {result.chunk.metadata.document_id for result in fused} == {
+        "document-a",
+        "document-b",
+    }
 
 
 def test_last_year_filter_uses_injected_rolling_date_window() -> None:

@@ -43,6 +43,7 @@ class ActivityEvent(BaseModel):
         message: Concise status text rendered by the UI.
         metadata: Structured status fields or source references.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     event_type: EventType

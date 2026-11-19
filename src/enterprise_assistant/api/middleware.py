@@ -58,8 +58,11 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             reset in a finally block.
         """
         supplied = request.headers.get("X-Request-ID", "")
-        request_id = supplied if _SAFE_REQUEST_ID.fullmatch(
-            supplied) else str(uuid.uuid4())
+        request_id = (
+            supplied
+            if _SAFE_REQUEST_ID.fullmatch(supplied)
+            else str(uuid.uuid4())
+        )
         request.state.request_id = request_id
         token = request_id_context.set(request_id)
         started = time.perf_counter()

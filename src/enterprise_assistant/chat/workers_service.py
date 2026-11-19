@@ -19,10 +19,18 @@ logger = logging.getLogger(__name__)
 
 
 class WorkersMockChatService:
-    """Return a deterministic answer from role-filtered fixture evidence."""
+    """Return deterministic answers from role-filtered fixture evidence.
+
+    This lightweight service keeps the Cloudflare demo within its free plan.
+    """
 
     def __init__(self, retriever: Retriever, memory: SessionStore) -> None:
-        """Store the fixture search and owner-scoped persistence adapters."""
+        """Store fixture search and owner-scoped persistence adapters.
+
+        Args:
+            retriever: Role-filtered in-memory knowledge search adapter.
+            memory: Session store that persists messages by user ownership.
+        """
         self.retriever = retriever
         self.memory = memory
 
@@ -34,7 +42,17 @@ class WorkersMockChatService:
         question: str,
         user: AuthenticatedUser,
     ) -> AsyncIterator[ActivityEvent]:
-        """Search authorized fixtures, stream the answer, and save it."""
+        """Search authorized fixtures, stream the answer, and save it.
+
+        Args:
+            request_id: Request correlation ID for each emitted event.
+            session_id: Existing conversation session to continue.
+            question: User's latest question.
+            user: Authenticated user whose role filters retrieval access.
+
+        Yields:
+            Retrieval, response, and completion events for this turn.
+        """
         yield ActivityEvent(
             event_type="agent_start",
             request_id=request_id,

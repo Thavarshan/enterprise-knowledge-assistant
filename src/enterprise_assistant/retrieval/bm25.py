@@ -52,8 +52,7 @@ class BM25Retriever:
             Counter(self._document_tokens(chunk)) for chunk in self._chunks
         )
         self._document_lengths = tuple(
-            sum(frequencies.values())
-            for frequencies in self._term_frequencies
+            sum(frequencies.values()) for frequencies in self._term_frequencies
         )
         self._average_length = (
             sum(self._document_lengths) / len(self._document_lengths)
@@ -65,11 +64,7 @@ class BM25Retriever:
             document_frequency.update(frequencies.keys())
         self._inverse_document_frequency = {
             term: math.log(
-                1
-                + (
-                    len(self._chunks) - frequency + 0.5
-                )
-                / (frequency + 0.5)
+                1 + (len(self._chunks) - frequency + 0.5) / (frequency + 0.5)
             )
             for term, frequency in document_frequency.items()
         }

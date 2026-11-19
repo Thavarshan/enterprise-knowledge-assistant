@@ -18,9 +18,7 @@ _bearer_dependency = Depends(_bearer)
 
 def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = (
-        _bearer_dependency
-    ),
+    credentials: HTTPAuthorizationCredentials | None = (_bearer_dependency),
 ) -> AuthenticatedUser:
     """Resolve the bearer credentials to server-owned identity.
 
@@ -47,8 +45,7 @@ def get_current_user(
         )
     user = cast(
         AuthenticatedUser | None,
-        request.app.state.container.auth.resolve_token(
-            credentials.credentials),
+        request.app.state.container.auth.resolve_token(credentials.credentials),
     )
     if user is None:
         raise HTTPException(

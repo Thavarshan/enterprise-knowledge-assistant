@@ -38,6 +38,7 @@ class _Bucket:
         tokens: Current fractional token balance.
         updated_at: Monotonic time at the last balance update.
     """
+
     tokens: float
     updated_at: float
 
@@ -102,19 +103,21 @@ class TokenBucketRateLimiter:
         """
         if cost <= 0 or cost > self.capacity:
             raise ValueError(
-                "cost must be positive and no greater than bucket capacity")
+                "cost must be positive and no greater than bucket capacity"
+            )
         now = self._clock()
         bucket = self._buckets.get(user_id, _Bucket(self.capacity, now))
         # Monotonic elapsed time prevents clock adjustments; the cap limits
         # idle accumulation to one full burst.
         bucket.tokens = min(
             self.capacity,
-            bucket.tokens + max(0.0, now - bucket.updated_at) *
-            self.refill_per_second,
+            bucket.tokens
+            + max(0.0, now - bucket.updated_at) * self.refill_per_second,
         )
         bucket.updated_at = now
         self._buckets[user_id] = bucket
         if bucket.tokens < cost:
             raise RateLimitExceeded(
-                (cost - bucket.tokens) / self.refill_per_second)
+                (cost - bucket.tokens) / self.refill_per_second
+            )
         bucket.tokens -= cost

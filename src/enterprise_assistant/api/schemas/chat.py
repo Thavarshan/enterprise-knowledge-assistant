@@ -18,6 +18,7 @@ class CreateSessionRequest(BaseModel):
     Attributes:
         title: Optional display label; the store supplies a default.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     title: str | None = Field(default=None, max_length=120)
@@ -31,6 +32,7 @@ class SessionResponse(BaseModel):
         title: Display title persisted for the conversation.
         created_at: ISO-formatted creation timestamp.
     """
+
     session_id: str
     title: str
     created_at: str
@@ -61,6 +63,7 @@ class MessageResponse(BaseModel):
         content: Stored message text.
         created_at: ISO-formatted message timestamp.
     """
+
     message_id: int
     role: str
     content: str
@@ -93,6 +96,7 @@ class SessionDetailResponse(SessionResponse):
     Attributes:
         messages: Ordered user and assistant message records.
     """
+
     messages: list[MessageResponse]
 
 
@@ -106,6 +110,7 @@ class ChatStreamRequest(BaseModel):
         session_id: Existing session identifier to which the turn belongs.
         message: Nonblank user text stored and passed to the graph.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     session_id: str = Field(min_length=1, max_length=80)

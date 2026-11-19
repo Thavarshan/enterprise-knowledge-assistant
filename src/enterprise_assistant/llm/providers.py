@@ -127,9 +127,7 @@ class MockModelProvider:
         ]
         return GroundedAnswer(claims=claims)
 
-    async def decompose_question(
-        self, question: str
-    ) -> TaskDecomposition:
+    async def decompose_question(self, question: str) -> TaskDecomposition:
         """Create reproducible research subtasks for local demonstrations.
 
         Complex incident investigations receive separate symptom, cause,
@@ -280,9 +278,7 @@ class OpenAIModelProvider:
         )
 
     @traceable(name="openai_decomposition", run_type="llm")
-    async def decompose_question(
-        self, question: str
-    ) -> TaskDecomposition:
+    async def decompose_question(self, question: str) -> TaskDecomposition:
         """Ask the model to propose bounded retrieval subtasks.
 
         Args:

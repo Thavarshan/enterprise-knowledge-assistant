@@ -102,8 +102,7 @@ async def test_small_talk_routes_directly_to_response_without_search() -> None:
 
 
 @pytest.mark.asyncio
-async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events(
-) -> None:
+async def test_compiled_graph_routes_nodes_and_emits_typed_events() -> None:
     """Verify the Research route executes its recursive node and emits events.
 
     The deterministic graph must traverse supervisor, research, response,
@@ -114,9 +113,7 @@ async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events(
         providers.
     """
     graph = build_graph(
-        InMemoryRetriever.from_json(
-            Path("data/samples/incident_corpus.json")
-        ),
+        InMemoryRetriever.from_json(Path("data/samples/incident_corpus.json")),
         ToolRegistry(),
     )
     state: AgentState = {
@@ -146,8 +143,9 @@ async def test_compiled_graph_executes_routed_nodes_and_emits_typed_events(
 
 
 @pytest.mark.asyncio
-async def test_graph_aggregates_a_multi_subtask_incident_investigation(
-) -> None:
+async def test_graph_aggregates_a_multi_subtask_incident_investigation() -> (
+    None
+):
     """Verify a compound incident question reaches recursive aggregation.
 
     Mock mode deterministically creates symptoms, cause, and mitigation
@@ -155,9 +153,7 @@ async def test_graph_aggregates_a_multi_subtask_incident_investigation(
     the attributed findings into its response stage.
     """
     graph = build_graph(
-        InMemoryRetriever.from_json(
-            Path("data/samples/incident_corpus.json")
-        ),
+        InMemoryRetriever.from_json(Path("data/samples/incident_corpus.json")),
         ToolRegistry(),
     )
     state: AgentState = {
@@ -187,16 +183,15 @@ async def test_graph_aggregates_a_multi_subtask_incident_investigation(
 
 
 @pytest.mark.asyncio
-async def test_graph_analyzes_only_authorized_incidents_with_date_scope(
-) -> None:
+async def test_graph_analyzes_only_authorized_incidents_with_date_scope() -> (
+    None
+):
     """Verify research applies an inclusive date range and cause analysis.
 
     The analyst sees authorized incidents from the injected rolling window.
     """
     graph = build_graph(
-        InMemoryRetriever.from_json(
-            Path("data/samples/incident_corpus.json")
-        ),
+        InMemoryRetriever.from_json(Path("data/samples/incident_corpus.json")),
         ToolRegistry(),
         today=lambda: date(2026, 11, 15),
     )
@@ -231,8 +226,7 @@ async def test_graph_analyzes_only_authorized_incidents_with_date_scope(
         for item in returned
     )
     assert all(
-        "2025-11-14" < item["chunk"]["metadata"]["created_date"]
-        <= "2026-11-15"
+        "2025-11-14" < item["chunk"]["metadata"]["created_date"] <= "2026-11-15"
         for item in returned
     )
     assert updates[3]["validate"]["validation_passed"] is True
@@ -333,7 +327,8 @@ async def test_analysis_route_executes_tool_only_for_authorized_roles() -> None:
             "events": [],
         }
         return [
-            part async for part in graph.astream(
+            part
+            async for part in graph.astream(
                 state,
                 stream_mode=["updates", "custom"],
                 version="v2",

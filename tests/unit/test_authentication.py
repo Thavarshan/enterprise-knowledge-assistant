@@ -71,17 +71,24 @@ def test_token_rejects_expiration_wrong_key_and_tampered_role() -> None:
     """
     auth = service()
     token = auth.issue_token("analyst", "analyst-password").access_token
-    assert service(
-        secret="different-key-with-at-least-32-characters"
-    ).resolve_token(token) is None
+    assert (
+        service(
+            secret="different-key-with-at-least-32-characters"
+        ).resolve_token(token)
+        is None
+    )
 
     header, payload, signature = token.split(".")
     padding = "=" * (-len(payload) % 4)
     claims = json.loads(base64.urlsafe_b64decode(payload + padding))
     claims["role"] = "administrator"
-    altered_payload = base64.urlsafe_b64encode(
-        json.dumps(claims, separators=(",", ":")).encode()
-    ).decode().rstrip("=")
+    altered_payload = (
+        base64.urlsafe_b64encode(
+            json.dumps(claims, separators=(",", ":")).encode()
+        )
+        .decode()
+        .rstrip("=")
+    )
     tampered = f"{header}.{altered_payload}.{signature}"
     assert auth.resolve_token(tampered) is None
 

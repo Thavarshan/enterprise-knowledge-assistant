@@ -12,7 +12,10 @@ from pyodide.ffi import to_js
 
 
 class CloudflareFetchTransport(httpx.AsyncBaseTransport):
-    """Send bounded JSON requests through the Workers ``fetch`` global."""
+    """Send bounded JSON requests through the Workers ``fetch`` global.
+
+    The adapter removes headers that the runtime controls for outbound calls.
+    """
 
     async def handle_async_request(
         self,
@@ -53,11 +56,7 @@ class CloudflareFetchTransport(httpx.AsyncBaseTransport):
                 "Cloudflare fetch failed.", request=request
             ) from exc
 
-        headers = (
-            {"content-type": str(content_type)}
-            if content_type
-            else {}
-        )
+        headers = {"content-type": str(content_type)} if content_type else {}
         return httpx.Response(
             status_code=int(response.status),
             headers=headers,
@@ -65,7 +64,8 @@ class CloudflareFetchTransport(httpx.AsyncBaseTransport):
             request=request,
         )
 
-
     async def aclose(self) -> None:
-        """Release no resources; Workers owns the underlying fetch client."""
+        """Close the adapter without owning the runtime fetch client.
 
+        Workers manages the lifetime of its global JavaScript fetch function.
+        """

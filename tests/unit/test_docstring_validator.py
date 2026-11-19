@@ -53,7 +53,7 @@ def test_validator_reports_missing_and_one_line_docstrings() -> None:
         "    return None\n"
         "\n"
         "def one_line():\n"
-        "    \"\"\"Short summary.\"\"\"\n"
+        '    """Short summary."""\n'
         "    return None\n"
     )
 

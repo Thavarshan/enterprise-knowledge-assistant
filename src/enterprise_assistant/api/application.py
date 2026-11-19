@@ -62,6 +62,7 @@ class AppContainer:
         model_provider: Structured provider used by graph agents.
         chat_service: Graph orchestration and turn persistence service.
     """
+
     settings: Settings
     auth: AuthService
     memory: SessionStore
@@ -132,9 +133,7 @@ def create_app(
             WORKER_DOCUMENTS,
         )
 
-        document_retriever = InMemoryRetriever.from_records(
-            WORKER_DOCUMENTS
-        )
+        document_retriever = InMemoryRetriever.from_records(WORKER_DOCUMENTS)
     elif app_settings.mock_mode:
         document_retriever = InMemoryRetriever.from_json()
     else:
@@ -149,9 +148,7 @@ def create_app(
                 index_name=app_settings.pinecone_index_name,
                 namespace=app_settings.pinecone_namespace,
                 embedding_model=app_settings.pinecone_embedding_model,
-                embedding_dimension=(
-                    app_settings.pinecone_embedding_dimension
-                ),
+                embedding_dimension=(app_settings.pinecone_embedding_dimension),
                 timeout_seconds=app_settings.pinecone_timeout_seconds,
             )
         )
@@ -219,9 +216,11 @@ def create_app(
             await container.memory.initialize()
             logger.info(
                 "Application startup complete",
-                extra={"tracing_enabled": tracing_enabled,
-                       "mock_mode": app_settings.mock_mode,
-                       "memory_backend": app_settings.memory_backend},
+                extra={
+                    "tracing_enabled": tracing_enabled,
+                    "mock_mode": app_settings.mock_mode,
+                    "memory_backend": app_settings.memory_backend,
+                },
             )
             yield
         finally:
@@ -318,8 +317,10 @@ def create_app(
         Returns:
             HTTP 422 JSON response with sanitized validation details.
         """
-        errors = [{"type": error["type"], "loc": error["loc"]}
-                  for error in exc.errors()]
+        errors = [
+            {"type": error["type"], "loc": error["loc"]}
+            for error in exc.errors()
+        ]
         return JSONResponse(
             status_code=422,
             content={
@@ -354,8 +355,9 @@ def create_app(
             404: "not_found",
             429: "rate_limited",
         }.get(exc.status_code, "http_error")
-        detail = exc.detail if isinstance(
-            exc.detail, str) else "Request failed."
+        detail = (
+            exc.detail if isinstance(exc.detail, str) else "Request failed."
+        )
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": code, "message": detail}},
@@ -379,8 +381,9 @@ def create_app(
         Returns:
             Generic internal-error JSON response.
         """
-        logger.error("Unhandled API error", extra={
-                     "error_type": type(exc).__name__})
+        logger.error(
+            "Unhandled API error", extra={"error_type": type(exc).__name__}
+        )
         return JSONResponse(
             status_code=500,
             content={

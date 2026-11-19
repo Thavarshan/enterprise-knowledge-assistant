@@ -82,9 +82,7 @@ async def test_blocking_session_read_does_not_stall_the_event_loop() -> None:
     The memory adapter simulates a slow SQLite operation in ``to_thread``.
     """
     memory = BlockingSessionStore()
-    async_memory = AsyncSQLiteSessionStore(
-        cast(SQLiteSessionStore, memory)
-    )
+    async_memory = AsyncSQLiteSessionStore(cast(SQLiteSessionStore, memory))
     service = ChatService(
         InMemoryRetriever([]),
         async_memory,
@@ -128,9 +126,7 @@ async def test_chat_cancellation_propagates_during_session_read() -> None:
     background thread behind.
     """
     memory = BlockingSessionStore()
-    async_memory = AsyncSQLiteSessionStore(
-        cast(SQLiteSessionStore, memory)
-    )
+    async_memory = AsyncSQLiteSessionStore(cast(SQLiteSessionStore, memory))
     service = ChatService(
         InMemoryRetriever([]),
         async_memory,

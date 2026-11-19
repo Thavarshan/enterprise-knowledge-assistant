@@ -20,6 +20,7 @@ class APIError(Exception):
         code: Stable machine-readable error identifier.
         message: Safe explanation suitable for the client.
     """
+
     status_code: int
     code: str
     message: str

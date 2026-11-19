@@ -23,6 +23,7 @@ class ChatSession:
         title: Display title.
         created_at: ISO-formatted UTC creation time.
     """
+
     session_id: str
     owner_id: str
     title: str
@@ -43,6 +44,7 @@ class ChatMessage:
         content: Persisted message text.
         created_at: ISO-formatted UTC creation time.
     """
+
     message_id: int
     session_id: str
     role: MessageRole

@@ -149,8 +149,7 @@ def test_incident_contract_rejects_extra_or_unknown_classification() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rendered_analysis_citations_match_complete_retrieved_identity(
-) -> None:
+async def test_analysis_citations_match_retrieved_identity() -> None:
     """Render citations that match complete document and chunk identities.
 
     The generated summary must cite source chunks returned this turn.

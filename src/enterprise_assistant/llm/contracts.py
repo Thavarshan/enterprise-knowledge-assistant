@@ -115,9 +115,7 @@ class ModelProvider(Protocol):
         """
         ...
 
-    async def decompose_question(
-        self, question: str
-    ) -> TaskDecomposition:
+    async def decompose_question(self, question: str) -> TaskDecomposition:
         """Split a complex investigation into bounded independent tasks.
 
         Args:

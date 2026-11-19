@@ -1,4 +1,7 @@
-"""Render and validate the free-tier Viridian Python Worker configuration."""
+"""Render and validate the free-tier Viridian Worker configuration.
+
+CI writes account and release-specific settings to an ignored private file.
+"""
 
 import json
 import os
@@ -16,7 +19,18 @@ D1_HOST = "viridian-d1-gateway.thavarshan.workers.dev"
 
 
 def _require_origin(name: str, expected_host: str) -> str:
-    """Return a configured HTTPS origin only when its hostname is expected."""
+    """Validate an HTTPS origin against the expected hostname.
+
+    Args:
+        name: Environment variable containing the origin.
+        expected_host: Required host name without a scheme or path.
+
+    Returns:
+        The validated HTTPS origin.
+
+    Raises:
+        ValueError: The value is missing or does not match the expected host.
+    """
     value = os.environ.get(name, "").strip().rstrip("/")
     parsed = urlsplit(value)
     if (
@@ -72,7 +86,11 @@ def render_wrangler_config() -> Path:
 
 
 def main() -> int:
-    """Render the private Python Worker configuration for a CI release."""
+    """Render the private Python Worker configuration for a CI release.
+
+    Returns:
+        Zero when configuration succeeds, otherwise one.
+    """
     try:
         path = render_wrangler_config()
     except (OSError, ValueError) as exc:
@@ -86,4 +104,3 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(main())
-

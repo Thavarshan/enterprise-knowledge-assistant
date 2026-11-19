@@ -81,7 +81,8 @@ def test_chat_session_is_owned_and_messages_survive_turns(
         assert "event: completed" in streamed.text
 
     detail = client.get(
-        f"/api/v1/chat/sessions/{session_id}", headers=viewer_headers).json()
+        f"/api/v1/chat/sessions/{session_id}", headers=viewer_headers
+    ).json()
     assert [message["role"] for message in detail["messages"]] == [
         "user",
         "assistant",
@@ -110,13 +111,16 @@ def test_stream_contains_actual_graph_activity_and_request_id(
         login: Helper that obtains authenticated headers.
     """
     headers = login()
-    session_id = client.post("/api/v1/chat/sessions",
-                             headers=headers, json={}).json()["session_id"]
+    session_id = client.post(
+        "/api/v1/chat/sessions", headers=headers, json={}
+    ).json()["session_id"]
     response = client.post(
         "/api/v1/chat/stream",
         headers={**headers, "X-Request-ID": "assessment-request-42"},
-        json={"session_id": session_id,
-              "message": "Investigate the payment timeout incident"},
+        json={
+            "session_id": session_id,
+            "message": "Investigate the payment timeout incident",
+        },
     )
     assert response.headers["x-request-id"] == "assessment-request-42"
     assert "event: agent_transition" in response.text
@@ -133,7 +137,8 @@ def test_stream_contains_actual_graph_activity_and_request_id(
     assert "event: completed" in response.text
     assert '"node":"research"' in response.text
     assert response.text.index("event: validation") < response.text.index(
-        "event: response_chunk")
+        "event: response_chunk"
+    )
 
 
 def test_small_talk_stream_skips_retrieval(

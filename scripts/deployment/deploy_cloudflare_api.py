@@ -1,4 +1,8 @@
-"""Deploy the Viridian Python API and static frontend through Wrangler."""
+"""Deploy the Viridian Python API and static frontend through Wrangler.
+
+The script stages generated fixtures and secrets only for the duration of
+the release command and removes them on success or failure.
+"""
 
 import os
 import subprocess
@@ -21,7 +25,12 @@ from scripts.deployment.render_cloudflare_api_secrets import render_secrets
 
 
 def deploy_api_worker() -> None:
-    """Deploy the release after confirming CI authorization and D1 identity."""
+    """Deploy after confirming CI authorization and D1 identity.
+
+    Raises:
+        RuntimeError: CI release identity is missing or invalid.
+        subprocess.CalledProcessError: Wrangler rejects the deployment.
+    """
     require_gated_cloud_deployment()
     release_sha = os.environ.get("RELEASE_SHA", "")
     if len(release_sha) != 40:
@@ -61,7 +70,11 @@ def deploy_api_worker() -> None:
 
 
 def main() -> int:
-    """Deploy the API and frontend without displaying credential values."""
+    """Deploy the API and frontend without displaying credential values.
+
+    Returns:
+        Zero when deployment succeeds, otherwise one.
+    """
     try:
         deploy_api_worker()
     except (OSError, RuntimeError, ValueError) as exc:

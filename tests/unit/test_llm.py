@@ -77,9 +77,7 @@ async def test_mock_provider_returns_deterministic_structured_outputs() -> None:
         "What can you do?",
         "Goodbye.",
     ):
-        assert (
-            await provider.classify_intent(prompt)
-        ).route == "small_talk"
+        assert (await provider.classify_intent(prompt)).route == "small_talk"
     assert (await provider.classify_intent("Compare incidents")).route == (
         "research"
     )
@@ -307,9 +305,7 @@ async def test_openai_provider_preserves_caller_cancellation() -> None:
     provider._client.responses.parse = AsyncMock(
         side_effect=wait_for_cancellation
     )
-    task = asyncio.create_task(
-        provider.classify_intent("payment timeout")
-    )
+    task = asyncio.create_task(provider.classify_intent("payment timeout"))
     try:
         await started.wait()
         task.cancel()

@@ -160,9 +160,7 @@ def score_rankings(
 
     for case, raw_results in zip(dataset.cases, rankings, strict=True):
         results = list(raw_results[:limit])
-        ranked_ids = [
-            result.chunk.metadata.document_id for result in results
-        ]
+        ranked_ids = [result.chunk.metadata.document_id for result in results]
         expected = set(case.expected_document_ids)
         ranks = [
             index
@@ -170,17 +168,17 @@ def score_rankings(
             if document_id in expected
         ]
         reciprocal_rank = 1 / min(ranks) if ranks else 0.0
-        recall = len(expected.intersection(ranked_ids)) / len(expected) if (
-            expected
-        ) else 0.0
+        recall = (
+            len(expected.intersection(ranked_ids)) / len(expected)
+            if (expected)
+            else 0.0
+        )
         if expected:
             relevant_reciprocal_ranks.append(reciprocal_rank)
             relevant_recalls.append(recall)
         empty_result_correct = None
         if case.expected_empty is not None:
-            empty_result_correct = (
-                bool(results) == (not case.expected_empty)
-            )
+            empty_result_correct = bool(results) == (not case.expected_empty)
             empty_correct += int(empty_result_correct)
             empty_total += 1
         forbidden = set(case.forbidden_document_ids)
@@ -311,9 +309,7 @@ async def _evaluate(live_ingest: bool, limit: int) -> int:
     if live_ingest:
         await dense.upsert_documents(corpus.chunks)
     hybrid = HybridRetriever(dense, dense)
-    dataset = _load_dataset(
-        Path("data/evaluation/retrieval_cases.json")
-    )
+    dataset = _load_dataset(Path("data/evaluation/retrieval_cases.json"))
 
     async def dense_search(
         case: EvaluationCase,

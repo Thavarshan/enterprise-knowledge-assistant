@@ -36,6 +36,7 @@ class GuardrailDecision:
         code: Stable decision identifier for logs or events.
         message: Safe concise explanation for the decision.
     """
+
     allowed: bool
     code: str
     message: str
@@ -49,8 +50,7 @@ class InputGuardrail(Protocol):
     persisting a user message.
     """
 
-    async def inspect(self, text: str, *,
-                      user_id: str) -> GuardrailDecision:
+    async def inspect(self, text: str, *, user_id: str) -> GuardrailDecision:
         """Inspect user text in the context of a user identity.
 
         Args:
@@ -70,8 +70,9 @@ class OutputGuardrail(Protocol):
     separately; this protocol is not wired into the graph.
     """
 
-    async def inspect(self, text: str, *,
-                      citation_ids: frozenset[str]) -> GuardrailDecision:
+    async def inspect(
+        self, text: str, *, citation_ids: frozenset[str]
+    ) -> GuardrailDecision:
         """Inspect response text against allowed citation IDs.
 
         Args:

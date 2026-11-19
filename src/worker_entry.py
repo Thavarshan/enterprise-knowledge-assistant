@@ -1,4 +1,7 @@
-"""Expose the Viridian FastAPI application as a Cloudflare Python Worker."""
+"""Expose the Viridian FastAPI application as a Cloudflare Python Worker.
+
+Wrangler bindings are copied into the environment before app construction.
+"""
 
 import os
 

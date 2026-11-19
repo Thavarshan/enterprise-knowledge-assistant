@@ -156,7 +156,7 @@ class PineconeRetriever:
             async with asyncio.timeout(self.config.timeout_seconds):
                 index = await self._ensure_index()
                 for offset in range(0, len(documents), batch_size):
-                    batch = documents[offset:offset + batch_size]
+                    batch = documents[offset: offset + batch_size]
                     await asyncio.to_thread(
                         self._upsert_batch,
                         index,
@@ -390,8 +390,7 @@ class PineconeRetriever:
             or embedding is None
             or full_text is None
             or title_definition is None
-            or getattr(embedding, "model", None)
-            != self.config.embedding_model
+            or getattr(embedding, "model", None) != self.config.embedding_model
             or getattr(embedding, "dimension", None)
             != self.config.embedding_dimension
         ):
@@ -463,8 +462,7 @@ class PineconeRetriever:
         results: list[SearchResult] = []
         for match in response.matches:
             values = {
-                name: getattr(match, name, None)
-                for name in _SEARCH_FIELDS
+                name: getattr(match, name, None) for name in _SEARCH_FIELDS
             }
             if values.get("access_level") not in allowed_access_levels:
                 continue
@@ -511,9 +509,7 @@ class PineconeRetriever:
         Returns:
             Document record with `_id`, `chunk_text`, title, and filters.
         """
-        metadata = chunk.metadata.model_dump(
-            mode="json", exclude_none=True
-        )
+        metadata = chunk.metadata.model_dump(mode="json", exclude_none=True)
         metadata["created_date_ordinal"] = (
             chunk.metadata.created_date.toordinal()
         )
@@ -535,10 +531,7 @@ class PineconeRetriever:
         Returns:
             Deterministic ID unique to the complete source identity.
         """
-        return (
-            f"{chunk.metadata.document_id}::"
-            f"{chunk.metadata.chunk_id}"
-        )
+        return f"{chunk.metadata.document_id}::{chunk.metadata.chunk_id}"
 
     @staticmethod
     def _metadata_filter(

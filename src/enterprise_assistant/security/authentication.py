@@ -128,9 +128,7 @@ class AuthService:
                 raw_users: Any = json.loads(configured_value)
             else:
                 users_path = Path(configured_value).expanduser()
-                raw_users = json.loads(
-                    users_path.read_text(encoding="utf-8")
-                )
+                raw_users = json.loads(users_path.read_text(encoding="utf-8"))
             if not isinstance(raw_users, dict) or not raw_users:
                 raise ValueError("expected a non-empty JSON object")
             self._users = {

@@ -72,12 +72,14 @@ def render_wrangler_config() -> Path:
     config: dict[str, Any] = dict(base)
     config["account_id"] = account_id
     config["vars"] = {"APP_RELEASE_SHA": release_sha}
-    config["d1_databases"] = [{
-        "binding": "DB",
-        "database_name": DATABASE_NAME,
-        "database_id": database_id,
-        "migrations_dir": "migrations",
-    }]
+    config["d1_databases"] = [
+        {
+            "binding": "DB",
+            "database_name": DATABASE_NAME,
+            "database_id": database_id,
+            "migrations_dir": "migrations",
+        }
+    ]
     DEPLOY_CONFIG.write_text(
         json.dumps(config, indent=2) + "\n",
         encoding="utf-8",
@@ -117,8 +119,7 @@ def database_matches(
     matches = [
         database
         for database in payload.get("result", [])
-        if isinstance(database, dict)
-        and database.get("name") == expected_name
+        if isinstance(database, dict) and database.get("name") == expected_name
     ]
     if len(matches) != 1:
         return False

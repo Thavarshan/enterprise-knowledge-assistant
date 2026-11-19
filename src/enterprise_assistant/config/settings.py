@@ -61,6 +61,7 @@ class Settings(BaseSettings):
         pinecone_timeout_seconds: Per-operation SDK timeout.
         pinecone_documents_path: Source JSON used for ingestion and BM25.
     """
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -85,8 +86,9 @@ class Settings(BaseSettings):
     auth_issuer: str = "viridian"
     auth_audience: str = "viridian-api"
     auth_token_ttl_seconds: int = Field(default=900, ge=60, le=86400)
-    cors_origins: list[str] = Field(default_factory=lambda: [
-                                    "http://localhost:8501"])
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:8501"]
+    )
     log_level: str = "INFO"
     rate_limit_capacity: int = Field(default=30, gt=0)
     rate_limit_refill_per_second: float = Field(default=0.5, gt=0)
@@ -132,10 +134,7 @@ class Settings(BaseSettings):
                 and bool(parsed.hostname)
                 and parsed.username is None
                 and parsed.password is None
-                and (
-                    parsed.port is None
-                    or 1 <= parsed.port <= 65535
-                )
+                and (parsed.port is None or 1 <= parsed.port <= 65535)
                 and parsed.path in {"", "/"}
                 and not parsed.query
                 and not parsed.fragment
@@ -143,9 +142,7 @@ class Settings(BaseSettings):
         except ValueError:
             valid = False
         if not valid:
-            raise ValueError(
-                "D1_API_URL must be an absolute HTTP(S) origin."
-            )
+            raise ValueError("D1_API_URL must be an absolute HTTP(S) origin.")
         return cleaned.rstrip("/")
 
     @field_validator("cors_origins")
@@ -171,10 +168,7 @@ class Settings(BaseSettings):
                 or not parsed.hostname
                 or parsed.username is not None
                 or parsed.password is not None
-                or (
-                    parsed.port is not None
-                    and not 1 <= parsed.port <= 65535
-                )
+                or (parsed.port is not None and not 1 <= parsed.port <= 65535)
                 or parsed.path not in {"", "/"}
                 or parsed.query
                 or parsed.fragment
@@ -226,11 +220,13 @@ class Settings(BaseSettings):
         if self.langsmith_tracing:
             required_values["LANGSMITH_API_KEY"] = self.langsmith_api_key
         if not self.mock_mode:
-            required_values.update({
-                "OPENAI_API_KEY": self.openai_api_key,
-                "PINECONE_API_KEY": self.pinecone_api_key,
-                "PINECONE_INDEX_NAME": self.pinecone_index_name,
-            })
+            required_values.update(
+                {
+                    "OPENAI_API_KEY": self.openai_api_key,
+                    "PINECONE_API_KEY": self.pinecone_api_key,
+                    "PINECONE_INDEX_NAME": self.pinecone_index_name,
+                }
+            )
         missing = [name for name, value in required_values.items() if not value]
         if missing:
             raise ValueError(
@@ -256,8 +252,9 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Production CORS_ORIGINS must contain explicit origins."
             )
-        if any(not origin.startswith("https://")
-               for origin in self.cors_origins):
+        if any(
+            not origin.startswith("https://") for origin in self.cors_origins
+        ):
             raise ValueError("Production CORS origins must use HTTPS.")
         return self
 

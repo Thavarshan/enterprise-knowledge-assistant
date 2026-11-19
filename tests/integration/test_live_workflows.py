@@ -108,9 +108,7 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
     settings = get_settings()
     _require_live_configuration(settings)
 
-    corpus = InMemoryRetriever.from_json(
-        Path(settings.pinecone_documents_path)
-    )
+    corpus = InMemoryRetriever.from_json(Path(settings.pinecone_documents_path))
     dense = PineconeRetriever(
         PineconeConfig(
             api_key=settings.pinecone_api_key,
@@ -338,9 +336,7 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             and event.metadata.get("tool") == "python_analysis"
             for event in viewer_events
         )
-        forbidden_trace_spans[viewer_id_trace] = frozenset(
-            {"python_analysis"}
-        )
+        forbidden_trace_spans[viewer_id_trace] = frozenset({"python_analysis"})
         trace_specs.append(
             (
                 viewer_id_trace,
@@ -436,8 +432,7 @@ def _require_live_configuration(settings: Settings) -> None:
         missing.extend(["LLM_PROVIDER=openai", "MOCK_MODE=false"])
     if missing:
         pytest.fail(
-            "BLOCKED: live workflow verification requires "
-            + ", ".join(missing)
+            "BLOCKED: live workflow verification requires " + ", ".join(missing)
         )
 
 
@@ -546,8 +541,7 @@ def _validation_passed(events: list[ActivityEvent]) -> bool:
         True when citation validation passed.
     """
     return any(
-        event.event_type == "validation"
-        and event.metadata.get("valid") is True
+        event.event_type == "validation" and event.metadata.get("valid") is True
         for event in events
     )
 
@@ -640,9 +634,7 @@ async def _verify_openai_failure_trace(
         settings.llm_timeout_seconds,
     )
     failing_service = ChatService(
-        InMemoryRetriever.from_json(
-            Path(settings.pinecone_documents_path)
-        ),
+        InMemoryRetriever.from_json(Path(settings.pinecone_documents_path)),
         AsyncSQLiteSessionStore(memory),
         ToolRegistry(),
         langsmith_client=client,

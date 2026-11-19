@@ -10,8 +10,9 @@ import sys
 from pathlib import Path
 
 
-def test_ui_api_client_imports_when_running_from_the_streamlit_directory(
-) -> None:
+def test_ui_api_client_imports_when_running_from_the_streamlit_directory() -> (
+    None
+):
     """Verify the UI package imports from its launch working directory.
 
     A child interpreter mirrors the package-resolution context used by

@@ -16,8 +16,7 @@ class MCPClient(Protocol):
     before invoking an implementation.
     """
 
-    async def invoke(self, tool_name: str,
-                     arguments: dict[str, Any]) -> Any:
+    async def invoke(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Invoke a named remote tool with validated arguments.
 
         Args:

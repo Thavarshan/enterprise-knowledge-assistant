@@ -46,7 +46,8 @@ async def issue_token(payload: TokenRequest, request: Request) -> TokenResponse:
         token = auth.issue_token(payload.username, payload.password)
     except InvalidCredentialsError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
+        ) from exc
     except AuthenticationConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)

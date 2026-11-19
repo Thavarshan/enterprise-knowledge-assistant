@@ -57,9 +57,7 @@ def configuration_errors() -> list[str]:
     wrangler = json.loads(
         (WORKER_ROOT / "wrangler.jsonc").read_text(encoding="utf-8")
     )
-    api_worker = json.loads(
-        API_WRANGLER_CONFIG.read_text(encoding="utf-8")
-    )
+    api_worker = json.loads(API_WRANGLER_CONFIG.read_text(encoding="utf-8"))
     worker_pin = package.get("devDependencies", {}).get("wrangler")
     locked_pin = lock.get("packages", {}).get("node_modules/wrangler", {})
     if not worker_pin or worker_pin != locked_pin.get("version"):
@@ -157,8 +155,7 @@ def configuration_errors() -> list[str]:
         block = _needs_text(ci, job_name)
         if not block or required_dependency not in block:
             errors.append(
-                f"Workflow job {job_name} must depend on "
-                f"{required_dependency}."
+                f"Workflow job {job_name} must depend on {required_dependency}."
             )
     for required_job in (
         "deploy-cloudflare",
@@ -186,9 +183,7 @@ def configuration_errors() -> list[str]:
         errors.append("Automatic deployment must be restricted to main.")
     if "github.event_name == 'workflow_dispatch'" not in readiness:
         errors.append("Manual deployments must use the consolidated workflow.")
-    worker_source = (WORKER_ROOT / "src/index.ts").read_text(
-        encoding="utf-8"
-    )
+    worker_source = (WORKER_ROOT / "src/index.ts").read_text(encoding="utf-8")
     if not API_ENTRYPOINT.exists():
         errors.append("The Viridian Python Worker entrypoint is missing.")
     cloudflare_smoke = (
@@ -196,7 +191,7 @@ def configuration_errors() -> list[str]:
     ).read_text(encoding="utf-8")
     if 'url.pathname === "/health"' not in worker_source:
         errors.append("The Worker must expose a public health endpoint.")
-    if "health.get(\"release_sha\") != release_sha" not in cloudflare_smoke:
+    if 'health.get("release_sha") != release_sha' not in cloudflare_smoke:
         errors.append("Cloudflare smoke must verify the Worker release SHA.")
     for action_ref in re.findall(
         r"(?m)^\s+uses:\s+([^\s]+)",

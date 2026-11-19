@@ -121,8 +121,7 @@ def parse_analysis_question(question: str) -> AnalysisRequest:
         raise AnalysisInputError("Unsupported analysis request.")
     try:
         values = [
-            float(value.strip())
-            for value in match.group("values").split(",")
+            float(value.strip()) for value in match.group("values").split(",")
         ]
         return AnalysisRequest(
             operation=match.group("operation").casefold(),

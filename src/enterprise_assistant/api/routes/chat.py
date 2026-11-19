@@ -109,7 +109,8 @@ async def get_session(
     )
     if session is None or messages is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+        )
     summary = SessionResponse.from_record(session)
     return SessionDetailResponse(
         **summary.model_dump(),
@@ -154,7 +155,8 @@ async def stream_chat(
     )
     if session is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+        )
     guardrail_decision = await container.input_guardrail.inspect(
         payload.message,
         user_id=user.user_id,
@@ -172,9 +174,7 @@ async def stream_chat(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Request rate limit exceeded.",
             headers={
-                "Retry-After": str(
-                    max(1, int(exc.retry_after_seconds + 0.99))
-                ),
+                "Retry-After": str(max(1, int(exc.retry_after_seconds + 0.99))),
             },
         ) from exc
 

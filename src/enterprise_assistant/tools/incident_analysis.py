@@ -299,8 +299,11 @@ class IncidentAnalysisTool:
     @staticmethod
     def _deduplicate_incident(
         records: list[IncidentEvidence],
-    ) -> tuple[list[IncidentSourceReference], RootCauseCategory | None,
-               IncidentCategory | None]:
+    ) -> tuple[
+        list[IncidentSourceReference],
+        RootCauseCategory | None,
+        IncidentCategory | None,
+    ]:
         """Collapse duplicate chunks and mark conflicting labels unknown.
 
         Args:
@@ -334,8 +337,10 @@ class IncidentAnalysisTool:
             )
             for record in sorted(
                 unique_records.values(),
-                key=lambda item: (item.source_document_id,
-                                  item.source_chunk_id),
+                key=lambda item: (
+                    item.source_document_id,
+                    item.source_chunk_id,
+                ),
             )
         ]
         return (

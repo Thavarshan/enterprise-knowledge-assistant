@@ -56,6 +56,7 @@ class DocumentMetadata(BaseModel):
     Security:
         Retrieval filters enforce authorization; this model does not.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     document_id: str = Field(min_length=1)
@@ -71,7 +72,8 @@ class DocumentMetadata(BaseModel):
     root_cause_category: RootCauseCategory | None = None
     severity: IncidentSeverity | None = None
     impact_summary: str | None = Field(
-        default=None, min_length=1, max_length=500)
+        default=None, min_length=1, max_length=500
+    )
 
 
 class DocumentChunk(BaseModel):
@@ -84,6 +86,7 @@ class DocumentChunk(BaseModel):
         content: Non-empty evidence text.
         metadata: Validated source and access metadata.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     content: str = Field(min_length=1)
@@ -102,6 +105,7 @@ class SearchResult(BaseModel):
         score: Non-negative adapter or fusion score.
         rank: One-based position in the result sequence.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     chunk: DocumentChunk
@@ -121,6 +125,7 @@ class SourceCitation(BaseModel):
         title: Display title for the citation.
         source: Source reference copied from metadata.
     """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     document_id: str

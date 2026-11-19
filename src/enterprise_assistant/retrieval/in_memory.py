@@ -91,8 +91,7 @@ class InMemoryRetriever:
             A retriever containing validated document chunks.
         """
         chunks = [
-            DocumentChunk.model_validate(document)
-            for document in raw_documents
+            DocumentChunk.model_validate(document) for document in raw_documents
         ]
         return cls(chunks)
 
@@ -151,8 +150,11 @@ class InMemoryRetriever:
             if date_to is not None and metadata.created_date > date_to:
                 continue
             searchable = f"{metadata.title} {chunk.content}".casefold()
-            overlap = sum(1 for token in _TOKEN_PATTERN.findall(
-                searchable) if token in query_terms)
+            overlap = sum(
+                1
+                for token in _TOKEN_PATTERN.findall(searchable)
+                if token in query_terms
+            )
             if overlap:
                 ranked.append((overlap, chunk))
         ranked.sort(key=lambda item: (-item[0], item[1].metadata.document_id))

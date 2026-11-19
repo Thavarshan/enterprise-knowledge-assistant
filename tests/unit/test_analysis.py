@@ -22,9 +22,7 @@ async def test_analysis_tool_calculates_average_from_explicit_numbers() -> None:
     The parser accepts only comma-separated decimal literals in its
     documented command format.
     """
-    request = parse_analysis_question(
-        "Please calculate average of 10, 20, 30."
-    )
+    request = parse_analysis_question("Please calculate average of 10, 20, 30.")
     result = await PythonAnalysisTool().run(request.model_dump())
 
     assert result.operation == "average"
@@ -77,9 +75,7 @@ def test_analysis_schema_rejects_nonfinite_values_and_extra_fields() -> None:
     base = {"operation": "sum", "field": "values", "values": [1]}
     for value in (float("nan"), float("inf"), 1_000_000_000_001):
         with pytest.raises(ValidationError):
-            AnalysisRequest.model_validate(
-                {**base, "values": [value]}
-            )
+            AnalysisRequest.model_validate({**base, "values": [value]})
     with pytest.raises(ValidationError):
         AnalysisRequest.model_validate({**base, "expression": "1 + 1"})
     for value in ("1", True):

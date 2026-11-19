@@ -28,9 +28,7 @@ def create_session_store(settings: Settings) -> SessionStore:
             AsyncSQLiteSessionStore,
         )
 
-        return AsyncSQLiteSessionStore(
-            SQLiteSessionStore(settings.sqlite_path)
-        )
+        return AsyncSQLiteSessionStore(SQLiteSessionStore(settings.sqlite_path))
     if settings.memory_backend == "d1":
         transport = None
         if os.environ.get("CLOUDFLARE_WORKER") == "true":

@@ -9,9 +9,7 @@ import sys
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-MIGRATION_ROOT = (
-    REPOSITORY_ROOT / "infra/cloudflare/d1-gateway/migrations"
-)
+MIGRATION_ROOT = REPOSITORY_ROOT / "infra/cloudflare/d1-gateway/migrations"
 COMMENT_PATTERN = re.compile(r"/\*.*?\*/|--[^\n]*", re.DOTALL)
 DESTRUCTIVE_PATTERNS = {
     "DROP statements": re.compile(

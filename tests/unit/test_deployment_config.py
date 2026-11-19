@@ -31,14 +31,20 @@ def test_api_base_url_reads_environment_before_streamlit_secrets() -> None:
     Local environment overrides still take precedence over the deployment
     default.
     """
-    assert resolve_api_base_url(
-        {"API_BASE_URL": "https://api.example/"},
-        {"API_BASE_URL": "https://secret.example"},
-    ) == "https://api.example"
-    assert resolve_api_base_url(
-        {},
-        {"API_BASE_URL": "https://secret.example/"},
-    ) == "https://secret.example"
+    assert (
+        resolve_api_base_url(
+            {"API_BASE_URL": "https://api.example/"},
+            {"API_BASE_URL": "https://secret.example"},
+        )
+        == "https://api.example"
+    )
+    assert (
+        resolve_api_base_url(
+            {},
+            {"API_BASE_URL": "https://secret.example/"},
+        )
+        == "https://secret.example"
+    )
     assert resolve_api_base_url({}, {}) == (
         "https://viridian.thavarshan.workers.dev"
     )
@@ -125,12 +131,13 @@ def test_cloud_factory_selects_d1_without_creating_local_storage(
 
 
 def test_cloudflare_python_worker_uses_viridian_assets_and_mock_mode() -> None:
-    """Keep the Cloudflare API bound to the static Viridian frontend."""
+    """Keep the Cloudflare API bound to the static Viridian frontend.
+
+    The configured entrypoint must expose the ASGI app Wrangler starts.
+    """
     repository_root = Path(__file__).resolve().parents[2]
     config = json.loads((repository_root / "wrangler.jsonc").read_text())
-    entrypoint = (
-        repository_root / "infra/cloudflare/viridian-api/entry.py"
-    ).read_text()
+    entrypoint = (repository_root / config["main"]).read_text()
 
     assert config["name"] == "viridian"
     assert config["compatibility_flags"] == ["python_workers"]
@@ -149,12 +156,14 @@ def test_ci_gate_fails_for_failed_cancelled_or_skipped_jobs() -> None:
 
     Skipped and cancelled dependencies must block the aggregate CI gate.
     """
-    failures = failed_ci_jobs({
-        "lint": "success",
-        "build": "failure",
-        "tests": "cancelled",
-        "docker-api-ui": "skipped",
-    })
+    failures = failed_ci_jobs(
+        {
+            "lint": "success",
+            "build": "failure",
+            "tests": "cancelled",
+            "docker-api-ui": "skipped",
+        }
+    )
 
     assert failures == {
         "build": "failure",
@@ -173,11 +182,13 @@ def test_ci_gate_command_exits_nonzero_for_incomplete_checks(
     """
     monkeypatch.setenv(
         "CI_NEEDS_JSON",
-        json.dumps({
-            "lint": {"result": "success"},
-            "tests": {"result": "cancelled"},
-            "docker-api-ui": {"result": "skipped"},
-        }),
+        json.dumps(
+            {
+                "lint": {"result": "success"},
+                "tests": {"result": "cancelled"},
+                "docker-api-ui": {"result": "skipped"},
+            }
+        ),
     )
 
     assert run_ci_gate() == 1
@@ -243,10 +254,12 @@ def test_cloudflare_identity_must_match_name_and_complete_id() -> None:
     """
     payload = {
         "success": True,
-        "result": [{
-            "name": "viridian-sessions",
-            "uuid": "12345678-1234-1234-1234-123456789abc",
-        }],
+        "result": [
+            {
+                "name": "viridian-sessions",
+                "uuid": "12345678-1234-1234-1234-123456789abc",
+            }
+        ],
     }
 
     assert database_matches(

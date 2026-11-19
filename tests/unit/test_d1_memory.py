@@ -32,28 +32,39 @@ async def test_d1_store_sends_backend_credentials_and_owner_scope() -> None:
         """
         requests.append(request)
         if request.url.path == "/v1/sessions" and request.method == "POST":
-            return httpx.Response(201, json={
+            return httpx.Response(
+                201,
+                json={
+                    "session_id": session_id,
+                    "owner_id": "analyst",
+                    "title": "New conversation",
+                    "created_at": "2026-11-15T00:00:00+00:00",
+                },
+            )
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(
+                200,
+                json={
+                    "messages": [
+                        {
+                            "message_id": 1,
+                            "session_id": session_id,
+                            "role": "user",
+                            "content": "Question",
+                            "created_at": "2026-11-15T00:00:00+00:00",
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
                 "session_id": session_id,
                 "owner_id": "analyst",
                 "title": "New conversation",
                 "created_at": "2026-11-15T00:00:00+00:00",
-            })
-        if request.url.path.endswith("/messages"):
-            return httpx.Response(200, json={
-                "messages": [{
-                    "message_id": 1,
-                    "session_id": session_id,
-                    "role": "user",
-                    "content": "Question",
-                    "created_at": "2026-11-15T00:00:00+00:00",
-                }]
-            })
-        return httpx.Response(200, json={
-            "session_id": session_id,
-            "owner_id": "analyst",
-            "title": "New conversation",
-            "created_at": "2026-11-15T00:00:00+00:00",
-        })
+            },
+        )
 
     client = httpx.AsyncClient(
         base_url="https://d1-gateway.example",
@@ -73,12 +84,13 @@ async def test_d1_store_sends_backend_credentials_and_owner_scope() -> None:
     assert fetched is not None and fetched.owner_id == "analyst"
     assert messages is not None and messages[0].content == "Question"
     assert all(
-        request.headers["authorization"] ==
-        "Bearer service-token-not-for-the-ui-00000000"
+        request.headers["authorization"]
+        == "Bearer service-token-not-for-the-ui-00000000"
         for request in requests
     )
-    assert all(request.headers["x-owner-id"] == "analyst"
-               for request in requests)
+    assert all(
+        request.headers["x-owner-id"] == "analyst" for request in requests
+    )
     await client.aclose()
 
 
@@ -103,13 +115,16 @@ async def test_d1_store_maps_missing_owner_and_appends_messages() -> None:
         if request.method == "GET":
             return httpx.Response(404, json={"error": "not_found"})
         appends.append(request.content)
-        return httpx.Response(201, json={
-            "message_id": 4,
-            "session_id": session_id,
-            "role": "assistant",
-            "content": "Answer",
-            "created_at": "2026-11-15T00:00:00+00:00",
-        })
+        return httpx.Response(
+            201,
+            json={
+                "message_id": 4,
+                "session_id": session_id,
+                "role": "assistant",
+                "content": "Answer",
+                "created_at": "2026-11-15T00:00:00+00:00",
+            },
+        )
 
     client = httpx.AsyncClient(
         base_url="https://d1-gateway.example",
@@ -210,12 +225,15 @@ async def test_d1_store_rejects_mismatched_owner_and_does_not_retry() -> None:
         Returns:
             Structurally valid record with an unexpected owner.
         """
-        return httpx.Response(200, json={
-            "session_id": "b75e4b83-4767-4c7b-9d84-2f159057abcb",
-            "owner_id": "viewer",
-            "title": "New conversation",
-            "created_at": "2026-11-15T00:00:00+00:00",
-        })
+        return httpx.Response(
+            200,
+            json={
+                "session_id": "b75e4b83-4767-4c7b-9d84-2f159057abcb",
+                "owner_id": "viewer",
+                "title": "New conversation",
+                "created_at": "2026-11-15T00:00:00+00:00",
+            },
+        )
 
     client = httpx.AsyncClient(
         base_url="https://d1-gateway.example",

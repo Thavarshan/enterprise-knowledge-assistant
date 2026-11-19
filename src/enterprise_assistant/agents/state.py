@@ -42,6 +42,7 @@ class AgentState(TypedDict, total=False):
         Identity and role values must come from API authentication, not
         request fields.
     """
+
     request_id: str
     session_id: str
     user_id: str

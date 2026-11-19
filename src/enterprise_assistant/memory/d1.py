@@ -226,8 +226,7 @@ class D1SessionStore:
                 "Session store returned an invalid session list."
             ) from exc
         sessions = [
-            ChatSession(**session.model_dump())
-            for session in payload.sessions
+            ChatSession(**session.model_dump()) for session in payload.sessions
         ]
         if any(session.owner_id != owner_id for session in sessions):
             raise SessionStoreUnavailable(
@@ -290,8 +289,7 @@ class D1SessionStore:
                 "Session store returned an invalid history response."
             ) from exc
         messages = [
-            ChatMessage(**message.model_dump())
-            for message in payload.messages
+            ChatMessage(**message.model_dump()) for message in payload.messages
         ]
         if any(message.session_id != session_id for message in messages):
             raise SessionStoreUnavailable(
