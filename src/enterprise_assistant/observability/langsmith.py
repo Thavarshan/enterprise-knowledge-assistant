@@ -32,7 +32,7 @@ def sanitize_trace_payload(payload: dict[str, Any]) -> dict[str, Any]:
     metadata, and errors before uploading a run.
 
     Args:
-        payload: Serialized inputs, outputs, metadata, or the wrapped trace error.
+        payload: Serialized trace payload, including wrapped errors.
 
     Returns:
         The original trace structure with recognized secrets anonymized.

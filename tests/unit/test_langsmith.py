@@ -113,7 +113,10 @@ def test_client_uses_agent_address_and_informative_payload_processing(
     captured: dict[str, Any] = {}
 
     class ClientStub:
-        """Capture client options without making a network connection."""
+        """Capture client options without a network connection.
+
+        The test checks that configured options expose trace payloads.
+        """
 
         def __init__(self, **kwargs: Any) -> None:
             """Store constructor fields for assertions.
@@ -147,7 +150,11 @@ def test_client_uses_agent_address_and_informative_payload_processing(
 
 
 def test_sdk_client_keeps_content_and_anonymizes_credentials() -> None:
-    """Exercise LangSmith's installed secret filter on every trace field."""
+    """Exercise LangSmith's secret filter on every trace field.
+
+    Visible diagnostics pass through while recognized credentials are
+    replaced before upload.
+    """
     fake_key = f"sk-proj-{'A' * 32}"
     client = Client(
         api_key="synthetic-test-key",
@@ -206,7 +213,10 @@ def test_missing_api_key_is_reported_and_keeps_app_tracing_off(
 
 
 def test_trace_payload_preserves_diagnostics_and_scrubs_secrets() -> None:
-    """Preserve nested trace content while anonymizing credential patterns."""
+    """Preserve nested trace content while anonymizing credentials.
+
+    The payload exercises questions, evidence, answers, metadata, and errors.
+    """
     fake_key = f"sk-proj-{'B' * 32}"
     payload = {
         "question": "synthetic visible prompt",
