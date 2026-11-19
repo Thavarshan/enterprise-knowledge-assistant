@@ -130,6 +130,12 @@ def configuration_errors() -> list[str]:
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
     if "VERCEL_TOKEN" not in ci or "vercel deploy --prebuilt --prod" not in ci:
         errors.append("The production workflow must deploy the Vercel API.")
+    vercel_job = _needs_text(ci, "deploy-vercel-api")
+    if (
+        'python-version: "3.12"' not in vercel_job
+        or 'UV_PYTHON: "3.12"' not in vercel_job
+    ):
+        errors.append("Vercel build and runtime must both use Python 3.12.")
     workflow_files = {
         path.name for path in WORKFLOW_DIRECTORY.glob("*.yml")
     } | {path.name for path in WORKFLOW_DIRECTORY.glob("*.yaml")}
