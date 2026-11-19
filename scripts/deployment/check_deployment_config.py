@@ -22,6 +22,7 @@ API_WRANGLER_CONFIG = REPOSITORY_ROOT / "wrangler.jsonc"
 API_ENTRYPOINT = REPOSITORY_ROOT / "src/worker_entry.py"
 VERCEL_CONFIG = REPOSITORY_ROOT / "vercel.json"
 VERCEL_INSTALL_SCRIPT = REPOSITORY_ROOT / "vercel-install.sh"
+VERCEL_IGNORE_FILE = REPOSITORY_ROOT / ".vercelignore"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/ci.yml"
 WORKFLOW_DIRECTORY = REPOSITORY_ROOT / ".github/workflows"
 
@@ -118,6 +119,10 @@ def configuration_errors() -> list[str]:
         errors.append(
             "Vercel must build the full Viridian API and disable "
             "ungated Git deploys."
+        )
+    if VERCEL_IGNORE_FILE.exists():
+        errors.append(
+            "Do not add .vercelignore; prebuilt uploads need traced files."
         )
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
     if "VERCEL_TOKEN" not in ci or "vercel deploy --prebuilt --prod" not in ci:
