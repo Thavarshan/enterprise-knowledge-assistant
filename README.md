@@ -1,4 +1,4 @@
-# Viridian
+# 🌿 Viridian
 
 Viridian is an explainable AI assistant built as a modular Python monolith.
 FastAPI, Streamlit, LangGraph, SQLite, D1, Pinecone, OpenAI, and LangSmith are
