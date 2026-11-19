@@ -1,0 +1,14 @@
+.env
+.env.*
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/
+docs/
+infra/
+data/
+scripts/
+apps/ui/
+apps/api/
