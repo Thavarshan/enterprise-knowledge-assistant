@@ -45,9 +45,7 @@ def test_api_base_url_reads_environment_before_streamlit_secrets() -> None:
         )
         == "https://secret.example"
     )
-    assert resolve_api_base_url({}, {}) == (
-        "https://viridian.thavarshan.workers.dev"
-    )
+    assert resolve_api_base_url({}, {}) == "https://viridian-api.vercel.app"
 
 
 def test_api_base_url_rejects_invalid_values() -> None:
@@ -130,14 +128,15 @@ def test_cloud_factory_selects_d1_without_creating_local_storage(
     asyncio.run(store.aclose())
 
 
-def test_cloudflare_python_worker_uses_viridian_assets_and_mock_mode() -> None:
-    """Keep the Cloudflare API bound to the static Viridian frontend.
+def test_cloudflare_python_worker_adapter_keeps_viridian_mock_profile() -> None:
+    """Keep the retained Cloudflare API adapter in its mock profile.
 
     The configured entrypoint must expose the ASGI app Wrangler starts.
     """
     repository_root = Path(__file__).resolve().parents[2]
     config = json.loads((repository_root / "wrangler.jsonc").read_text())
     entrypoint = (repository_root / config["main"]).read_text()
+    vercel = json.loads((repository_root / "vercel.json").read_text())
 
     assert config["name"] == "viridian"
     assert config["compatibility_flags"] == ["python_workers"]
@@ -148,7 +147,7 @@ def test_cloudflare_python_worker_uses_viridian_assets_and_mock_mode() -> None:
     assert "/api/*" in config["assets"]["run_worker_first"]
     assert "from workers import asgi, env" in entrypoint
     assert "Default = asgi.entrypoint(app)" in entrypoint
-    assert not (repository_root / "vercel.json").exists()
+    assert vercel["git"]["deploymentEnabled"] is False
 
 
 def test_ci_gate_fails_for_failed_cancelled_or_skipped_jobs() -> None:
