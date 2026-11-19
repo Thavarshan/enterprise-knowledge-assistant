@@ -1,4 +1,4 @@
-# 🌿
+# 🌿 Viridian
 
 Viridian is an explainable enterprise knowledge assistant. The hosted
 platform uses Streamlit Cloud for the UI, Vercel for the FastAPI backend,
