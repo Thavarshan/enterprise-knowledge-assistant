@@ -157,6 +157,7 @@ def create_app(
             pinecone_retriever,
         )
     registry = ToolRegistry()
+    chat_service: Any
     if cloudflare_worker:
         from enterprise_assistant.chat.workers_service import (
             WorkersMockChatService,

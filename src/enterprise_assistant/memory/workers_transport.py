@@ -6,7 +6,7 @@ issuing its authenticated requests through the Workers runtime.
 """
 
 import httpx
-from js import Object
+from js import Object  # type: ignore[import-not-found]
 from js import fetch as worker_fetch
 from pyodide.ffi import to_js
 

@@ -5,7 +5,7 @@ Wrangler bindings are copied into the environment before app construction.
 
 import os
 
-from workers import asgi, env
+from workers import asgi, env  # type: ignore[attr-defined]
 
 from enterprise_assistant.api.application import create_app
 
