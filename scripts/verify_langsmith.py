@@ -1,8 +1,9 @@
-"""Submit a nested synthetic trace to the configured LangSmith agent.
+"""Submit an informative nested trace to the configured LangSmith agent.
 
 The command addresses the existing agent/environment, verifies local
-execution and SDK submission status, then attempts a safe remote readback.
-No assessment records, live model, Pinecone index, or user data are used.
+execution and SDK submission status, then attempts a remote readback that
+checks visible synthetic payloads and credential anonymization. No assessment
+records, live model, Pinecone index, or user data are used.
 """
 
 import json
@@ -210,7 +211,8 @@ def _verify_remote_trace(
     verification_id: Any,
     agent_id: str,
     environment: str,
-    sentinel: str,
+    visible_markers: tuple[str, ...] = (),
+    secret_probe: str | None = None,
     expected_spans: frozenset[str] = EXPECTED_SPANS,
     expected_parent_spans: dict[str, str] | None = None,
     forbidden_spans: frozenset[str] = frozenset(),
@@ -221,11 +223,13 @@ def _verify_remote_trace(
     a case returns BLOCKED, rather than being misreported as a failure.
 
     Args:
-        client: Redacting LangSmith SDK client.
+        client: Credential-scrubbing LangSmith SDK client.
         verification_id: Unique root run ID assigned before execution.
         agent_id: Expected registered agent ID.
         environment: Expected agent environment.
-        sentinel: Synthetic marker that must not appear in remote payloads.
+        visible_markers: Synthetic strings that must appear in the remote
+            trace content.
+        secret_probe: Fake credential that must be replaced before upload.
         expected_spans: Span names that must occur in the trace tree.
         expected_parent_spans: Child span names and their required parent.
         forbidden_spans: Span names that must not occur in the trace tree.
@@ -268,11 +272,17 @@ def _verify_remote_trace(
         [run.model_dump(mode="json") for run in runs],
         sort_keys=True,
     )
-    payloads_are_hidden = all(
-        run.inputs in (None, {}) and run.outputs in (None, {}) for run in runs
-    )
-    if sentinel in serialized or not payloads_are_hidden:
-        return "FAILED", "remote trace payload redaction check failed"
+    inputs_are_visible = any(run.inputs not in (None, {}) for run in runs)
+    outputs_are_visible = any(run.outputs not in (None, {}) for run in runs)
+    if not inputs_are_visible or not outputs_are_visible:
+        return "FAILED", "remote trace inputs or outputs are empty"
+    if any(marker not in serialized for marker in visible_markers):
+        return "FAILED", "expected synthetic trace content is missing"
+    if secret_probe and (
+        secret_probe in serialized
+        or "[SECRET_DETECTED]" not in serialized
+    ):
+        return "FAILED", "credential anonymization check failed"
 
     root_metadata = _run_metadata(root)
     address_is_confirmed = (
@@ -345,7 +355,8 @@ def main() -> int:
 
     verification_id = uuid7()
     verification_text = str(verification_id)
-    sentinel = f"LANGSMITH_SYNTHETIC_{verification_text}"
+    visible_marker = f"LANGSMITH_SYNTHETIC_{verification_text}"
+    secret_probe = f"sk-proj-{'A' * 32}"
     trace_execution_passed = False
     submission_passed = False
     remote_status = "BLOCKED"
@@ -368,10 +379,11 @@ def main() -> int:
                 "verification_id": verification_text,
                 "workflow": "connectivity-verification",
                 "status": "running",
+                "synthetic_credential_probe": secret_probe,
             },
         ):
             answer = _run_verification(
-                f"{SYNTHETIC_QUESTION} {sentinel}",
+                f"{SYNTHETIC_QUESTION} {visible_marker}",
                 SYNTHETIC_INCIDENT_ID,
                 langsmith_extra={"run_id": verification_id},
             )
@@ -397,7 +409,8 @@ def main() -> int:
                 verification_id=verification_id,
                 agent_id=settings.langsmith_agent_id,
                 environment=settings.langsmith_agent_environment,
-                sentinel=sentinel,
+                visible_markers=(visible_marker,),
+                secret_probe=secret_probe,
             )
             print(f"Remote verification: {remote_status} ({remote_detail})")
     except Exception as exc:

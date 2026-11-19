@@ -17,8 +17,9 @@ make the application a production identity or data-isolation system.
   prompts treat content as data.
 - **Model output and citations:** Untrusted. Schemas and complete identity
   checks gate answers.
-- **LangSmith payload:** External transfer. Inputs/outputs are hidden;
-  metadata is allowlisted and errors are redacted.
+- **LangSmith payload:** External transfer. When enabled, run inputs,
+  outputs, metadata, runtime details, and errors are sent after common
+  credential patterns are anonymized.
 
 ## Authentication and authorization
 
@@ -112,14 +113,17 @@ SQL route. The local simulation uses a separate disposable D1 database.
 ## Logging, traces, and secrets
 
 Structured logs omit request bodies, passwords, bearer tokens, and source
-content. Request IDs are validated or replaced with UUIDs. LangSmith hides
-run inputs and outputs, keeps allowlisted metadata, omits runtime details,
-and redacts error text. Verification commands distinguish delivery from
-remote readback; a trace without read permission is reported as BLOCKED.
+content. Request IDs are validated or replaced with UUIDs. LangSmith receives
+run inputs and outputs, metadata, runtime details, and error text; its secret
+anonymizer replaces recognized credential patterns before upload. The
+anonymizer is not a general personal-data filter. Verification commands
+distinguish delivery from remote readback; a trace without read permission is
+reported as BLOCKED.
 
-LangSmith receives external trace metadata when enabled. Only synthetic
-assessment data was used for the live verification. Do not enable tracing
-for data whose transfer is not permitted.
+LangSmith receives prompts, retrieved evidence, tool arguments and results,
+model outputs, and errors when tracing is enabled. Synthetic assessment data
+was used for earlier live verifications. Do not enable tracing for data whose
+transfer is not permitted.
 
 SSE events contain status text, counts, source IDs, and stable error codes.
 Research events do not expose model-proposed query text. Response chunks

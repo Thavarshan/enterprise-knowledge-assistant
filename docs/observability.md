@@ -4,8 +4,9 @@
 
 - **Application logs:** Python logging emits allowlisted operational fields
   and request IDs for API and graph diagnosis.
-- **LangSmith traces:** The explicit client records run names and graph
-  structure. Inputs and outputs are hidden; metadata is allowlisted.
+- **LangSmith traces:** The explicit client records run inputs and outputs,
+  metadata, runtime details, errors, and graph structure. Recognized
+  credential patterns are anonymized before export.
 - **Graph state:** LangGraph holds identity, questions, routes, plans,
   evidence, responses, citations, and events while one run executes.
 - **Activity events:** Graph nodes, ChatService, and the API send agent and
@@ -25,7 +26,9 @@ parent span around graph execution and assistant-message persistence.
 LangGraph automatically traces its graph and node execution inside that
 parent. The `KnowledgeSearchTool.run` wrapper adds a child tool span. The
 graph node names identify supervisor, research, retrieval, response, and
-validation operations.
+validation operations. The parent input includes the current question,
+conversation history, role, and correlation IDs; its output includes the
+validated answer, citations, route, and validation status.
 
 The expected trace shape is:
 
@@ -89,10 +92,10 @@ LANGSMITH_AGENT_ENVIRONMENT=local
 Keep the API key in local `.env`; it is loaded by `Settings` and passed only
 to the backend SDK client. The API configures LangSmith before it constructs
 the client or LangGraph workflow. Test settings and the Cloudflare D1
-gateway disable tracing and need no key. Production CI runs the synthetic
-connectivity verifier against Vercel's production environment before API
-deployment; it confirms trace submission and remote readback without sending
-user data or calling OpenAI or Pinecone.
+gateway disable tracing and need no key. Production settings live in
+Vercel's environment; GitHub Actions does not pull Vercel's protected
+provider credentials into the deployment job. The standalone connectivity
+verifier can use a local `.env` without calling OpenAI or Pinecone.
 
 Agent-based addressing replaces the older project destination. The setup
 removes `LANGSMITH_PROJECT`, `LANGCHAIN_PROJECT`, and `LANGCHAIN_SESSION`
@@ -104,24 +107,23 @@ agent ID and is not required unless the API key's scope requires it.
 
 The SDK client applies these protections before export:
 
-- All run inputs and outputs are hidden, including questions, retrieved
-  evidence, graph state, assistant responses, and persisted message text.
-- Runtime details are omitted.
-- Metadata is restricted to safe values such as request ID, session ID,
-  agent ID, environment, graph node, tool name, workflow, and status.
-- Trace error text is replaced with `[REDACTED]`; logs include only the
-  exception type.
+- Run inputs and outputs are included: questions, retrieved evidence,
+  graph state, tool arguments and results, model responses, and persisted
+  assistant message text.
+- Runtime details, metadata, and useful error text are included.
+- LangSmith's secret anonymizer replaces recognized credential patterns
+  with `[SECRET_DETECTED]` in inputs, outputs, metadata, and errors.
+- Application logs still omit request bodies and exception text; they keep
+  safe correlation fields and error types.
 
-The metadata filter accepts only known keys with short, safe string values;
-request, session, and verification identifiers must also be UUIDs. It
-discards arbitrary metadata, content, credentials, and future fields by
-default. These identifiers are correlation labels, not authorization tokens.
-The app does not record passwords, bearer tokens, private document text, or
-confidential personal information in traces.
+The anonymizer recognizes common API keys, bearer credentials, passwords,
+private keys, and other credential-like patterns. This is credential
+scrubbing, not broad personal-data filtering. Prompts, retrieved document
+text, and generated answers are transferred to LangSmith whenever tracing is
+enabled, so only use tracing for data whose transfer is permitted.
 
 The LangSmith spans describe observable operations and outcomes. They do not
-expose hidden model reasoning. OpenAI request inputs and outputs are hidden,
-and error text is redacted before export.
+expose hidden model reasoning.
 
 ## Verification
 
@@ -141,7 +143,8 @@ The script executes a traceable parent operation and three nested,
 deterministic operations using fictional PAY-504 data. It flushes the SDK's
 background trace queue and checks SDK export callbacks. If read permissions
 allow it, the script reads the exact run back and checks the agent,
-environment, hierarchy, and payload redaction.
+environment, hierarchy, visible synthetic input/output, and credential
+anonymization.
 
 Results have distinct meanings:
 
@@ -149,8 +152,8 @@ Results have distinct meanings:
   prove that the service accepted a trace.
 - **Trace submission PASS:** SDK flush completed without reported errors;
   this is not remote readback verification.
-- **VERIFIED:** Remote readback confirmed destination, spans, hierarchy, and
-  hidden inputs and outputs.
+- **VERIFIED:** Remote readback confirmed destination, spans, hierarchy,
+  visible synthetic content, and replacement of a fake API key.
 - **FAILED:** Trace execution, submission, or a remote assertion failed.
 - **BLOCKED:** Required configuration or remote read permission is
   unavailable. The command exits with status 2.
@@ -158,9 +161,10 @@ Results have distinct meanings:
 The command never prints the API key, question payload, evidence, or answer.
 It prints a unique verification ID. In LangSmith Cloud, open the
 `Viridian` agent, select the `Local` environment, and
-find the trace with that ID. If submission passed but readback is BLOCKED,
-use the UI to inspect that verification ID; do not call it verified until
-the remote trace is visible and its payload is checked.
+find the trace with that ID. The synthetic question, mock evidence, answer,
+and anonymized credential probe should appear. If submission passed but
+readback is BLOCKED, use the UI to inspect that verification ID; do not call
+it verified until the remote trace is visible and its payload is checked.
 
 ## Application verification
 
@@ -182,6 +186,10 @@ require LangSmith credentials.
 
 ### Live verification record
 
+The trace IDs below predate the current content-visibility setting. Their
+inputs and outputs remain empty; newly created traces include run payloads
+and apply the secret anonymizer before upload.
+
 On 2026-11-14, a synthetic chat was sent through the local FastAPI service
 and the fixture-backed graph. LangSmith readback found trace
 `7dea0ced-4176-47c5-b153-4f3456adb31c` under the existing agent's `local`
@@ -198,8 +206,8 @@ question text was absent from the serialized trace.
 
 On 2026-11-15, `make verify-live` completed seven real chat turns and read
 each trace tree back from the same agent environment. It confirmed the
-destination, expected graph/model/tool spans, parent-child links, and hidden
-inputs and outputs. The Viewer-denial trace did not contain
+destination, expected graph/model/tool spans, parent-child links, and the
+former hidden-input/output settings. The Viewer-denial trace did not contain
 `python_analysis`. The trace IDs are:
 
 | Workflow | Trace ID |
@@ -212,8 +220,9 @@ inputs and outputs. The Viewer-denial trace did not contain
 | Retrieval failure | `da1607ab-30f0-46fb-a988-c228f2d2a881` |
 | OpenAI failure | `bdcecb0d-3127-41e2-9867-15b3f8f0c8a2` |
 
-These runs use synthetic assessment data. They verify current trace routing
-and redaction, not a production data-transfer or retention policy.
+These runs use synthetic assessment data. They are historical checks of trace
+routing and hierarchy under the prior hidden-payload configuration. The
+standalone verifier now checks visible payloads and credential anonymization.
 
 ## Troubleshooting and limitations
 
@@ -235,6 +244,4 @@ and redaction, not a production data-transfer or retention policy.
 
 LangSmith availability is optional for ordinary chat. A missing key,
 rejected request, or network failure is reported without stopping the turn.
-The current configured key and destination have remotely verified model
-workflows, tool behavior, failure traces, and redaction. See
-`docs/demo-guide.md` for the reproducible procedure and limits.
+See `docs/demo-guide.md` for the reproducible procedure and limits.

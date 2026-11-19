@@ -1,19 +1,17 @@
-"""Configure LangSmith agent-addressed tracing and payload protection.
+"""Configure LangSmith agent-addressed tracing and secret protection.
 
-Application traces are routed to the registered agent and selected
-environment. Inputs and outputs are hidden, metadata is allowlisted, and
-trace errors are redacted before the SDK exports them.
+Application traces include execution inputs, outputs, metadata, runtime
+details, and errors. Credential-like values are anonymized before export.
 """
 
 import logging
 import os
-import re
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlsplit
-from uuid import UUID
 
 from langsmith import AgentAddress, Client, agent_address
+from langsmith.anonymizer import create_secret_anonymizer
 
 from enterprise_assistant.config.settings import Settings
 
@@ -24,89 +22,23 @@ _LEGACY_DESTINATIONS = (
     "LANGCHAIN_PROJECT",
     "LANGCHAIN_SESSION",
 )
-_SAFE_METADATA_FIELDS = frozenset(
-    {
-        "agent_environment",
-        "agent_id",
-        "agent_name",
-        "graph_node",
-        "langgraph_node",
-        "request_id",
-        "session_id",
-        "status",
-        "tool_name",
-        "verification_id",
-        "workflow",
-    }
-)
-_SAFE_METADATA_VALUE = re.compile(r"[A-Za-z0-9_.:/ -]{1,128}\Z")
-_UUID_METADATA_FIELDS = frozenset(
-    {"request_id", "session_id", "verification_id"}
-)
-
-
-def sanitize_trace_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Keep only short, non-content correlation and routing metadata.
-
-    LangGraph and the application may attach arbitrary metadata to spans.
-    The explicit allowlist keeps known identifiers, node names, and status
-    values while excluding prompts, document content, credentials, and
-    unknown future fields.
-
-    Args:
-        metadata: SDK metadata mapping for one trace run.
-
-    Returns:
-        A mapping containing only safe, bounded string values.
-    """
-    safe_metadata: dict[str, str] = {}
-    for key, value in metadata.items():
-        if (
-            key not in _SAFE_METADATA_FIELDS
-            or not isinstance(value, str)
-            or not _SAFE_METADATA_VALUE.fullmatch(value)
-        ):
-            continue
-        if key in _UUID_METADATA_FIELDS:
-            try:
-                UUID(value)
-            except ValueError:
-                continue
-        safe_metadata[key] = value
-    return safe_metadata
-
-
-def redact_trace_error(payload: dict[str, Any]) -> dict[str, str]:
-    """Replace trace error details with a fixed marker before export.
-
-    SDK error strings may contain provider response text or request details.
-    The keys are retained for the trace schema, but their values are not.
-
-    Args:
-        payload: Serialized LangSmith error mapping.
-
-    Returns:
-        A mapping with all supplied values redacted.
-    """
-    return {key: "[REDACTED]" for key in payload}
+_SECRET_ANONYMIZER = create_secret_anonymizer()
 
 
 def sanitize_trace_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Sanitize metadata and redact trace error payloads.
+    """Keep trace content while replacing recognized credential patterns.
 
-    LangSmith applies its anonymizer to metadata before its metadata hiding
-    callback. This combined callback preserves only allowlisted metadata and
-    replaces error text with a fixed marker.
+    The LangSmith SDK calls its anonymizer for nested inputs, outputs,
+    metadata, and errors before uploading a run.
 
     Args:
-        payload: Serialized metadata or the wrapped trace error.
+        payload: Serialized inputs, outputs, metadata, or the wrapped trace error.
 
     Returns:
-        A sanitized metadata mapping or a redacted error mapping.
+        The original trace structure with recognized secrets anonymized.
     """
-    if "error" in payload:
-        return redact_trace_error(payload)
-    return sanitize_trace_metadata(payload)
+    sanitized = _SECRET_ANONYMIZER(payload)
+    return sanitized if isinstance(sanitized, dict) else payload
 
 
 def report_trace_error(error: Exception) -> None:
@@ -129,6 +61,12 @@ def _disable_tracing() -> None:
     """
     os.environ["LANGSMITH_TRACING"] = "false"
     os.environ.pop("LANGSMITH_API_KEY", None)
+    for name in (
+        "LANGSMITH_HIDE_INPUTS",
+        "LANGSMITH_HIDE_OUTPUTS",
+        "LANGSMITH_HIDE_METADATA",
+    ):
+        os.environ[name] = "true"
 
 
 def configure_langsmith(settings: Settings) -> bool:
@@ -148,12 +86,7 @@ def configure_langsmith(settings: Settings) -> bool:
     for name in _LEGACY_DESTINATIONS:
         os.environ.pop(name, None)
 
-    for name in (
-        "LANGSMITH_HIDE_INPUTS",
-        "LANGSMITH_HIDE_OUTPUTS",
-        "LANGSMITH_HIDE_METADATA",
-    ):
-        os.environ[name] = "true"
+    _disable_tracing()
 
     if not settings.langsmith_tracing:
         _disable_tracing()
@@ -203,6 +136,12 @@ def configure_langsmith(settings: Settings) -> bool:
     os.environ["LANGSMITH_AGENT_ENVIRONMENT"] = (
         settings.langsmith_agent_environment
     )
+    for name in (
+        "LANGSMITH_HIDE_INPUTS",
+        "LANGSMITH_HIDE_OUTPUTS",
+        "LANGSMITH_HIDE_METADATA",
+    ):
+        os.environ[name] = "false"
     return True
 
 
@@ -231,7 +170,7 @@ def create_langsmith_client(
     *,
     tracing_error_callback: Callable[[Exception], None] = report_trace_error,
 ) -> Client | None:
-    """Create a client that exports only redacted, allowlisted trace data.
+    """Create a client that exports informative traces with secret scrubbing.
 
     The explicit client protects application traces even if other SDK
     tracing integrations exist in the process. Initialization failures are
@@ -252,11 +191,11 @@ def create_langsmith_client(
         return Client(
             api_url=settings.langsmith_endpoint,
             api_key=settings.langsmith_api_key,
-            hide_inputs=True,
-            hide_outputs=True,
-            hide_metadata=sanitize_trace_metadata,
+            hide_inputs=False,
+            hide_outputs=False,
+            hide_metadata=False,
             anonymizer=sanitize_trace_payload,
-            omit_traced_runtime_info=True,
+            omit_traced_runtime_info=False,
             tracing_error_callback=tracing_error_callback,
         )
     except Exception as exc:

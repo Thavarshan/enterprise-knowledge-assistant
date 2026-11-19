@@ -98,8 +98,8 @@ def create_app(
 
     Notes:
         LangSmith setup uses the configured agent and environment address.
-        Trace inputs and outputs are hidden, and only allowlisted metadata
-        is exported. Service errors do not prevent API startup.
+        Trace payloads are visible with recognized credentials anonymized.
+        Service errors do not prevent API startup.
     """
     app_settings = settings or get_settings()
     configure_logging(app_settings.log_level)

@@ -39,11 +39,9 @@ Set these secrets:
 | `VERCEL_TOKEN` | Lets the production job pull, build, and deploy. |
 
 Provider and authentication credentials stay in Vercel's production
-environment. GitHub Actions passes them directly to the synthetic LangSmith
-verifier through the Vercel CLI; it does not print or persist their values.
-That check submits and reads back a redacted trace without calling OpenAI or
-Pinecone. Keep the Cloudflare token limited to the Viridian Worker and D1
-resources.
+environment. GitHub Actions does not pull these sensitive values into the
+deployment job. Keep the Cloudflare token limited to the Viridian Worker and
+D1 resources.
 
 ## What the workflow checks
 
@@ -59,9 +57,9 @@ migrations, applies reviewed forward-only migrations, and deploys the
 authenticated gateway. Its smoke verifies authentication and D1 read/write.
 Only then does the workflow build and deploy the FastAPI project to Vercel.
 The Vercel smoke checks health, D1 readiness, and the configured OpenAI and
-Pinecone providers. The deployment job also verifies LangSmith trace
-submission and remote readback using synthetic data. A final job fails the
-release if any deployment or smoke step did not succeed.
+Pinecone providers. A final job fails the release if any deployment or smoke
+step did not succeed. LangSmith delivery can be checked locally with
+`make verify-langsmith` when a LangSmith key is available.
 
 `vercel.json` disables Vercel's automatic Git deployments so a push cannot
 bypass `ci-gate`. The CI job uses a pinned Vercel CLI version and the exact

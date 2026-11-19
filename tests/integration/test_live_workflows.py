@@ -1,4 +1,4 @@
-"""Verify live workflows, Pinecone evidence, and redacted LangSmith traces.
+"""Verify live workflows, Pinecone evidence, and informative LangSmith traces.
 
 The opt-in suite uses only the checked-in synthetic corpus. It upserts those
 records to the configured namespace, runs real OpenAI turns, and reads the
@@ -94,7 +94,7 @@ class FailingRetriever:
 async def test_live_openai_pinecone_research_analysis_and_tracing(
     tmp_path: Path,
 ) -> None:
-    """Verify live routing, source analysis, tool security, and trace privacy.
+    """Verify live routing, source analysis, tool security, and trace content.
 
     The test sends only synthetic assessment content to OpenAI, Pinecone, and
     LangSmith. Opt-in verification fails as BLOCKED when required credentials
@@ -158,7 +158,7 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
         model_provider=provider,
     )
     trace_specs: list[tuple[str, frozenset[str], dict[str, str]]] = []
-    trace_sentinels: dict[str, str] = {}
+    trace_visible_markers: dict[str, tuple[str, ...]] = {}
     forbidden_trace_spans: dict[str, frozenset[str]] = {}
 
     try:
@@ -168,6 +168,9 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             analyst_session,
             "What happened in incident INC-2026-057?",
             Role.ANALYST,
+        )
+        trace_visible_markers[retrieval_id] = (
+            "What happened in incident INC-2026-057?",
         )
         assert _route(retrieval_events) == "retrieval"
         retrieval_sources = _source_document_ids(retrieval_events)
@@ -206,6 +209,10 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             "Compare the symptoms and mitigations in incidents "
             "INC-2026-057 and INC-2026-041.",
             Role.ANALYST,
+        )
+        trace_visible_markers[research_id] = (
+            "Compare the symptoms and mitigations in incidents "
+            "INC-2026-057 and INC-2026-041.",
         )
         assert _route(research_events) == "research"
         research_status = _research_status(research_events)
@@ -252,6 +259,10 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             "recurring root causes.",
             Role.ANALYST,
         )
+        trace_visible_markers[analysis_id] = (
+            "Summarize payment outages during the last year and identify "
+            "recurring root causes.",
+        )
         assert _route(analysis_events) == "research"
         analysis_status = _research_status(analysis_events)
         assert analysis_status["batch_count"] >= 1
@@ -293,6 +304,9 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             "Calculate average of 10, 20, 30.",
             Role.ANALYST,
         )
+        trace_visible_markers[numeric_id] = (
+            "Calculate average of 10, 20, 30.",
+        )
         assert _route(numeric_events) == "analysis"
         assert "20" in _response_text(numeric_events)
         assert _validation_passed(numeric_events)
@@ -325,6 +339,9 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             viewer_session,
             "Calculate average of 10, 20, 30.",
             Role.VIEWER,
+        )
+        trace_visible_markers[viewer_id_trace] = (
+            "Calculate average of 10, 20, 30.",
         )
         assert _route(viewer_events) == "analysis"
         assert any(
@@ -360,7 +377,7 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             address,
             memory,
             trace_specs,
-            trace_sentinels,
+            trace_visible_markers,
         )
         await _verify_openai_failure_trace(
             settings,
@@ -368,7 +385,7 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
             address,
             memory,
             trace_specs,
-            trace_sentinels,
+            trace_visible_markers,
         )
 
         client.flush(timeout=30)
@@ -381,9 +398,9 @@ async def test_live_openai_pinecone_research_analysis_and_tracing(
                 verification_id=request_id,
                 agent_id=settings.langsmith_agent_id,
                 environment=settings.langsmith_agent_environment,
-                sentinel=trace_sentinels.get(
+                visible_markers=trace_visible_markers.get(
                     request_id,
-                    f"LANGSMITH_PRIVATE_{request_id}",
+                    (),
                 ),
                 expected_spans=expected,
                 expected_parent_spans=parent_spans,
@@ -566,16 +583,16 @@ async def _verify_retrieval_failure_trace(
     address: Any,
     memory: SQLiteSessionStore,
     trace_specs: list[tuple[str, frozenset[str], dict[str, str]]],
-    trace_sentinels: dict[str, str],
+    trace_visible_markers: dict[str, tuple[str, ...]],
 ) -> None:
     """Run a real graph retrieval failure and register its expected trace.
 
     Args:
-        client: Configured, redacting LangSmith client.
+        client: Configured, credential-scrubbing LangSmith client.
         address: Registered agent and environment destination.
         memory: Temporary SQLite store for the synthetic turn.
         trace_specs: Live trace IDs and expected hierarchy assertions.
-        trace_sentinels: Values that must not appear in redacted payloads.
+        trace_visible_markers: Synthetic content that must appear in traces.
     """
     user_id = "retrieval-failure-analyst"
     session = memory.create_session(user_id)
@@ -604,7 +621,9 @@ async def _verify_retrieval_failure_trace(
             {"knowledge_search": "retrieval"},
         )
     )
-    trace_sentinels[request_id] = "RETRIEVAL_FAILURE_SENTINEL"
+    trace_visible_markers[request_id] = (
+        "What does the payment retry policy require?",
+    )
 
 
 async def _verify_openai_failure_trace(
@@ -613,17 +632,17 @@ async def _verify_openai_failure_trace(
     address: Any,
     memory: SQLiteSessionStore,
     trace_specs: list[tuple[str, frozenset[str], dict[str, str]]],
-    trace_sentinels: dict[str, str],
+    trace_visible_markers: dict[str, tuple[str, ...]],
 ) -> None:
     """Cause one invalid-model response and record the sanitized failure tree.
 
     Args:
         settings: Live OpenAI credentials and timeout configuration.
-        client: Configured, redacting LangSmith client.
+        client: Configured, credential-scrubbing LangSmith client.
         address: Registered agent and environment destination.
         memory: Temporary SQLite store for the synthetic turn.
         trace_specs: Live trace IDs and expected hierarchy assertions.
-        trace_sentinels: Values that must not appear in redacted payloads.
+        trace_visible_markers: Synthetic content that must appear in traces.
     """
     user_id = "provider-failure-analyst"
     session = memory.create_session(user_id)
@@ -659,4 +678,6 @@ async def _verify_openai_failure_trace(
             {"openai_supervisor": "supervisor"},
         )
     )
-    trace_sentinels[request_id] = sentinel_model
+    trace_visible_markers[request_id] = (
+        "What does the payment retry policy require?",
+    )

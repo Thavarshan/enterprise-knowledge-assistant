@@ -29,8 +29,9 @@ The authoritative assignment provides these evaluation weights. They total
 - **Security:** Role policy, filters, schemas, citations, timeout/cancel,
   and representative prompt attacks are tested. Pattern checks do not
   detect every attack.
-- **Observability:** Seven remote LangSmith trees confirmed destination,
-  expected spans and parents, and hidden inputs/outputs. Synthetic data only.
+- **Observability:** Seven historical remote LangSmith trees confirmed the
+  destination and span hierarchy with hidden inputs/outputs. The current
+  client exposes trace payloads and anonymizes recognized credentials.
 - **Async Engineering:** SQLite calls are thread-offloaded and tested.
   Fixture search and Streamlit's synchronous HTTP client remain blocking.
 - **RBAC:** Server roles control retrieval and active analysis tools. MCP
@@ -100,7 +101,7 @@ The authoritative assignment provides these evaluation weights. They total
   `chat/service.py`, `llm/providers.py`, and `scripts/verify_langsmith.py`.
 - **Tests:** `tests/unit/test_langsmith.py` and the live workflow suite.
 - **Method/result:** Seven remote trace trees confirmed the agent,
-  environment, expected parents, and hidden inputs/outputs.
+  environment, expected parents, and the former hidden-payload settings.
 - **Limit:** Verification used synthetic data and current workspace access.
   Trace IDs are listed in `docs/observability.md`.
 

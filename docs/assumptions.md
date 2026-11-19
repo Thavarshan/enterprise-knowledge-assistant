@@ -18,9 +18,10 @@
   enables model-backed routing, research decomposition, and response claims.
   On 2026-11-15, live verification exercised Retrieval, multi-subtask
   Research, incident aggregation, numeric Analysis, and Viewer denial.
-- LangSmith tracing is optional for normal application use. The live
-  verification confirmed the configured agent destination, seven workflow
-  and failure span trees, parent-child links, and hidden run inputs/outputs.
+- LangSmith tracing is optional for normal application use. Earlier live
+  traces confirmed the configured destination and seven workflow span trees;
+  those traces used hidden inputs/outputs. The current client exposes payloads
+  and anonymizes recognized credential patterns.
 - Incident-analysis fields come from validated source metadata. Trusted
   Python counts records and source-classified root causes; missing or
   conflicting causes remain unknown. It does not infer causes from prose.

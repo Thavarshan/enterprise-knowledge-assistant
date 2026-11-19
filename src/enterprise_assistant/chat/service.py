@@ -40,8 +40,8 @@ async def _append_assistant_message(
 ) -> None:
     """Persist the assistant answer as a child operation in the chat trace.
 
-    The LangSmith client hides inputs and outputs, so the message text and
-    memory adapter details are not exported.
+    The trace contains the assistant message text and adapter call details;
+    the configured anonymizer scrubs recognized credential patterns.
 
     Args:
         memory: Session store configured by the application.
@@ -89,7 +89,7 @@ class ChatService:
             retriever: Adapter used by the knowledge-search tool.
             memory: Session store used after a successful graph run.
             tool_registry: Role policy applied before tool handler dispatch.
-            langsmith_client: Optional redacting client for graph traces.
+            langsmith_client: Optional credential-scrubbing trace client.
             langsmith_address: Agent and environment for graph traces.
             model_provider: Structured model adapter for agent decisions.
         """
@@ -162,6 +162,10 @@ class ChatService:
         }
         response_text = ""
         citation_count = 0
+        citations: list[dict[str, Any]] = []
+        route: str | None = None
+        validation_passed: bool | None = None
+        answer_grounded: bool | None = None
         phase = "graph"
         try:
             trace_id = UUID(request_id)
@@ -175,7 +179,15 @@ class ChatService:
                 inputs={
                     "request_id": request_id,
                     "session_id": session_id,
+                    "role": user.role.value,
                     "question": question,
+                    "history": [
+                        {
+                            "role": message.role,
+                            "content": message.content,
+                        }
+                        for message in messages[-12:]
+                    ],
                 },
                 address=self.langsmith_address,
                 client=self.langsmith_client,
@@ -226,10 +238,21 @@ class ChatService:
                             for raw_event in node_update.get("events", []):
                                 event = ActivityEvent.model_validate(raw_event)
                                 yield event
+                            if "route" in node_update:
+                                route = str(node_update["route"])
                             if "response" in node_update:
                                 response_text = str(node_update["response"])
                             if "citations" in node_update:
-                                citation_count = len(node_update["citations"])
+                                citations = node_update["citations"]
+                                citation_count = len(citations)
+                            if "validation_passed" in node_update:
+                                validation_passed = bool(
+                                    node_update["validation_passed"]
+                                )
+                            if "answer_grounded" in node_update:
+                                answer_grounded = bool(
+                                    node_update["answer_grounded"]
+                                )
                     phase = "persistence"
                     await _append_assistant_message(
                         self.memory,
@@ -239,6 +262,16 @@ class ChatService:
                     )
                     if trace_run is not None:
                         trace_run.metadata["status"] = "success"
+                        trace_run.end(
+                            outputs={
+                                "response": response_text,
+                                "citations": citations,
+                                "citation_count": citation_count,
+                                "route": route,
+                                "validation_passed": validation_passed,
+                                "answer_grounded": answer_grounded,
+                            }
+                        )
                 except Exception:
                     if trace_run is not None:
                         trace_run.metadata["status"] = "failure"

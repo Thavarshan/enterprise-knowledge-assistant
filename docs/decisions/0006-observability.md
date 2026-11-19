@@ -36,25 +36,26 @@ external transfer.
 
 The logging allowlist limits diagnostic detail. Agent and tool lifecycle
 events stream while operations run. Response chunks follow citation
-validation; they are not live model tokens. LangSmith delivery and redaction
-have been verified on synthetic mock and model-backed runs.
+validation; they are not live model tokens. LangSmith delivery has been
+verified on synthetic mock and model-backed runs.
 
 ## Consequences
 
 The UI displays activity and validated response chunks. In OpenAI mode,
 structured provider calls have `llm` child spans beneath their graph nodes.
-The LangSmith client hides run inputs and outputs, allowlists metadata, and
-redacts trace errors. The standalone check distinguishes submission from
-remote readback. Seven live workflow and failure traces were remotely read
-back on 2026-11-15, including Research, numeric Analysis, Viewer denial, and
-provider failures.
+The LangSmith client includes run inputs and outputs, metadata, runtime
+details, and errors while anonymizing recognized credential patterns. The
+standalone check distinguishes submission from remote readback and verifies
+visible synthetic content. Seven live workflow and failure traces were
+remotely read back on 2026-11-15 under the former hidden-payload settings.
 
 ## Security and Operational Implications
 
-Tracing sends run structure and allowlisted metadata to LangSmith. The
-configured client hides inputs and outputs, filters metadata, and replaces
-trace error text. Continue to use synthetic assessment data; the local
-verification does not establish a production data-retention policy.
+Tracing sends run inputs, outputs, metadata, runtime details, and errors to
+LangSmith after recognized credential patterns are anonymized. This does not
+filter arbitrary personal or confidential content. Use tracing only for data
+whose transfer is permitted; local synthetic verification does not establish
+a production data-retention policy.
 
 ## Revisit Conditions
 

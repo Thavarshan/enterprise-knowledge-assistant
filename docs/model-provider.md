@@ -29,9 +29,10 @@ tests use stalled mocked SDK calls to verify timeout and cancellation
 behavior without network access.
 
 Each structured OpenAI request is wrapped in a LangSmith `llm` child span
-when tracing is enabled. The configured client hides inputs and outputs and
-filters metadata and errors before export. This records the operation and
-status without exporting prompts, evidence, or generated answers.
+when tracing is enabled. The span includes model request inputs, evidence,
+generated output, metadata, runtime details, and useful errors. Recognized
+credential patterns are anonymized before export; prompts, evidence, and
+answers are sent to LangSmith when tracing is enabled.
 
 ## Verification
 
@@ -48,5 +49,6 @@ live workflow suite verified structured routing for direct Retrieval,
 multi-subtask Research, document-backed incident aggregation, and numeric
 Analysis. The Research run confirmed more than one subtask, authorized
 Pinecone evidence, a grounded answer, and successful citation validation.
-The run also remotely verified redacted LangSmith traces. Model quality,
-latency, and cost have not been broadly benchmarked.
+The run also remotely verified LangSmith routing under the earlier
+hidden-payload configuration. Model quality, latency, and cost have not been
+broadly benchmarked.

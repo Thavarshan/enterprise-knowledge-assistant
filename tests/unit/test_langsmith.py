@@ -1,4 +1,4 @@
-"""Test agent addressing, privacy controls, and async trace integration.
+"""Test agent addressing, trace visibility, and async trace integration.
 
 All unit tests use synthetic data and stub the LangSmith network client.
 """
@@ -103,20 +103,17 @@ def test_disabled_tracing_clears_credential_and_legacy_destinations(
     assert langsmith.os.environ["LANGSMITH_HIDE_METADATA"] == "true"
 
 
-def test_client_uses_agent_address_and_safe_payload_processing(
+def test_client_uses_agent_address_and_informative_payload_processing(
     monkeypatch,
 ) -> None:
-    """Configure the endpoint, agent, privacy filters, and error callback.
+    """Configure the endpoint, agent, secret filter, and error callback.
 
     A stub captures the settings without making a network connection.
     """
     captured: dict[str, Any] = {}
 
     class ClientStub:
-        """Capture client options without making a network connection.
-
-        The test checks the production factory's privacy configuration.
-        """
+        """Capture client options without making a network connection."""
 
         def __init__(self, **kwargs: Any) -> None:
             """Store constructor fields for assertions.
@@ -134,43 +131,58 @@ def test_client_uses_agent_address_and_safe_payload_processing(
     assert isinstance(client, ClientStub)
     assert captured["api_url"] == settings.langsmith_endpoint
     assert captured["api_key"] == settings.langsmith_api_key
-    assert captured["hide_inputs"] is True
-    assert captured["hide_outputs"] is True
-    assert captured["hide_metadata"] is langsmith.sanitize_trace_metadata
+    assert captured["hide_inputs"] is False
+    assert captured["hide_outputs"] is False
+    assert captured["hide_metadata"] is False
     assert captured["anonymizer"] is langsmith.sanitize_trace_payload
-    assert captured["omit_traced_runtime_info"] is True
+    assert captured["omit_traced_runtime_info"] is False
     assert langsmith.os.environ["LANGSMITH_AGENT_ID"] == (
         settings.langsmith_agent_id
     )
     assert langsmith.os.environ["LANGSMITH_AGENT_ENVIRONMENT"] == "local"
     assert langsmith.os.environ["LANGSMITH_TRACING"] == "true"
+    assert langsmith.os.environ["LANGSMITH_HIDE_INPUTS"] == "false"
+    assert langsmith.os.environ["LANGSMITH_HIDE_OUTPUTS"] == "false"
+    assert langsmith.os.environ["LANGSMITH_HIDE_METADATA"] == "false"
 
 
-def test_sdk_client_hides_content_and_sanitizes_metadata_and_errors() -> None:
-    """Exercise LangSmith's installed privacy transformation methods.
-
-    This confirms the SDK applies the combined anonymizer to metadata and
-    errors while input and output hiding stay unconditional.
-    """
+def test_sdk_client_keeps_content_and_anonymizes_credentials() -> None:
+    """Exercise LangSmith's installed secret filter on every trace field."""
+    fake_key = f"sk-proj-{'A' * 32}"
     client = Client(
         api_key="synthetic-test-key",
-        hide_inputs=True,
-        hide_outputs=True,
-        hide_metadata=langsmith.sanitize_trace_metadata,
+        hide_inputs=False,
+        hide_outputs=False,
+        hide_metadata=False,
         anonymizer=langsmith.sanitize_trace_payload,
     )
     try:
-        assert client._hide_run_inputs({"question": "private prompt"}) == {}
-        assert client._hide_run_outputs({"response": "private answer"}) == {}
+        assert client._hide_run_inputs(
+            {
+                "question": "visible synthetic prompt",
+                "api_key": fake_key,
+            }
+        ) == {
+            "question": "visible synthetic prompt",
+            "api_key": "[SECRET_DETECTED]",
+        }
+        assert client._hide_run_outputs(
+            {"response": "visible synthetic answer"}
+        ) == {"response": "visible synthetic answer"}
         assert client._hide_run_metadata(
             {
                 "agent_id": "viridian",
-                "question": "private prompt",
+                "diagnostic_detail": "visible metadata",
+                "api_key": fake_key,
             }
-        ) == {"agent_id": "viridian"}
-        assert client._hide_run_error("private provider response") == (
-            "[REDACTED]"
-        )
+        ) == {
+            "agent_id": "viridian",
+            "diagnostic_detail": "visible metadata",
+            "api_key": "[SECRET_DETECTED]",
+        }
+        assert client._hide_run_error(
+            f"provider rejected credential {fake_key}"
+        ) == "provider rejected credential [SECRET_DETECTED]"
     finally:
         client.close(timeout=1)
 
@@ -193,53 +205,24 @@ def test_missing_api_key_is_reported_and_keeps_app_tracing_off(
     assert "synthetic-test-key" not in caplog.text
 
 
-def test_metadata_allowlist_and_error_redaction() -> None:
-    """Keep short diagnostic values and erase error contents.
-
-    Unknown fields, multiline strings, and prompt content are discarded.
-    """
-    request_id = str(uuid4())
-    session_id = str(uuid4())
-    safe = langsmith.sanitize_trace_metadata(
-        {
-            "request_id": request_id,
-            "session_id": session_id,
-            "agent_id": "viridian",
-            "agent_environment": "local",
-            "langgraph_node": "retrieval",
-            "tool_name": "knowledge_search",
-            "question": "synthetic private prompt",
-            "api_key": "synthetic-test-key",
-            "unsafe": "line one\nline two",
-        }
-    )
-
-    assert safe == {
-        "request_id": request_id,
-        "session_id": session_id,
-        "agent_id": "viridian",
-        "agent_environment": "local",
-        "langgraph_node": "retrieval",
-        "tool_name": "knowledge_search",
+def test_trace_payload_preserves_diagnostics_and_scrubs_secrets() -> None:
+    """Preserve nested trace content while anonymizing credential patterns."""
+    fake_key = f"sk-proj-{'B' * 32}"
+    payload = {
+        "question": "synthetic visible prompt",
+        "document": {"text": "synthetic visible evidence"},
+        "answer": "synthetic visible answer",
+        "metadata": {"future_field": "visible diagnostic metadata"},
+        "error": f"synthetic visible provider detail: {fake_key}",
     }
-    assert (
-        langsmith.sanitize_trace_metadata(
-            {"request_id": "synthetic-private-token"}
-        )
-        == {}
-    )
-    assert langsmith.redact_trace_error(
-        {"error": "contains private response text"}
-    ) == {"error": "[REDACTED]"}
-    assert langsmith.sanitize_trace_payload(
-        {
-            "agent_id": "viridian",
-            "question": "private prompt",
-        }
-    ) == {"agent_id": "viridian"}
-    assert langsmith.sanitize_trace_payload(
-        {"error": "private provider response"}
-    ) == {"error": "[REDACTED]"}
+
+    assert langsmith.sanitize_trace_payload(payload) == {
+        "question": "synthetic visible prompt",
+        "document": {"text": "synthetic visible evidence"},
+        "answer": "synthetic visible answer",
+        "metadata": {"future_field": "visible diagnostic metadata"},
+        "error": "synthetic visible provider detail: [SECRET_DETECTED]",
+    }
 
 
 def test_client_initialization_error_is_safe_and_nonfatal(
@@ -325,6 +308,16 @@ async def test_chat_service_propagates_agent_context_across_graph(
             No SDK objects or network connections are required.
             """
             self.metadata: dict[str, str] = {}
+            self.outputs: dict[str, Any] = {}
+
+        def end(self, *, outputs: dict[str, Any] | None = None) -> None:
+            """Capture the parent-span output for the local graph check.
+
+            Args:
+                outputs: Final synthetic chat answer and citation count.
+            """
+            if outputs is not None:
+                self.outputs.update(outputs)
 
     class MemoryStub:
         """Store assistant output without opening SQLite.
@@ -421,5 +414,11 @@ async def test_chat_service_propagates_agent_context_across_graph(
     assert captured["name"] == "chat_request"
     assert captured["address"] == address
     assert captured["client"] is not None
+    assert captured["inputs"]["question"] == "Synthetic local graph question"
+    assert captured["inputs"]["role"] == Role.VIEWER.value
+    assert captured["inputs"]["history"] == []
     assert captured["metadata"]["request_id"] == request_id
     assert trace_run.metadata["status"] == "success"
+    assert trace_run.outputs["response"] == memory.messages[-1][2]
+    assert isinstance(trace_run.outputs["citation_count"], int)
+    assert isinstance(trace_run.outputs["citations"], list)

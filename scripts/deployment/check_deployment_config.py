@@ -136,13 +136,6 @@ def configuration_errors() -> list[str]:
         or 'UV_PYTHON: "3.12"' not in vercel_job
     ):
         errors.append("Vercel build and runtime must both use Python 3.12.")
-    if (
-        "vercel env run -e production" not in vercel_job
-        or "scripts/verify_langsmith.py" not in vercel_job
-    ):
-        errors.append(
-            "Production deployment must verify a LangSmith trace."
-        )
     workflow_files = {
         path.name for path in WORKFLOW_DIRECTORY.glob("*.yml")
     } | {path.name for path in WORKFLOW_DIRECTORY.glob("*.yaml")}
