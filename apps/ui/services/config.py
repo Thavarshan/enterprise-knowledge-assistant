@@ -7,7 +7,7 @@ storage, and authentication credentials stay outside Streamlit's runtime.
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
-PUBLIC_API_BASE_URL = "https://viridian.vercel.app"
+PUBLIC_API_BASE_URL = "https://viridian-api.vercel.app"
 
 
 def resolve_api_base_url(
