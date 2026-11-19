@@ -140,20 +140,20 @@ Pull requests and scheduled CI runs do not receive production secrets. A
 deployment can start only after the complete `ci-gate` passes for a push to
 `main`, or after a manual run invokes the same CI workflow successfully.
 No deployment opt-in variable is required. Deployment smoke checks use
-synthetic accounts and do not call model providers. Production credentials
-belong to the GitHub `production` environment. The Cloudflare token is
-limited to the dedicated Worker and D1 resources. Deployment jobs use
-read-only repository access.
+synthetic accounts and do not call model providers. Production deployment
+credentials belong to the GitHub `production` environment. The Cloudflare
+token is limited to the D1 gateway and database; the Vercel token is used
+only by the API deployment job. Deployment jobs use read-only repository
+access.
 
 The deployment workflow serializes production releases and rechecks the
-approved Git SHA before each remote mutation. It verifies the exact Cloudflare
-D1 name and ID, rejects destructive SQL migrations, and uses temporary
-permission-restricted secret input for Wrangler. GitHub Actions deploys both
-Viridian Workers and the static frontend, then exercises health, login,
-ownership, chat streaming, and D1 persistence with synthetic accounts. The
-Cloudflare production configuration disables LangSmith tracing and uses mock
-providers, so release smokes do not send requests to model or tracing
-services.
+approved Git SHA before deployment. It verifies the exact Cloudflare D1 name
+and ID, rejects destructive SQL migrations, and deploys the authenticated D1
+gateway. After the gateway smoke succeeds, GitHub Actions builds and deploys
+the FastAPI API to Vercel, then checks its health, D1 readiness, and provider
+configuration. Provider and application secrets are loaded from Vercel's
+production environment. Streamlit Cloud continues to deploy from its
+configured Git branch outside this workflow.
 
 This automation does not replace repository rules. Restrict the production
 environment to `main` and configure the secret inventory in

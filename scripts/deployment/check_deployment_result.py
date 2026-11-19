@@ -46,16 +46,13 @@ def main() -> int:
         return 1
     release_sha = os.environ.get("RELEASE_SHA", "unknown")
     urls = (
-        (
-            "Viridian API and frontend",
-            os.environ.get("CLOUDFLARE_API_URL", ""),
-        ),
+        ("Viridian API", os.environ.get("VERCEL_API_URL", "")),
         (
             "Viridian D1 gateway",
             os.environ.get("CLOUDFLARE_D1_GATEWAY_URL", ""),
         ),
     )
-    print(f"Deployment and API smoke checks passed for {release_sha}.")
+    print(f"API and D1 gateway smoke checks passed for {release_sha}.")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with Path(summary).open("a", encoding="utf-8") as file:

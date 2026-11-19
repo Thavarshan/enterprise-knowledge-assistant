@@ -3,10 +3,10 @@
 ## Overview
 
 The repository is a modular Python monolith with a FastAPI backend and a
-Streamlit client for local development. The Cloudflare deployment serves a
-static browser client and the FastAPI routes from one Python Worker, with a
-separate authenticated Worker for D1 access. Domain, API, retrieval, memory,
-security, tools, agents, and observability remain in the Python package.
+Streamlit client. Production runs the UI on Streamlit Cloud, the API on
+Vercel, and an authenticated Cloudflare Worker as the D1 gateway. Domain,
+API, retrieval, memory, security, tools, agents, and observability remain in
+the Python package.
 
 Mock mode remains deterministic. With `LLM_PROVIDER=openai`, the structured
 OpenAI adapter routes messages, decomposes research, and generates grounded
@@ -17,18 +17,17 @@ filters, and RRF were verified against the configured schema and synthetic
 corpus. LangSmith readback verified seven model-backed and failure trace
 trees. This evidence covers synthetic assessment data only.
 
-The free Cloudflare Worker runs the FastAPI routes and uses role-filtered,
-extractive fixture chat. It omits LangGraph because the required `ormsgpack`
-package has no compatible Pyodide wheel. Local Python deployments retain the
-full graph; live model, vector database, and tracing integrations are not
-enabled in the hosted Worker.
+The hosted Vercel API runs the full LangGraph application with the configured
+OpenAI, Pinecone, and LangSmith integrations. The repository retains a
+Cloudflare Python Worker adapter for local compatibility checks; it is not
+the production API deployment.
 
 ## Component and execution map
 
 ```mermaid
 flowchart TB
-  Browser --> UI[Cloudflare static UI]
-  UI -->|HTTP and SSE| API[FastAPI]
+  Browser --> UI[Streamlit Cloud UI]
+  UI -->|HTTP and SSE| API[FastAPI on Vercel]
   LocalBrowser --> Streamlit[Local Streamlit client]
   Streamlit -->|HTTP and SSE| API
   API --> Auth[Development AuthService]
@@ -38,7 +37,6 @@ flowchart TB
   API --> Limit[Per-user token bucket]
   API --> Chat[Chat service]
   Chat --> Graph[Local compiled LangGraph]
-  Chat --> WorkerChat[Cloudflare extractive chat]
   Graph --> Supervisor[Structured model supervisor or mock]
   Supervisor -->|greeting| SmallTalk[Fixed small-talk response]
   Supervisor -->|direct route| Retrieval[Retrieval node]
@@ -185,11 +183,10 @@ filtering, and a four-case labeled evaluation. See
 Docker Compose builds the same image for the API and UI. The UI waits for the
 API readiness check; the API mounts local `data/` for SQLite and fixture
 files. The readiness endpoint checks the session store only. It does not
-test Pinecone or LangSmith. `MEMORY_BACKEND=sqlite` is the default. Cloud
-deployment selects `MEMORY_BACKEND=d1`, and the Python Worker calls the
-dedicated Viridian D1 gateway over HTTPS with a service token. Only the
-gateway holds a D1 binding. The same `viridian` Worker serves the static
-browser frontend and FastAPI routes.
+test Pinecone or LangSmith. `MEMORY_BACKEND=sqlite` is the default. The
+production API selects `MEMORY_BACKEND=d1` and calls the dedicated Viridian
+D1 gateway over HTTPS with a service token. Only the gateway holds a D1
+binding. Streamlit Cloud serves the UI and Vercel runs the API.
 
 `make setup` prepares local credentials and `make dev` starts both local
 processes. `make check` runs local lint, comment, line-length, formatting,
@@ -208,11 +205,11 @@ Compose job runs `docker compose up` for FastAPI, then checks API health and
 readiness. CI does not start or probe Streamlit. An explicit `ci-gate` fails
 for any required job that fails, is cancelled, or is skipped.
 
-After the full CI gate, the same workflow deploys the Viridian D1 gateway,
-then the Python API and static frontend, and probes both deployments. A
-non-cancelling concurrency group serializes releases, and each remote
-mutation checks that the approved SHA still matches `main`. Production
-smokes use synthetic data and do not invoke paid model providers. See
+After the full CI gate, the same workflow deploys and probes the Viridian D1
+gateway, then builds and deploys the FastAPI API to Vercel. A non-cancelling
+concurrency group serializes releases, and readiness checks that the
+approved SHA still matches `main`. Production smoke checks verify API health,
+D1 readiness, and selected provider configuration. See
 [CI/CD operations](ci-cd.md).
 
 Environment variable names and defaults are described in
@@ -302,6 +299,6 @@ retention, and tracing policy.
 - `docs/agent-design.md`: nodes, state, routing, and RLM scope.
 - `docs/retrieval-design.md`: metadata, scoring, and citations.
 - `docs/security.md`: trust boundaries and limitations.
-- `docs/deployment.md`: Cloudflare Workers, static assets, and D1 setup.
+- `docs/deployment.md`: Streamlit Cloud, Vercel, and Cloudflare D1 setup.
 - `docs/observability.md`: logs, events, and LangSmith behavior.
 - `docs/decisions/`: recorded architectural decisions.

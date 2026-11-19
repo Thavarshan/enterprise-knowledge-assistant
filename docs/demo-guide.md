@@ -1,12 +1,13 @@
 # Viridian demonstration guide
 
-The hosted demonstration uses Cloudflare Workers and D1 with synthetic
-fixture data, deterministic mock answers, and no external model or tracing
-provider calls.
+The hosted demonstration uses Streamlit Cloud for the UI, Vercel for the
+FastAPI backend, and Cloudflare D1 for session history. It uses synthetic
+demo accounts and data while connecting to the configured OpenAI, Pinecone,
+and LangSmith services.
 
 ## Online reviewer access
 
-Open <https://viridian.thavarshan.workers.dev/> and sign in:
+Open the active Viridian app on Streamlit Cloud and sign in:
 
 | User | Role | Public demo password |
 |---|---|---|
@@ -33,9 +34,9 @@ accounts. `make setup` creates passwords only when the ignored
 once. Open <http://localhost:8501> and sign in.
 
 The default local profile uses SQLite, fixture search, and mock answers.
-OpenAI, Pinecone, and LangSmith credentials are optional local integrations;
-the hosted Cloudflare demo does not read or use them. Review account usage
-before running `make verify-live` or `make verify-langsmith`.
+OpenAI, Pinecone, and LangSmith credentials are optional local integrations.
+Review account usage before running `make verify-live` or
+`make verify-langsmith`.
 
 To run containers instead, use:
 
@@ -61,8 +62,8 @@ chain-of-thought.
 ## What the demo demonstrates
 
 - Backend-assigned roles and owner-scoped conversation history.
-- Fixture retrieval and source-backed response claims.
-- Bounded research and structured incident analysis.
+- Pinecone retrieval and source-backed response claims.
+- LangGraph bounded research and structured incident analysis.
 - Server-sent event streaming and activity visibility.
 - Cloudflare D1 persistence through the authenticated gateway.
 

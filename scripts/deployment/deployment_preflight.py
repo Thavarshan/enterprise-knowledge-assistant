@@ -15,11 +15,6 @@ REQUIRED_VALUES = (
     "CLOUDFLARE_API_TOKEN",
     "D1_SERVICE_TOKEN",
     "CLOUDFLARE_D1_GATEWAY_URL",
-    "CLOUDFLARE_API_URL",
-    "AUTH_SIGNING_SECRET",
-    "SMOKE_ANALYST_PASSWORD",
-    "SMOKE_VIEWER_PASSWORD",
-    "SMOKE_ADMIN_PASSWORD",
 )
 
 
@@ -36,10 +31,7 @@ def main() -> int:
     if len(os.environ["D1_SERVICE_TOKEN"]) < 32:
         print("D1_SERVICE_TOKEN must contain at least 32 characters.")
         return 1
-    for name in (
-        "CLOUDFLARE_D1_GATEWAY_URL",
-        "CLOUDFLARE_API_URL",
-    ):
+    for name in ("CLOUDFLARE_D1_GATEWAY_URL",):
         try:
             https_origin(os.environ[name], name)
         except SmokeCheckError as exc:

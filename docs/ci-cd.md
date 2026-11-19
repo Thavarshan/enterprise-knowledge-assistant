@@ -1,96 +1,81 @@
 # CI/CD operations
 
-`.github/workflows/ci.yml` is the only workflow. Pull requests and scheduled
-runs receive no production secrets. A production release starts only after
-the complete CI gate succeeds on the current `main` commit, or after a
-manual dispatch of this same workflow on `main`.
+`.github/workflows/ci.yml` is the release workflow. Pull requests and
+scheduled runs receive no production secrets. Production deploys start only
+after the complete `ci-gate` succeeds for the current `main` commit, or after
+a manual dispatch of this workflow on `main`.
 
 ```mermaid
 flowchart LR
   CI[Required CI jobs] --> Gate[ci-gate]
   Gate --> Fresh[Check current main SHA]
-  Fresh --> D1[Deploy viridian-d1-gateway and D1 migrations]
-  D1 --> D1Smoke[Gateway and D1 smoke]
-  D1Smoke --> API[Deploy Python Worker and static assets: viridian]
-  API --> APISmoke[Frontend, API, chat, and D1 smoke]
+  Fresh --> D1[Deploy D1 gateway and migrations]
+  D1 --> D1Smoke[Smoke D1 gateway]
+  D1Smoke --> API[Build and deploy FastAPI to Vercel]
+  API --> APISmoke[Smoke API health, readiness, providers]
   APISmoke --> Result[Aggregate release result]
 ```
 
 ## Production environment
 
-Create a GitHub Environment named `production` and restrict it to the
-`main` branch. Set the following variables:
+Create a GitHub Environment named `production` and restrict it to `main`.
+Set these variables:
 
-| Variable | Required value |
+| Variable | Purpose |
 |---|---|
-| `CLOUDFLARE_ACCOUNT_ID` | `b927bb5a175968756829a888953afd71` |
-| `CLOUDFLARE_D1_DATABASE_ID` | UUID of `viridian-sessions`. |
-| `CLOUDFLARE_D1_GATEWAY_URL` | D1 gateway origin. |
-| `CLOUDFLARE_API_URL` | Viridian API origin. |
+| `CLOUDFLARE_ACCOUNT_ID` | Account that owns the D1 gateway. |
+| `CLOUDFLARE_D1_DATABASE_ID` | UUID for `viridian-sessions`. |
+| `CLOUDFLARE_D1_GATEWAY_URL` | `https://viridian-d1-gateway.thavarshan.workers.dev`. |
+| `VERCEL_ORG_ID` | Vercel team ID for Viridian. |
+| `VERCEL_PROJECT_ID` | Vercel project ID for Viridian. |
+| `VERCEL_API_URL` | `https://viridian-api.vercel.app`. |
 
-Set these production secrets:
+Set these secrets:
 
-| Secret | Use |
+| Secret | Purpose |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare Workers and D1 deployment permissions. |
-| `D1_SERVICE_TOKEN` | Same high-entropy token on both Viridian Workers. |
-| `AUTH_SIGNING_SECRET` | At least 32 characters; signs API access tokens. |
-| `SMOKE_ANALYST_PASSWORD` | Must match the public synthetic Analyst account. |
-| `SMOKE_VIEWER_PASSWORD` | Must match the public synthetic Viewer account. |
-| `SMOKE_ADMIN_PASSWORD` | Public synthetic Administrator account. |
+| `CLOUDFLARE_API_TOKEN` | Deploy the D1 gateway and apply D1 migrations. |
+| `D1_SERVICE_TOKEN` | Shared service credential used by the API and gateway. |
+| `VERCEL_TOKEN` | Lets the production job pull settings, build, and deploy the Vercel project. |
 
-The demo passwords are intentionally public and synthetic. Never use them
-for another account. Rotate the Cloudflare API token, D1 token, and signing
-secret through their respective secret stores; do not put values in the
-repository or workflow command lines.
+Provider and authentication credentials stay in Vercel's production
+environment; GitHub Actions never downloads or prints them. Keep the
+Cloudflare token limited to the Viridian Worker and D1 resources.
 
 ## What the workflow checks
 
 The required gate includes lint, formatting, package build, Python tests and
-type checking, Python and npm dependency audits, D1 Worker tests and types,
-Docker Compose API smoke, workflow syntax, and static deployment
-configuration validation. The 3.12–3.14 Python matrix remains in place;
-the Cloudflare Python Worker toolchain is installed on Python 3.13.
+type checking, Python and npm dependency audits, D1 Worker checks, Docker
+Compose API smoke, workflow syntax, and deployment configuration. The Python
+matrix covers 3.12–3.14; the Vercel build uses Python 3.13 and the locked
+dependency set.
 
-After CI passes, deployment jobs recheck that the approved SHA is still the
-tip of `main`. The D1 job verifies the exact database name and ID, rejects
-unsafe migrations, applies reviewed forward-only migrations, and deploys the
-authenticated gateway. The API job builds the Python Worker with Pywrangler,
-loads its secrets through a restricted one-shot file, and publishes the
-frontend and FastAPI backend together.
+After CI passes, readiness confirms the approved SHA is still the tip of
+`main`. The D1 job validates the database identity, rejects unsafe
+migrations, applies reviewed forward-only migrations, and deploys the
+authenticated gateway. Its smoke verifies authentication and D1 read/write.
+Only then does the workflow build and deploy the FastAPI project to Vercel.
+The Vercel smoke checks health, D1 readiness, and the configured OpenAI and
+Pinecone providers. A final job fails the release if any deployment or smoke
+step did not succeed.
 
-Smoke checks verify gateway authentication and database writes, then verify
-the Viridian static assets, health/version/readiness, mock provider mode,
-login, role identity, cross-owner isolation, streamed chat completion, and
-persisted session messages. They use only synthetic data. The final job fails
-if either Worker deployment or any smoke check fails.
+`vercel.json` disables Vercel's automatic Git deployments so a push cannot
+bypass `ci-gate`. The CI job uses a pinned Vercel CLI version and the exact
+commit approved by the gate.
 
-## Free production profile
-
-The Wrangler API configuration pins the application to fixture retrieval,
-mock answers, and disabled LangSmith tracing. No OpenAI or Pinecone secrets
-are deployed. The deployment uses the Free Workers runtime, Workers Static
-Assets, and D1; it does not enable Containers, paid Worker CPU, or other paid
-Cloudflare products. Static asset delivery and API requests share the
-`viridian` Worker.
-
-Cloudflare Free limits still apply to API requests and D1 storage/query
-usage. Requests that exceed those limits fail rather than switching the
-account to a paid plan. The production smoke checks demonstrate the selected
-routes and synthetic data path; they are not a capacity benchmark.
+Streamlit Cloud remains connected to the repository and deploys UI changes
+from its configured branch independently of this workflow. It is not
+triggered by a GitHub Actions deploy command.
 
 ## Failure handling
 
-- **CI gate:** Fix the failed check and push a new commit. Deploy jobs do not
-  run after a failure, cancellation, skip, or stale release SHA.
-- **D1 migration:** Stop before applying changes if the database identity
-  differs or a migration is destructive. Prepare a forward-only migration.
-- **D1 gateway smoke:** The API deploy is blocked until the gateway can
-  authenticate and persist synthetic records.
-- **API deployment or smoke:** The aggregate result fails. Inspect the
-  relevant GitHub Actions step, then push a correction through the same gate.
-- **Rollback:** Use Cloudflare Worker versions to roll back code, then rerun
-  the smoke checks. A Worker code rollback does not roll back D1 data.
-
-Only Cloudflare resources participate in the production workflow. The local
-Streamlit client is not deployed by GitHub Actions.
+- **CI gate:** Fix the failed check and push a new commit. Deployment jobs do
+  not run after a failed, canceled, skipped, or stale gate.
+- **D1 migration or smoke:** The Vercel API deploy is blocked until the D1
+  gateway is healthy.
+- **Vercel credentials:** Add `VERCEL_TOKEN` to the `production` environment;
+  configure the non-secret Vercel IDs as environment variables.
+- **Vercel deployment or smoke:** Inspect the named deployment step in the
+  GitHub Actions run, then push a correction through the same gate.
+- **Rollback:** Roll back the Vercel API deployment and, separately, the D1
+  gateway Worker version. A Worker code rollback does not roll back D1 data.

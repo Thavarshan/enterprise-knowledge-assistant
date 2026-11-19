@@ -20,6 +20,7 @@ from scripts.deployment.cloudflare_config import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 API_WRANGLER_CONFIG = REPOSITORY_ROOT / "wrangler.jsonc"
 API_ENTRYPOINT = REPOSITORY_ROOT / "src/worker_entry.py"
+VERCEL_CONFIG = REPOSITORY_ROOT / "vercel.json"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github/workflows/ci.yml"
 WORKFLOW_DIRECTORY = REPOSITORY_ROOT / ".github/workflows"
 
@@ -58,6 +59,7 @@ def configuration_errors() -> list[str]:
         (WORKER_ROOT / "wrangler.jsonc").read_text(encoding="utf-8")
     )
     api_worker = json.loads(API_WRANGLER_CONFIG.read_text(encoding="utf-8"))
+    vercel = json.loads(VERCEL_CONFIG.read_text(encoding="utf-8"))
     worker_pin = package.get("devDependencies", {}).get("wrangler")
     locked_pin = lock.get("packages", {}).get("node_modules/wrangler", {})
     if not worker_pin or worker_pin != locked_pin.get("version"):
@@ -102,11 +104,20 @@ def configuration_errors() -> list[str]:
             "Viridian must keep its free Python Worker, mock providers, "
             "and static asset routing."
         )
-    if (REPOSITORY_ROOT / "vercel.json").exists():
-        errors.append("The retired Vercel deployment config must be removed.")
+    if (
+        "uv sync --frozen" not in vercel.get("installCommand", "")
+        or "--extra agents" not in vercel.get("installCommand", "")
+        or "--extra providers" not in vercel.get("installCommand", "")
+        or vercel.get("functions", {}).get("app.py", {}).get("maxDuration", 0)
+        < 60
+        or vercel.get("git", {}).get("deploymentEnabled") is not False
+    ):
+        errors.append(
+            "Vercel must build the full Viridian API and disable ungated Git deploys."
+        )
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
-    if "VERCEL_" in ci:
-        errors.append("The production workflow must not deploy through Vercel.")
+    if "VERCEL_TOKEN" not in ci or "vercel deploy --prebuilt --prod" not in ci:
+        errors.append("The production workflow must deploy the Vercel API.")
     workflow_files = {
         path.name for path in WORKFLOW_DIRECTORY.glob("*.yml")
     } | {path.name for path in WORKFLOW_DIRECTORY.glob("*.yaml")}
@@ -147,9 +158,9 @@ def configuration_errors() -> list[str]:
         ("readiness", "ci-gate"),
         ("deploy-cloudflare", "readiness"),
         ("smoke-cloudflare", "deploy-cloudflare"),
-        ("deploy-cloudflare-api", "smoke-cloudflare"),
-        ("smoke-cloudflare-api", "deploy-cloudflare-api"),
-        ("deployment-result", "smoke-cloudflare-api"),
+        ("deploy-vercel-api", "smoke-cloudflare"),
+        ("smoke-vercel-api", "deploy-vercel-api"),
+        ("deployment-result", "smoke-vercel-api"),
     )
     for job_name, required_dependency in sequence:
         block = _needs_text(ci, job_name)
@@ -160,15 +171,15 @@ def configuration_errors() -> list[str]:
     for required_job in (
         "deploy-cloudflare",
         "smoke-cloudflare",
-        "deploy-cloudflare-api",
-        "smoke-cloudflare-api",
+        "deploy-vercel-api",
+        "smoke-vercel-api",
         "deployment-result",
     ):
         if not _needs_text(ci, required_job):
             errors.append(f"ci.yml is missing deployment job {required_job}.")
     for protected_smoke_job in (
         "smoke-cloudflare",
-        "smoke-cloudflare-api",
+        "smoke-vercel-api",
     ):
         block = _needs_text(ci, protected_smoke_job)
         if not re.search(r"(?m)^    environment: production$", block):

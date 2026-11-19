@@ -648,7 +648,6 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
       CLOUDFLARE_D1_GATEWAY_URL: ${{ vars.CLOUDFLARE_D1_GATEWAY_URL }}
-      CLOUDFLARE_API_URL: ${{ vars.CLOUDFLARE_API_URL }}
     steps:
       - name: Check out the exact approved commit
         # actions/checkout v7.0.1
@@ -670,10 +669,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
-          AUTH_SIGNING_SECRET: ${{ secrets.AUTH_SIGNING_SECRET }}
-          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
-          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
         run: python3 -m scripts.deployment.deployment_preflight
       - name: Validate local Wrangler config and bundle
         working-directory: infra/cloudflare/d1-gateway
@@ -727,8 +722,8 @@ jobs:
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
         run: python3 -m scripts.deployment.smoke_cloudflare
 
-  deploy-cloudflare-api:
-    name: "Deploy: Viridian API and frontend"
+  deploy-vercel-api:
+    name: "Deploy: Viridian API on Vercel"
     needs: [readiness, smoke-cloudflare]
     if: needs.readiness.outputs.run_deployment == 'true'
     runs-on: ubuntu-24.04
@@ -736,15 +731,11 @@ jobs:
     environment: production
     permissions:
       contents: read
-    outputs:
-      api_url: ${{ vars.CLOUDFLARE_API_URL }}
     env:
-      CI_GATE_PASSED: "true"
       RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
-      CLOUDFLARE_D1_GATEWAY_URL: ${{ vars.CLOUDFLARE_D1_GATEWAY_URL }}
-      CLOUDFLARE_API_URL: ${{ vars.CLOUDFLARE_API_URL }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_CLI_VERSION: "65.16.0"
     steps:
       - name: Check out the exact approved commit
         # actions/checkout v7.0.1
@@ -752,7 +743,11 @@ jobs:
         with:
           ref: ${{ needs.readiness.outputs.release_sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
+      # actions/setup-node v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
       # astral-sh/setup-uv v10.3.1
       - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
@@ -762,49 +757,65 @@ jobs:
           cache-dependency-glob: |
             pyproject.toml
             uv.lock
-      - name: Install locked Python Worker toolchain
-        run: uv sync --locked --all-groups --all-extras --python 3.13
-      - name: Verify deployment targets and credentials
+      - name: Require Vercel production credentials
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
-          AUTH_SIGNING_SECRET: ${{ secrets.AUTH_SIGNING_SECRET }}
-          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
-          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
-        run: python3 -m scripts.deployment.deployment_preflight
-      - name: Deploy Viridian Python API and static frontend
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
+            echo "::error::Add VERCEL_TOKEN to the GitHub production environment."
+            exit 1
+          fi
+          if [[ -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
+            echo "::error::Set VERCEL_ORG_ID and VERCEL_PROJECT_ID in the GitHub production environment."
+            exit 1
+          fi
+      - name: Install pinned Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+      - name: Pull Vercel production environment
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          D1_SERVICE_TOKEN: ${{ secrets.D1_SERVICE_TOKEN }}
-          AUTH_SIGNING_SECRET: ${{ secrets.AUTH_SIGNING_SECRET }}
-          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
-          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
-        run: python3 -m scripts.deployment.deploy_cloudflare_api
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production
+      - name: Build approved API release
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod
+      - name: Deploy approved API release
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod --yes
 
-  smoke-cloudflare-api:
-    name: "Smoke: Viridian frontend and API"
-    needs: [readiness, deploy-cloudflare-api]
+  smoke-vercel-api:
+    name: "Smoke: Vercel API"
+    needs: [readiness, deploy-vercel-api]
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     environment: production
     permissions:
       contents: read
+    env:
+      VERCEL_API_URL: ${{ vars.VERCEL_API_URL }}
+      RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
     steps:
-      - name: Check out deployment smoke scripts
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.readiness.outputs.release_sha }}
-          persist-credentials: false
-      - name: Verify frontend, API, chat stream, and D1 persistence
-        env:
-          CLOUDFLARE_API_URL: ${{ needs.deploy-cloudflare-api.outputs.api_url }}
-          RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
-          SMOKE_ANALYST_PASSWORD: ${{ secrets.SMOKE_ANALYST_PASSWORD }}
-          SMOKE_VIEWER_PASSWORD: ${{ secrets.SMOKE_VIEWER_PASSWORD }}
-        run: python3 -m scripts.deployment.smoke_cloudflare_api
+      - name: Verify API liveness, D1 readiness, and provider configuration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${VERCEL_API_URL:-}" ]]; then
+            echo "::error::Set VERCEL_API_URL in the GitHub production environment."
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 \
+            --retry-all-errors "$VERCEL_API_URL/health"
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 \
+            --retry-all-errors "$VERCEL_API_URL/ready"
+          version="$(curl --fail --silent --show-error \
+            --retry 6 --retry-delay 5 --retry-all-errors \
+            "$VERCEL_API_URL/version")"
+          printf '%s' "$version" | jq --exit-status \
+            '.mode == "live" and .provider == "openai" and .retrieval == "pinecone"' \
+            >/dev/null
+          echo "Vercel API is healthy for release $RELEASE_SHA."
 
   deployment-result:
     name: "Result: Production deployment"
@@ -813,8 +824,8 @@ jobs:
       - readiness
       - deploy-cloudflare
       - smoke-cloudflare
-      - deploy-cloudflare-api
-      - smoke-cloudflare-api
+      - deploy-vercel-api
+      - smoke-vercel-api
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -830,5 +841,5 @@ jobs:
           RELEASE_SHA: ${{ needs.readiness.outputs.release_sha }}
           CLOUDFLARE_D1_GATEWAY_URL: >-
             ${{ needs.deploy-cloudflare.outputs.worker_url }}
-          CLOUDFLARE_API_URL: ${{ needs.deploy-cloudflare-api.outputs.api_url }}
+          VERCEL_API_URL: ${{ vars.VERCEL_API_URL }}
         run: python3 -m scripts.deployment.check_deployment_result

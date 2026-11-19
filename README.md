@@ -1,15 +1,14 @@
 # Viridian
 
-Viridian is an explainable enterprise knowledge assistant. Its canonical
-demo runs on Cloudflare Workers: a Python FastAPI API, static web
-frontend, authenticated D1 gateway, and D1 session database. The hosted demo
-uses only deterministic mock providers and synthetic data; it does not call
-OpenAI, Pinecone, or LangSmith.
+Viridian is an explainable enterprise knowledge assistant. The hosted
+platform uses Streamlit Cloud for the UI, Vercel for the FastAPI backend,
+and Cloudflare D1 for session storage through an authenticated gateway.
 
 ## Live demo
 
-Open [Viridian](https://viridian.thavarshan.workers.dev/). The public demo
-accounts are synthetic. Do not reuse their passwords.
+Open the active Streamlit Cloud app for the UI. The FastAPI health endpoint
+is [viridian-api.vercel.app/health](https://viridian-api.vercel.app/health).
+The public demo accounts use synthetic data; do not reuse their passwords.
 
 | Account | Password |
 |---|---|
@@ -17,27 +16,27 @@ accounts are synthetic. Do not reuse their passwords.
 | Analyst (`analyst`) | `analyst-demo-2026` |
 | Administrator (`admin`) | `admin-demo-2026` |
 
-The pre-existing Streamlit Cloud deployment remains active outside this
-release pipeline, by request. Cloudflare is the canonical Viridian demo.
+Streamlit Cloud deploys UI changes from its configured Git branch. GitHub
+Actions gates the D1 gateway and Vercel API deployments on `ci-gate`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    B[Browser] -->|Static assets and API| W[Cloudflare Worker: viridian]
-    W --> API[FastAPI on Python Workers]
+    B[Browser] --> UI[Streamlit Cloud]
+    UI --> API[FastAPI on Vercel]
     API --> AUTH[Authentication and RBAC]
-    API --> CHAT[Role-filtered fixture chat]
-    CHAT --> RET[Extractive synthetic evidence]
-    API -->|Authenticated HTTPS| G[Cloudflare Worker: viridian-d1-gateway]
+    API --> CHAT[LangGraph assistant]
+    CHAT --> RET[Pinecone retrieval]
+    CHAT --> LLM[OpenAI]
+    API --> LS[LangSmith tracing]
+    API -->|Authenticated HTTPS| G[Cloudflare D1 gateway]
     G --> D1[(Cloudflare D1: viridian-sessions)]
 ```
 
-The Cloudflare production profile is configured for the Free plan: Workers,
-Workers Static Assets, and D1 only. No paid Cloudflare feature or external
-paid provider is enabled. The static frontend and API share one origin. The
-D1 gateway is the only component with a D1 binding; the API reaches it with a
-server-side service token.
+The FastAPI backend runs on Vercel with the configured OpenAI, Pinecone,
+LangGraph, and LangSmith integrations. Cloudflare hosts the narrow D1 gateway
+and database; the API reaches them with a server-side service token.
 
 ## Local development
 
@@ -56,9 +55,9 @@ generated passwords once and stores them in ignored
 service. Run `docker compose up --build` to use containers instead.
 
 Local OpenAI, Pinecone, and LangSmith integrations are optional. They are
-disabled by default and are not used by the Cloudflare demo. For local
-Cloudflare-style D1 development, use `make cloud-sim`; the simulation uses a
-disposable local D1 database.
+disabled by default; configure them through `.env` for local provider use.
+For local Cloudflare-style D1 development, use `make cloud-sim`; the
+simulation uses a disposable local D1 database.
 
 ## Verification
 
@@ -68,16 +67,16 @@ make audit
 ```
 
 `make verify-live` and `make verify-langsmith` explicitly contact optional
-external providers and are not required for the Cloudflare deployment.
+external providers and are not required for the hosted release.
 Review their configuration and account usage before running them.
 
 GitHub Actions runs lint, formatting, package build, tests, type checks,
 dependency audits, D1 Worker checks, and deployment configuration checks.
-After the full CI gate passes on `main`, it deploys both Viridian Workers,
-applies forward-only migrations to `viridian-sessions`, and smoke-checks the
-frontend, API, chat stream, authentication, ownership boundaries, and D1
-persistence. See [CI/CD operations](docs/ci-cd.md) and the
-[Cloudflare deployment guide](docs/deployment.md).
+After the full CI gate passes on `main`, it applies forward-only migrations
+to `viridian-sessions`, deploys the D1 gateway, then deploys the FastAPI
+backend to Vercel. It smoke-checks the gateway and API health, readiness, and
+provider configuration. See [CI/CD operations](docs/ci-cd.md) and the
+[deployment guide](docs/deployment.md).
 
 ## Implemented behavior
 
@@ -85,14 +84,13 @@ persistence. See [CI/CD operations](docs/ci-cd.md) and the
   document access.
 - Local Python runs use LangGraph to route greetings, knowledge questions,
   bounded investigations, and supported numeric calculations.
-- The Cloudflare demo uses role-filtered fixture search and extractive
-  answers. OpenAI and Pinecone adapters remain optional for local work.
+- The hosted API uses LangGraph to route knowledge questions, bounded
+  investigations, and supported numeric calculations.
 - Server-sent events report workflow and tool activity without exposing
   private chain-of-thought.
 - D1 stores owner-scoped conversation history. The API holds the D1 gateway
   credential; browser requests never receive it.
-- Optional LangSmith tracing redacts inputs and outputs. It is disabled in
-  the Cloudflare production configuration.
+- LangSmith tracing redacts inputs and outputs before sending traces.
 
 ## Limits
 
@@ -112,7 +110,7 @@ implemented.
 - [Security](docs/security.md),
   [observability](docs/observability.md), and
   [evaluation matrix](docs/evaluation-matrix.md)
-- [Cloudflare deployment](docs/deployment.md)
+- [Production deployment](docs/deployment.md)
 - [CI/CD and release operations](docs/ci-cd.md)
 - [Demonstration guide](docs/demo-guide.md) and
   [architecture decisions](docs/decisions/README.md)
