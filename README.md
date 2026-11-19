@@ -7,7 +7,7 @@ available for tests and local development.
 
 ## Live demo
 
-Open the [Viridian demo][live-demo]. In the sidebar, select a user, enter the
+Open the [Viridian demo](https://viridian.streamlit.app/). In the sidebar, select a user, enter the
 matching password, and press **Sign in**.
 
 - Viewer (`viewer`): `viewer-demo-2026`
