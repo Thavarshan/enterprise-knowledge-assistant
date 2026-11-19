@@ -113,7 +113,8 @@ def configuration_errors() -> list[str]:
         or vercel.get("git", {}).get("deploymentEnabled") is not False
     ):
         errors.append(
-            "Vercel must build the full Viridian API and disable ungated Git deploys."
+            "Vercel must build the full Viridian API and disable "
+            "ungated Git deploys."
         )
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
     if "VERCEL_TOKEN" not in ci or "vercel deploy --prebuilt --prod" not in ci:
