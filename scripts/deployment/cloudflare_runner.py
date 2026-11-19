@@ -15,6 +15,9 @@ from scripts.deployment.cloudflare_config import (
     require_gated_cloud_deployment,
     verify_cloudflare_database,
 )
+from scripts.deployment.cloudflare_worker_registration import (
+    ensure_worker_registered,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
@@ -116,6 +119,7 @@ def deploy_worker() -> None:
     render_wrangler_config()
     verify_cloudflare_database()
     assert_release_current()
+    ensure_worker_registered("viridian-d1-gateway")
 
     descriptor, secret_path = tempfile.mkstemp(
         prefix="viridian-worker-secret-", suffix=".json"

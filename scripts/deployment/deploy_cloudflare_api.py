@@ -17,6 +17,9 @@ from scripts.deployment.cloudflare_config import (
     verify_cloudflare_database,
 )
 from scripts.deployment.cloudflare_runner import assert_release_current
+from scripts.deployment.cloudflare_worker_registration import (
+    ensure_worker_registered,
+)
 from scripts.deployment.generate_cloudflare_fixtures import (
     prepare_worker_fixtures,
     remove_worker_fixtures,
@@ -41,6 +44,7 @@ def deploy_api_worker() -> None:
         prepare_worker_fixtures()
         verify_cloudflare_database()
         assert_release_current()
+        ensure_worker_registered("viridian")
         subprocess.run(
             [
                 "uv",
