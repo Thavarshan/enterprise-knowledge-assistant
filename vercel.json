@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "uv sync --frozen --all-extras --no-default-groups",
   "functions": {
     "app.py": {
       "maxDuration": 60

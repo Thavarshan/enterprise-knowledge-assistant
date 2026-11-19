@@ -1,1 +1,1 @@
-.[agents,providers,server]
+.[agents,providers]
